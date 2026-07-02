@@ -55,22 +55,20 @@ class NodeVersionSyncTests(TestCase):
             self.now,
         )
 
-    def test_corroborated_stable_release_creates_active_target(self):
-        """A stable release reported by two distinct operators becomes the target."""
-        op1 = self._operator('a@x.com', '0x' + 'a' * 40)
-        w1 = self._wallet('0x' + '1' * 40, op1)
-        op2 = self._operator('a2@x.com', '0x' + 'e' * 39 + '1')
-        w2 = self._wallet('0x' + 'f' * 39 + '1', op2)
-        self._sync('asimov', {w1: 'v0.6.0', w2: 'v0.6.0'})
+    def test_first_stable_release_creates_active_target(self):
+        """Default quorum is 1: the first adopter's stable release becomes the target."""
+        op = self._operator('a@x.com', '0x' + 'a' * 40)
+        w = self._wallet('0x' + '1' * 40, op)
+        self._sync('asimov', {w: 'v0.6.0'})
 
         target = TargetNodeVersion.get_active(network='asimov')
         self.assertIsNotNone(target)
         self.assertEqual(target.version, '0.6.0')  # 'v' stripped
 
-    def test_single_operator_cannot_create_target(self):
-        """The version label is self-reported by the node being rewarded: one
-        operator alone must not be able to pin a fleet-wide target (and shame
-        everyone else / bank the first-adopter bonus)."""
+    @override_settings(NODE_VERSION_MIN_OPERATORS_FOR_AUTO_TARGET=2)
+    def test_auto_target_operator_quorum_is_configurable(self):
+        """Raising the quorum setting requires corroboration: one operator alone
+        can no longer pin a fleet-wide target, but a second operator confirms it."""
         op = self._operator('solo@x.com', '0x' + 'a' * 39 + '2')
         w1 = self._wallet('0x' + '1' * 39 + '2', op)
         w2 = self._wallet('0x' + '1' * 39 + '3', op)  # same operator, two nodes
@@ -81,16 +79,13 @@ class NodeVersionSyncTests(TestCase):
         op.refresh_from_db()
         self.assertEqual(op.node_version_asimov, '9.9.9')
 
-    @override_settings(NODE_VERSION_MIN_OPERATORS_FOR_AUTO_TARGET=1)
-    def test_auto_target_operator_threshold_is_configurable(self):
-        """The anti-collusion threshold is a setting, read at evaluation time."""
-        op = self._operator('cfg@x.com', '0x' + 'f' * 39 + '2')
-        w = self._wallet('0x' + 'f' * 39 + '3', op)
-        self._sync('asimov', {w: 'v0.6.0'})
+        op2 = self._operator('cfg@x.com', '0x' + 'f' * 39 + '2')
+        w3 = self._wallet('0x' + 'f' * 39 + '3', op2)
+        self._sync('asimov', {w1: 'v9.9.9', w3: 'v9.9.9'})
 
         target = TargetNodeVersion.get_active(network='asimov')
         self.assertIsNotNone(target)
-        self.assertEqual(target.version, '0.6.0')
+        self.assertEqual(target.version, '9.9.9')
 
     def test_unknown_addresses_cannot_create_target(self):
         """Prometheus series for addresses we don't know (test rigs, spoofed or
@@ -179,7 +174,6 @@ class NodeVersionSyncTests(TestCase):
             Contribution.objects.filter(user=op.user, contribution_type=self.ctype).exists()
         )
 
-    @override_settings(NODE_VERSION_MIN_OPERATORS_FOR_AUTO_TARGET=1)
     def test_banned_operator_user_gets_no_target_version_or_award(self):
         op = self._operator('suspended@x.com', '0x' + 'c' * 39 + '4', is_banned=True)
         w = self._wallet('0x' + 'c' * 39 + '5', op)

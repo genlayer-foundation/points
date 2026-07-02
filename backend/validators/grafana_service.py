@@ -46,13 +46,13 @@ _VERSION_MAX_LENGTH = 50
 
 def min_operators_for_auto_target():
     """
-    A stable release only becomes an auto-created target once this many distinct
-    operators report it: the version label is self-reported by the node being judged
-    and rewarded, so a single (malicious or misconfigured) operator must not be able
-    to pin a fleet-wide target and shame everyone else / bank the first-adopter bonus.
+    Distinct operators that must report a stable release before it auto-creates a
+    target. Default 1: the first adopter creates the target (product decision).
+    The version label is self-reported by the node being judged and rewarded, so
+    raise the setting to require corroboration if spoofing ever becomes a concern.
     Read at call time (not import) so the setting is tunable without a code deploy.
     """
-    return getattr(settings, 'NODE_VERSION_MIN_OPERATORS_FOR_AUTO_TARGET', 2)
+    return getattr(settings, 'NODE_VERSION_MIN_OPERATORS_FOR_AUTO_TARGET', 1)
 
 
 def _latch(prev, cur, severity):
@@ -448,9 +448,9 @@ class GrafanaValidatorStatusService:
 
         Trust boundary: the `version` label is self-reported by the node being
         judged and rewarded. Only versions observed on wallets known to this DB and
-        linked to an operator count for anything, banned wallets and wallets of
-        banned users count for nothing, and no single operator can move the
-        fleet-wide target on their own.
+        linked to an operator count for anything, and banned wallets and wallets of
+        banned users count for nothing. The operator quorum for auto-targets is
+        configurable (default 1: the first adopter creates the target).
 
         Any other wallet qualifies for (2)/(3) — a quarantined/inactive node
         that still reports can record its upgrade and earn the award.
@@ -494,10 +494,10 @@ class GrafanaValidatorStatusService:
                 return
 
             # (1) Auto-create target from the highest stable release reported by
-            # enough distinct operators (min_operators_for_auto_target), so one
-            # operator's self-reported label can't pin a bogus fleet-wide target
-            # (and farm the first-adopter bonus). An active target with an
-            # unparseable version is never superseded blindly.
+            # enough distinct operators (min_operators_for_auto_target, default 1:
+            # the first adopter creates the target; raise the setting to require
+            # corroboration if spoofing ever becomes a concern). An active target
+            # with an unparseable version is never superseded blindly.
             operators_by_stable = {}
             for operator, versions in by_operator.items():
                 for v in versions:

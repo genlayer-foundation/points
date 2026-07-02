@@ -462,11 +462,12 @@ NODE_VERSION_SHAME_GRACE_DAYS = int(os.environ.get('NODE_VERSION_SHAME_GRACE_DAY
 
 # Minimum distinct operators that must be observed running a new stable node
 # version before the Grafana sync auto-creates it as the fleet-wide upgrade
-# target. The version label is self-reported by the nodes being judged and
-# rewarded, so this is the anti-spoof/anti-collusion threshold
+# target. Default 1: the first adopter creates the target (product decision).
+# The version label is self-reported by the nodes being judged and rewarded,
+# so raise this to require corroboration if spoofing ever becomes a concern
 # (validators/grafana_service.py).
 NODE_VERSION_MIN_OPERATORS_FOR_AUTO_TARGET = int(
-    os.environ.get('NODE_VERSION_MIN_OPERATORS_FOR_AUTO_TARGET', '2') or '2'
+    os.environ.get('NODE_VERSION_MIN_OPERATORS_FOR_AUTO_TARGET', '1') or '1'
 )
 
 # AWS Health Check IPs - Allow these IPs to bypass ALLOWED_HOSTS
