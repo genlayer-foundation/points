@@ -59,6 +59,13 @@ class GrafanaValidatorSerializer(serializers.ModelSerializer):
     join the roster straight onto metrics. Operator account identity (name,
     account address) is only exposed for visible operators; non-visible
     operators are identified by their on-chain operator address alone.
+
+    `identity_missing` flags an incomplete validator setup: a comma-joined
+    list drawn from `moniker` / `logo` / `description` (blank getIdentity()
+    fields, synced on-chain every 5 min) and `portal` (wallet not linked to
+    any portal account). Empty string = correctly set up. It deliberately
+    reveals only whether a portal link exists — never who — so it is safe
+    for non-visible operators.
     """
     network = serializers.SerializerMethodField()
     node = serializers.SerializerMethodField()
@@ -67,6 +74,7 @@ class GrafanaValidatorSerializer(serializers.ModelSerializer):
     account = serializers.SerializerMethodField()
     account_name = serializers.SerializerMethodField()
     explorer_url = serializers.SerializerMethodField()
+    identity_missing = serializers.SerializerMethodField()
 
     class Meta:
         model = ValidatorWallet
@@ -79,6 +87,7 @@ class GrafanaValidatorSerializer(serializers.ModelSerializer):
             'account',
             'account_name',
             'explorer_url',
+            'identity_missing',
         ]
         read_only_fields = fields
 
@@ -112,6 +121,18 @@ class GrafanaValidatorSerializer(serializers.ModelSerializer):
 
     def get_explorer_url(self, obj):
         return settings.TESTNET_NETWORKS.get(obj.network, {}).get('explorer_url', '')
+
+    def get_identity_missing(self, obj):
+        missing = []
+        if not obj.moniker:
+            missing.append('moniker')
+        if not obj.logo_uri:
+            missing.append('logo')
+        if not obj.description:
+            missing.append('description')
+        if not obj.operator_id:
+            missing.append('portal')
+        return ','.join(missing)
 
 
 class WallOfShameSerializer(serializers.ModelSerializer):
