@@ -54,7 +54,11 @@ export async function getMetaMaskConnectClient() {
       },
       ui: {
         preferExtension: true,
-        showInstallModal: true,
+        // Must stay false (SDK default): besides ordering the modal sections,
+        // this flag gates connect()'s mobile branch — when true, mobile web
+        // gets the desktop QR modal instead of deeplinking into the MetaMask
+        // app. Desktop still shows the QR modal either way.
+        showInstallModal: false,
       },
       skipAutoAnnounce: true,
     }).catch((error) => {
