@@ -10,6 +10,7 @@
   import SearchBar from '../components/portal/SearchBar.svelte';
   import Pagination from '../components/Pagination.svelte';
   import CategoryIcon from '../components/portal/CategoryIcon.svelte';
+  import { visibleContributions } from '../lib/hiddenContributions.js';
 
   const HIGHLIGHTS_PREVIEW_COUNT = 15;
   const PAGE_SIZE = 20;
@@ -299,7 +300,7 @@
   let publicTypeIds = $derived(new Set(allTypes.map(t => String(t.id))));
 
   function buildBaseParams() {
-    const params = { public_explorer_only: 'true' };
+    const params = { public_explorer_only: 'true', exclude_onboarding: 'true' };
     if (category !== 'all') params.category = category;
     if (typeId) params.contribution_type = typeId;
     if (missionId) params.mission = missionId;
@@ -367,9 +368,11 @@
       // Backend /highlights/ only honors `category` server-side; rest is client-side.
       // Request every highlight so user/type/mission filters are not limited to
       // only the latest dashboard-sized batch.
-      const params = category !== 'all' ? { category, limit: 0 } : { limit: 0 };
+      const params = category !== 'all'
+        ? { category, limit: 0, exclude_onboarding: 'true' }
+        : { limit: 0, exclude_onboarding: 'true' };
       const response = await contributionsAPI.getAllHighlights(params);
-      const all = Array.isArray(response.data) ? response.data : (response.data?.results || []);
+      const all = visibleContributions(Array.isArray(response.data) ? response.data : (response.data?.results || []));
       const sorted = sortHighlights(filterHighlightsClientSide(all));
       highlightsCount = sorted.length;
       const start = view === 'both' ? 0 : (highlightsPage - 1) * PAGE_SIZE;
@@ -399,8 +402,8 @@
         page_size: PAGE_SIZE,
         ordering: sortBy,
       });
-      contributions = response.data?.results || [];
-      contributionsCount = response.data?.count || 0;
+      contributions = visibleContributions(response.data?.results || []);
+      contributionsCount = response.data?.count || contributions.length;
     } catch (err) {
       contributionsError = err?.message || 'Failed to load contributions';
       contributions = [];

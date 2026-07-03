@@ -2,6 +2,7 @@
   // @ts-nocheck
   import { push } from 'svelte-spa-router';
   import { contributionsAPI, projectsAPI, usersAPI } from '../lib/api.js';
+  import { isHiddenWelcomeContribution } from '../lib/hiddenContributions.js';
   import {
     getMarkdownTextLength,
     validateProjectMarkdownMedia,
@@ -208,6 +209,7 @@
             user_address: getParticipantAddress(user),
             page_size: 100,
             ordering: '-frozen_global_points',
+            exclude_onboarding: 'true',
           })
         )
       );
@@ -215,7 +217,7 @@
       contributionOptions = responses
         .flatMap((response) => response.data?.results || response.data || [])
         .filter((contribution) => {
-          if (!contribution?.id || seen.has(contribution.id)) return false;
+          if (!contribution?.id || seen.has(contribution.id) || isHiddenWelcomeContribution(contribution)) return false;
           seen.add(contribution.id);
           return true;
         })

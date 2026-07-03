@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import { contributionsAPI } from '../../lib/api.js';
+  import { visibleContributions } from '../../lib/hiddenContributions.js';
   import PortalContributionCard from '../portal/PortalContributionCard.svelte';
 
   let {
@@ -16,25 +17,19 @@
   let contributions = $state([]);
   let loading = $state(true);
   let error = $state(null);
-  const hiddenContributionTypeSlugs = new Set(['builder-welcome']);
-
-  function contributionTypeSlug(contribution) {
-    return contribution?.contribution_type_details?.slug || contribution?.contribution_type?.slug || '';
-  }
 
   async function fetchContributions() {
     try {
       loading = true;
       const params = {
-        limit: limit + hiddenContributionTypeSlugs.size,
+        limit: limit + 2,
         ordering: '-created_at',
+        exclude_onboarding: 'true',
       };
       if (userId) params.user_address = userId;
       if (category) params.category = category;
       const response = await contributionsAPI.getContributions(params);
-      contributions = (response.data.results || [])
-        .filter((contribution) => !hiddenContributionTypeSlugs.has(contributionTypeSlug(contribution)))
-        .slice(0, limit);
+      contributions = visibleContributions(response.data.results || []).slice(0, limit);
     } catch (err) {
       error = err.message || 'Failed to load contributions';
     } finally {

@@ -2,6 +2,7 @@
   import Pagination from './Pagination.svelte';
   import ContributionCard from './ContributionCard.svelte';
   import { contributionsAPI } from '../lib/api';
+  import { visibleContributions } from '../lib/hiddenContributions.js';
 
   const {
     contributions = [],
@@ -23,8 +24,10 @@
 
   // Normalize each contribution into the shape ContributionCard expects.
   // No grouping — every contribution is its own card.
+  let displayContributions = $derived(visibleContributions(localContributions));
+
   let processedContributions = $derived(
-    (localContributions || []).map(contrib => ({
+    displayContributions.map(contrib => ({
       ...contrib,
       typeId: typeof contrib.contribution_type === 'object'
         ? contrib.contribution_type.id
@@ -47,7 +50,7 @@
     try {
       localLoading = true;
       localError = null;
-      const params = { page, limit, user_address: userAddress };
+      const params = { page, limit, user_address: userAddress, exclude_onboarding: 'true' };
       if (category) params.category = category;
       const res = await contributionsAPI.getContributions(params);
       totalCount = res.data.count || 0;
@@ -73,7 +76,7 @@
     <div class="p-6 text-center text-red-500">
       Failed to load contributions: {localError}
     </div>
-  {:else if localContributions.length === 0}
+  {:else if displayContributions.length === 0}
     <div class="p-6 text-center text-gray-500">
       No contributions found.
     </div>

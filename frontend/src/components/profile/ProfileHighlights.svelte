@@ -3,6 +3,7 @@
     import { push } from "svelte-spa-router";
     import { format } from "date-fns";
     import { usersAPI, contributionsAPI } from "../../lib/api.js";
+    import { visibleContributions } from "../../lib/hiddenContributions.js";
 
     let {
         userId = null,
@@ -48,7 +49,7 @@
         try {
             loading = true;
             let response;
-            const params = { limit };
+            const params = { limit: limit + 2, exclude_onboarding: "true" };
             if (category) params.category = category;
 
             if (userId) {
@@ -57,7 +58,7 @@
                 response = await contributionsAPI.getAllHighlights(params);
             }
 
-            highlights = response.data || [];
+            highlights = visibleContributions(response.data || []).slice(0, limit);
         } catch (err) {
             error = err.message || "Failed to load highlights";
         } finally {

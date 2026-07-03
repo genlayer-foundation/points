@@ -1,5 +1,6 @@
 <script>
   import { contributionsAPI, statsAPI, leaderboardAPI, validatorsAPI, buildersAPI } from '../lib/api';
+  import { visibleContributions } from '../lib/hiddenContributions.js';
   import { currentCategory } from '../stores/category.js';
 
   // Generic UI components
@@ -113,8 +114,9 @@
   }
 
   function filterRecentContributions(contributions, cat) {
-    if (cat !== 'community') return contributions;
-    return contributions.filter((contribution) => !isCommunitySocialLinkContribution(contribution));
+    const visible = visibleContributions(contributions);
+    if (cat !== 'community') return visible;
+    return visible.filter((contribution) => !isCommunitySocialLinkContribution(contribution));
   }
 
   function formatDateParam(date) {
