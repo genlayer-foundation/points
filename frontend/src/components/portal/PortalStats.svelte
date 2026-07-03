@@ -239,11 +239,19 @@
       padding: 12px;
     }
 
-    .metric-row :global(img),
+    /* Shrink the CategoryIcon wrapper (inline-styled at 44px) and its inner
+       glyph proportionally — a bare img selector would blow the glyph up to
+       the full hexagon size. */
+    .metric-row :global(.relative),
     .metric-icon-skeleton {
       height: 34px !important;
       width: 34px !important;
       flex-basis: 34px;
+    }
+
+    .metric-row :global(.relative img.absolute) {
+      height: 17px !important;
+      width: 17px !important;
     }
 
     .metric-copy strong {

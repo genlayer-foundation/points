@@ -725,7 +725,7 @@
   @media (max-width: 640px) {
     .journey-page {
       gap: 20px;
-      padding: 12px 0 56px;
+      padding: 12px 4px 56px;
     }
 
     .step-check-panel {
