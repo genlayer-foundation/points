@@ -110,21 +110,24 @@
                (window.ethereum?.isMetaMask && !window.ethereum?.isTrust && !window.ethereum?.isPhantom);
       },
       getProvider: async () => {
-        const eip6963 = getEIP6963Provider('metamask');
-        if (eip6963) return eip6963;
-        
-        const provider = findProviderInArray(p => p.isMetaMask && !p.isTrust && !p.isPhantom);
-        if (provider) return provider;
-
-        if (window.ethereum?.isMetaMask && !window.ethereum?.isTrust && !window.ethereum?.isPhantom) {
-          return window.ethereum;
+        // SDK-first: every MetaMask selection goes through Connect SDK
+        // (preferExtension routes to the extension when present).
+        try {
+          const { getMetaMaskConnectProvider } = await import('../lib/metamaskConnect.js');
+          return await getMetaMaskConnectProvider();
+        } catch (error) {
+          // Deliberate cancel — never silently fall back
+          if (error?.code === 4001) throw error;
+          // SDK chunk failed to load or SDK errored — use the injected
+          // extension provider when one exists, otherwise surface the failure.
+          const injected =
+            getEIP6963Provider('metamask') ||
+            findProviderInArray(p => p.isMetaMask && !p.isTrust && !p.isPhantom) ||
+            ((window.ethereum?.isMetaMask && !window.ethereum?.isTrust && !window.ethereum?.isPhantom)
+              ? window.ethereum : null);
+          if (injected) return injected;
+          throw error;
         }
-        
-        if (window.ethereum?.isMetaMask && (window.ethereum?.isTrust || window.ethereum?.isPhantom)) {
-          return 'conflict';
-        }
-        
-        return null;
       }
     },
     trust: {
@@ -217,11 +220,15 @@
     for (const walletId of primaryWallets) {
       const config = walletConfigs[walletId];
       const installed = Boolean(config.checkInstalled());
+      // UI-only flag: routing always goes through getProvider (SDK-first for
+      // MetaMask); this just picks pill text and bypasses the install gate.
+      const connectsViaSdk = walletId === 'metamask' && !installed;
       wallets.push({
         id: walletId,
         name: config.name,
         installed,
-        mobileDeepLink: isMobileBrowser() && !installed ? getMobileDeepLink(walletId) : null,
+        connectsViaSdk,
+        mobileDeepLink: isMobileBrowser() && !installed && !connectsViaSdk ? getMobileDeepLink(walletId) : null,
         getProvider: config.getProvider
       });
     }
@@ -256,7 +263,7 @@
       return;
     }
     
-    if (!wallet.installed) {
+    if (!wallet.installed && !wallet.connectsViaSdk) {
       if (wallet.mobileDeepLink) {
         window.location.href = wallet.mobileDeepLink;
         return;
@@ -283,28 +290,6 @@
 
       // Check if user dismissed the local connection view
       if (connectionDismissed) {
-        return;
-      }
-      
-      // Handle special conflict case for MetaMask
-      if (provider === 'conflict' && wallet.id === 'metamask') {
-        connectingWallet = null; // Clear connecting state
-        
-        // Trust Wallet is hijacking the connection
-        const response = confirm(
-          'Trust Wallet is interfering with MetaMask connection.\n\n' +
-          'To use MetaMask, you have two options:\n' +
-          '1. Click OK to try anyway (may connect to Trust Wallet instead)\n' +
-          '2. Click Cancel, then disable Trust Wallet extension and refresh the page\n\n' +
-          'Continue anyway?'
-        );
-        
-        if (response) {
-          connectingWallet = wallet; // Set connecting state again
-          // Try with the conflicted provider
-          await onSelect(window.ethereum, wallet.name);
-          // Don't close here - let parent component handle it
-        }
         return;
       }
       
@@ -370,6 +355,20 @@
     if (!isOpen || connectingWallet) return;
     isOpen = false;
     onDismiss({ reason, connecting: false });
+  }
+
+  function walletHelpText(wallet) {
+    if (wallet.installed) return 'Ready in this browser';
+    if (wallet.connectsViaSdk) return 'Connect from extension or mobile';
+    if (wallet.mobileDeepLink) return 'Open the mobile wallet app';
+    return 'Install to continue';
+  }
+
+  function walletStatusText(wallet) {
+    if (wallet.installed) return 'Detected';
+    if (wallet.connectsViaSdk) return 'Connect';
+    if (wallet.mobileDeepLink) return 'Open app';
+    return 'Install';
   }
 
   function handleBackdropClick(e) {
@@ -498,7 +497,7 @@
           <div class="wallet-selector-list">
             {#each availableWallets as wallet}
               <button
-                class="wallet-option {!wallet.installed ? 'wallet-not-installed' : ''}"
+                class="wallet-option {!wallet.installed && !wallet.connectsViaSdk ? 'wallet-not-installed' : ''}"
                 onclick={() => selectWallet(wallet)}
                 disabled={connectingWallet !== null}
               >
@@ -510,11 +509,11 @@
                     {wallet.name}
                   </span>
                   <span class="wallet-help">
-                    {wallet.installed ? 'Ready in this browser' : wallet.mobileDeepLink ? 'Open the mobile wallet app' : 'Install to continue'}
+                    {walletHelpText(wallet)}
                   </span>
                 </span>
-                <span class="wallet-status" class:wallet-status-ready={wallet.installed}>
-                  {wallet.installed ? 'Detected' : wallet.mobileDeepLink ? 'Open app' : 'Install'}
+                <span class="wallet-status" class:wallet-status-ready={wallet.installed || wallet.connectsViaSdk}>
+                  {walletStatusText(wallet)}
                 </span>
                 <svg class="wallet-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                   <path d="m7.5 4.5 5 5.5-5 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />

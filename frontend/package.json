@@ -13,6 +13,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@metamask/connect-evm": "2.1.0",
     "axios": "^1.17.0",
     "buffer": "^6.0.3",
     "chart.js": "^4.5.0",
@@ -28,6 +29,7 @@
   "overrides": {
     "picomatch": "4.0.4",
     "sucrase": "3.35.1",
+    "uuid": "11.1.1",
     "ws": "8.21.0"
   },
   "devDependencies": {
