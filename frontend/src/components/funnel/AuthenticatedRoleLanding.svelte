@@ -80,7 +80,7 @@
             clip-rule="evenodd"
           />
         </svg>
-        Validator waitlist active
+        <span>Validator waitlist active</span>
       </div>
 
       <article class="validator-contact-card" aria-labelledby="validator-contact-title">
@@ -380,7 +380,7 @@
     }
 
     .start-button span,
-    .waitlist-status {
+    .waitlist-status span {
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;

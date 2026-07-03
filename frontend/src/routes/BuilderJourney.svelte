@@ -1360,7 +1360,15 @@
 
     .task-card-frame,
     .social-link-frame,
-    .panel-actions,
+    .panel-actions {
+      width: 100%;
+    }
+
+    .panel-actions {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
     .panel-actions .landing-button {
       width: 100%;
     }

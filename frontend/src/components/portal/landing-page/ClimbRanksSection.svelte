@@ -18,7 +18,7 @@
       </div>
       <div class="flex gap-[10px] items-start md:items-center">
         <img src="/assets/icons/checkbox-circle-fill.svg" alt="" class="w-4 h-4 flex-shrink-0" />
-        <span class="text-[15px] md:text-[17px] text-black leading-[23px] md:leading-[28px]" style="letter-spacing: 0.02em;">Badges and roles unlock as you progress</span>
+        <span class="text-[15px] md:text-[17px] text-black leading-[23px] md:leading-[28px]" style="letter-spacing: 0.02em;">Contributions and roles unlock as you progress</span>
       </div>
     </div>
   </div>
