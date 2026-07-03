@@ -4,6 +4,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- The Grafana validator roster now says whether each validator wallet is linked to a portal account and carries the raw on-chain identity values (moniker, logo, description presence), so dashboards can show link status and setup completeness (e72de98)
+
 - The Grafana validator roster now lists graduated validators that are missing from a testnet, so the Wall of Shame can show every expected validator on both Asimov and Bradbury (99cb19e)
 
 - MetaMask can now connect natively via the extension, a QR code from desktop, or the mobile app — even when the extension is not installed — using MetaMask's official Connect flow; other wallets are unaffected (abfad3cb)
