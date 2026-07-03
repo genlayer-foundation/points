@@ -946,6 +946,12 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
         shame timestamps) — those live on `wall-of-shame` and change often;
         this endpoint is meant to stay small and stable.
 
+        Graduated portal validators (visible Validator role users) are expected
+        to run a node on EVERY testnet, but an absent one has no wallet row to
+        join on — so per network we append one synthetic `status='missing'` row
+        per graduated account with no wallet linked there (see
+        `_missing_graduated_rows`).
+
         Optional ?network=asimov|bradbury filter. Cached 60s. Public.
         """
         network = request.query_params.get('network', '').strip().lower() or None
@@ -968,9 +974,54 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(network=network)
         queryset = queryset.order_by('network', 'moniker', 'address')
 
-        data = GrafanaValidatorSerializer(queryset, many=True).data
+        data = list(GrafanaValidatorSerializer(queryset, many=True).data)
+        for net in ([network] if network else settings.TESTNET_NETWORKS):
+            data.extend(self._missing_graduated_rows(net))
         cache.set(cache_key, data, 60)
         return Response(data)
+
+    @staticmethod
+    def _missing_graduated_rows(network):
+        """
+        Synthetic roster rows for graduated validators absent from `network`.
+
+        One `status='missing'` row per visible graduated operator with no
+        wallet linked on this network — either they never registered there or
+        their wallet isn't linked to their portal account (the network factory's
+        `getWalletsForOperator` is the definitive check); both cases are
+        outreach-worthy. `node` carries the account address purely as a unique
+        join key — by construction it matches no wallet or metric series.
+        """
+        linked_user_ids = (
+            ValidatorWallet.objects
+            .filter(network=network, operator__isnull=False)
+            .values_list('operator__user_id', flat=True)
+        )
+        graduated = (
+            Validator.objects
+            .select_related('user')
+            .filter(user__visible=True)
+            .exclude(user_id__in=linked_user_ids)
+            .order_by('user__name')
+        )
+        label = settings.GRAFANA_NETWORK_LABELS.get(network, network)
+        explorer_url = settings.TESTNET_NETWORKS.get(network, {}).get('explorer_url', '')
+        rows = []
+        for validator in graduated:
+            account = (validator.user.address or '').lower()
+            if not account:
+                continue
+            rows.append({
+                'network': label,
+                'node': account,
+                'name': validator.user.name or account,
+                'status': 'missing',
+                'operator': None,
+                'account': account,
+                'account_name': validator.user.name or None,
+                'explorer_url': explorer_url,
+            })
+        return rows
 
     @action(detail=False, methods=['get'], url_path='wall-of-shame')
     def wall_of_shame(self, request):
