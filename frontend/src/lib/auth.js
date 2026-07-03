@@ -643,7 +643,15 @@ function handleChainChanged(chainId) {
  */
 function setupWalletListeners() {
   const walletProvider = resolveWalletListenerTarget(authState.get().provider);
-  if (!walletProvider?.on || accountsChangedHandler) return;
+  if (!walletProvider?.on) return;
+
+  // Already attached to this provider — nothing to do
+  if (walletListenerProvider === walletProvider && accountsChangedHandler) return;
+
+  // Target changed (e.g. injected at page load, SDK provider after a
+  // MetaMask Connect login) — detach from the old provider first so
+  // account/chain events from the active session aren't missed.
+  removeWalletListeners();
 
   // Create handlers
   accountsChangedHandler = handleAccountsChanged;
