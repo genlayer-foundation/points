@@ -4,6 +4,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- The Grafana validator roster now lists graduated validators that are missing from a testnet, so the Wall of Shame can show every expected validator on both Asimov and Bradbury (99cb19e)
+
 - MetaMask can now connect natively via the extension, a QR code from desktop, or the mobile app — even when the extension is not installed — using MetaMask's official Connect flow; other wallets are unaffected (abfad3cb)
 
 - Polished remaining mobile rough edges: the Overview contributor metric icons fit their hexagons again, the How it works illustrations display at their intended size instead of collapsing or leaving large empty gaps, and the onboarding journeys keep proper card borders and side spacing on small screens (4240231e)
