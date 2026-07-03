@@ -183,16 +183,20 @@ export async function connectWallet(provider = null, walletName = 'wallet') {
       throw new Error(`No wallet detected. Please install ${walletName} to continue.`);
     }
 
-    // First, try to request permissions to trigger account selection dialog
-    // This works with MetaMask and wallets that support wallet_requestPermissions
-    try {
-      await ethereumProvider.request({
-        method: 'wallet_requestPermissions',
-        params: [{ eth_accounts: {} }]
-      });
-    } catch (permissionError) {
-      // If the wallet doesn't support wallet_requestPermissions or user rejected,
-      // we'll continue with the normal flow
+    // Skip for the MetaMask Connect SDK provider: it intercepts
+    // wallet_requestPermissions as a forced re-connect and would double-prompt.
+    if (!ethereumProvider.__genlayerMetaMaskConnect) {
+      // First, try to request permissions to trigger account selection dialog
+      // This works with MetaMask and wallets that support wallet_requestPermissions
+      try {
+        await ethereumProvider.request({
+          method: 'wallet_requestPermissions',
+          params: [{ eth_accounts: {} }]
+        });
+      } catch (permissionError) {
+        // If the wallet doesn't support wallet_requestPermissions or user rejected,
+        // we'll continue with the normal flow
+      }
     }
 
     // Now get the accounts (either newly selected or existing)
@@ -549,6 +553,15 @@ export async function confirmEmailVerification(credential) {
 // Store listener functions for cleanup
 let accountsChangedHandler = null;
 let chainChangedHandler = null;
+let walletListenerProvider = null;
+
+// The SDK provider isn't window.ethereum, so listener wiring must target it
+// when an SDK session is active. Everything else keeps window.ethereum.
+function resolveWalletListenerTarget(provider) {
+  return provider?.__genlayerMetaMaskConnect
+    ? provider
+    : (typeof window !== 'undefined' ? window.ethereum : null);
+}
 
 /**
  * Handle account changes from wallet
@@ -578,8 +591,8 @@ async function handleAccountsChanged(accounts) {
       authState.update(state => ({ ...state, provider: null }));
       
       // Automatically start re-authentication with the new account
-      // Get the current provider (should still be available)
-      const provider = window.ethereum;
+      // (state was captured before logout cleared it)
+      const provider = resolveWalletListenerTarget(state.provider);
       
       if (provider) {
         // Show user-friendly message
@@ -629,32 +642,37 @@ function handleChainChanged(chainId) {
  * Set up listeners for account and chain changes
  */
 function setupWalletListeners() {
-  if (!window.ethereum || accountsChangedHandler) return;
-  
+  const walletProvider = resolveWalletListenerTarget(authState.get().provider);
+  if (!walletProvider?.on || accountsChangedHandler) return;
+
   // Create handlers
   accountsChangedHandler = handleAccountsChanged;
   chainChangedHandler = handleChainChanged;
-  
+  walletListenerProvider = walletProvider;
+
   // Add listeners
-  window.ethereum.on('accountsChanged', accountsChangedHandler);
-  window.ethereum.on('chainChanged', chainChangedHandler);
+  walletProvider.on('accountsChanged', accountsChangedHandler);
+  walletProvider.on('chainChanged', chainChangedHandler);
 }
 
 /**
  * Remove wallet event listeners (cleanup)
  */
 export function removeWalletListeners() {
-  if (!window.ethereum) return;
-  
+  const walletProvider = walletListenerProvider || (typeof window !== 'undefined' ? window.ethereum : null);
+  if (!walletProvider?.removeListener) return;
+
   if (accountsChangedHandler) {
-    window.ethereum.removeListener('accountsChanged', accountsChangedHandler);
+    walletProvider.removeListener('accountsChanged', accountsChangedHandler);
     accountsChangedHandler = null;
   }
-  
+
   if (chainChangedHandler) {
-    window.ethereum.removeListener('chainChanged', chainChangedHandler);
+    walletProvider.removeListener('chainChanged', chainChangedHandler);
     chainChangedHandler = null;
   }
+
+  walletListenerProvider = null;
 }
 
 // Initialize auth state on page load
