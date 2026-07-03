@@ -59,6 +59,13 @@ class GrafanaValidatorSerializer(serializers.ModelSerializer):
     join the roster straight onto metrics. Operator account identity (name,
     account address) is only exposed for visible operators; non-visible
     operators are identified by their on-chain operator address alone.
+
+    Raw facts only — verdicts are computed dashboard-side. `linked` says
+    whether the wallet is attributed to a portal account (safe for
+    non-visible operators: a bare boolean, never who). `moniker` / `logo_uri`
+    are the raw on-chain getIdentity() values as synced (empty string =
+    unset); `has_description` is a presence flag so the roster doesn't ship
+    long description texts.
     """
     network = serializers.SerializerMethodField()
     node = serializers.SerializerMethodField()
@@ -67,6 +74,8 @@ class GrafanaValidatorSerializer(serializers.ModelSerializer):
     account = serializers.SerializerMethodField()
     account_name = serializers.SerializerMethodField()
     explorer_url = serializers.SerializerMethodField()
+    linked = serializers.SerializerMethodField()
+    has_description = serializers.SerializerMethodField()
 
     class Meta:
         model = ValidatorWallet
@@ -79,6 +88,10 @@ class GrafanaValidatorSerializer(serializers.ModelSerializer):
             'account',
             'account_name',
             'explorer_url',
+            'linked',
+            'moniker',
+            'logo_uri',
+            'has_description',
         ]
         read_only_fields = fields
 
@@ -112,6 +125,12 @@ class GrafanaValidatorSerializer(serializers.ModelSerializer):
 
     def get_explorer_url(self, obj):
         return settings.TESTNET_NETWORKS.get(obj.network, {}).get('explorer_url', '')
+
+    def get_linked(self, obj):
+        return obj.operator_id is not None
+
+    def get_has_description(self, obj):
+        return bool(obj.description)
 
 
 class WallOfShameSerializer(serializers.ModelSerializer):

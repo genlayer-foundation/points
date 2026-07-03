@@ -1020,6 +1020,12 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
                 'account': account,
                 'account_name': validator.user.name or None,
                 'explorer_url': explorer_url,
+                # No wallet exists — identity/link facts are null, not False,
+                # so dashboards can tell "no wallet" from "wallet lacking X".
+                'linked': None,
+                'moniker': None,
+                'logo_uri': None,
+                'has_description': None,
             })
         return rows
 
