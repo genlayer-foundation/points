@@ -73,7 +73,11 @@ export async function getMetaMaskConnectClient() {
 export async function getMetaMaskConnectProvider() {
   const client = await getMetaMaskConnectClient();
   try {
-    await client.connect({ chainIds: [GENLAYER_CHAIN_ID] });
+    // forceRequest re-prompts even when a persisted session exists, so an
+    // explicit MetaMask selection always shows the wallet's account picker
+    // (matching the old injected wallet_requestPermissions behavior) instead
+    // of silently reconnecting to the previously used account.
+    await client.connect({ chainIds: [GENLAYER_CHAIN_ID], forceRequest: true });
   } catch (error) {
     if (isUserRejectionError(error)) {
       // Normalize to the EIP-1193 shape the existing catch logic understands.
