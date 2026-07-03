@@ -460,7 +460,8 @@
 <style>
     @media (max-width: 767px) {
         .cta-banner-dark {
-            padding: 72px 16px;
+            border-radius: 10px;
+            padding: 64px 20px 72px;
         }
 
         .cta-content {
@@ -472,7 +473,7 @@
         .cta-rank-pill {
             max-width: 100%;
             justify-content: center;
-            border-radius: 12px;
+            border-radius: 999px;
             padding: 8px 12px;
         }
 
@@ -486,19 +487,22 @@
 
         .cta-title {
             max-width: 100%;
-            font-size: 34px;
-            line-height: 38px;
+            font-size: clamp(30px, 9vw, 38px);
+            line-height: 1.08;
             letter-spacing: 0 !important;
             overflow-wrap: anywhere;
+            margin-bottom: 16px;
         }
 
         .cta-subtitle {
             max-width: 100%;
             font-size: 15px;
             line-height: 22px;
+            margin-bottom: 28px;
             white-space: normal;
             overflow: visible;
             text-overflow: clip;
+            text-wrap: pretty;
         }
 
         .cta-actions {
@@ -510,6 +514,7 @@
             width: 100%;
             min-height: 46px;
             justify-content: center;
+            transform: none;
         }
     }
 </style>

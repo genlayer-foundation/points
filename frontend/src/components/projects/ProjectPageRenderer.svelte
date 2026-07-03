@@ -3,6 +3,7 @@
   import { tick } from 'svelte';
   import { push } from 'svelte-spa-router';
   import Avatar from '../Avatar.svelte';
+  import { visibleContributions } from '../../lib/hiddenContributions.js';
   import { renderProjectMarkdown } from '../../lib/projectPageTemplate.js';
 
   /** @type {{ project: any }} */
@@ -90,7 +91,7 @@
   }
 
   function getSortedContributions() {
-    return [...(project.related_contributions || [])].sort((a, b) => {
+    return visibleContributions(project.related_contributions).sort((a, b) => {
       const highlightedDelta = Number(isContributionHighlighted(b)) - Number(isContributionHighlighted(a));
       if (highlightedDelta) return highlightedDelta;
       return getContributionDateValue(b) - getContributionDateValue(a);

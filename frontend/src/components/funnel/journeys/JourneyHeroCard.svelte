@@ -393,7 +393,8 @@
 
   @media (max-width: 640px) {
     .journey-hero {
-      padding: 20px;
+      border-radius: 12px;
+      padding: 18px;
     }
 
     h1 {
@@ -409,6 +410,17 @@
     .hero-action {
       align-items: flex-start;
       flex-direction: column;
+      gap: 10px;
+    }
+
+    .landing-button {
+      width: 100%;
+    }
+
+    .landing-button span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .progress-ring,

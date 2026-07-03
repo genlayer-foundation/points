@@ -7,6 +7,7 @@
   import HighlightsSlider from '../components/portal/HighlightsSlider.svelte';
   import PortalContributionCard from '../components/portal/PortalContributionCard.svelte';
   import { getCategoryButtonStyle, getCategoryGradientStyle } from '../lib/categoryPresentation.js';
+  import { visibleContributions } from '../lib/hiddenContributions.js';
   import { parseMarkdown } from '../lib/markdownLoader.js';
 
   let { params = {} } = $props();
@@ -110,6 +111,7 @@
           contribution_type: params.id,
           ordering: '-contribution_date',
           page_size: 10,
+          exclude_onboarding: 'true',
         }),
       ]);
 
@@ -117,8 +119,8 @@
       const allStats = statsRes.data || [];
       statistics = allStats.find((stat) => String(stat.id) === String(params.id)) || {};
       missions = missionsRes.data?.results || missionsRes.data || [];
-      highlights = highlightsRes.data || [];
-      contributions = contributionsRes.data?.results || [];
+      highlights = visibleContributions(highlightsRes.data || []);
+      contributions = visibleContributions(contributionsRes.data?.results || []);
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to load contribution type';
     } finally {

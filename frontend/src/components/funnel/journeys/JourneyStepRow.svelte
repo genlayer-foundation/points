@@ -395,6 +395,12 @@
       flex: 0 1 auto;
       min-width: 0;
     }
+
+    .step-action span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
   }
 
   @media (max-width: 480px) {
@@ -402,6 +408,7 @@
       align-items: stretch;
       flex-direction: column;
       justify-content: flex-start;
+      padding-left: 40px;
     }
 
     .step-action {

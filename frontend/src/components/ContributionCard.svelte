@@ -4,6 +4,7 @@
   import Avatar from './Avatar.svelte';
   import Icons from './Icons.svelte';
   import { parseMarkdown, parseUserMarkdown } from '../lib/markdownLoader.js';
+  import { isHiddenWelcomeContribution } from '../lib/hiddenContributions.js';
   import { isSafeHttpUrl } from '../lib/urlSafety.js';
 
   let {
@@ -57,6 +58,7 @@
   );
 
   let contributionId = $derived(contribution?.id);
+  let isHidden = $derived(isHiddenWelcomeContribution(contribution));
 
   function handleCardClick(event) {
     // Don't navigate if clicking on a button, link, or expand toggle
@@ -67,6 +69,7 @@
   }
 </script>
 
+{#if !isHidden}
 <div
   class="{categoryColors.cardBg} shadow rounded-lg hover:shadow-lg transition-shadow border-2 {categoryColors.border} overflow-hidden {className} {contributionId ? 'cursor-pointer' : ''}"
   onclick={handleCardClick}
@@ -242,6 +245,7 @@
     </div>
   {/if}
 </div>
+{/if}
 
 <style>
   .markdown-content :global(ul) {

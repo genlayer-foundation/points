@@ -4,6 +4,7 @@
   import { format } from 'date-fns';
   import { push } from 'svelte-spa-router';
   import { contributionsAPI } from '../lib/api';
+  import { visibleContributions } from '../lib/hiddenContributions.js';
   import { parseMarkdown } from '../lib/markdownLoader.js';
   import PortalContributionCard from '../components/portal/PortalContributionCard.svelte';
   import { getCategoryButtonStyle, getCategoryGradientStyle } from '../lib/categoryPresentation.js';
@@ -128,12 +129,13 @@
           mission: params.id,
           ordering: '-contribution_date',
           page_size: 20,
+          exclude_onboarding: 'true',
         }),
       ]);
 
       mission = missionRes.data;
       stats = statsRes?.data || { unique_users: 0, contributions_count: 0, points_earned: 0 };
-      contributions = contributionsRes.data?.results || [];
+      contributions = visibleContributions(contributionsRes.data?.results || []);
 
       if (mission?.contribution_type) {
         const typeRes = await contributionsAPI.getContributionType(mission.contribution_type);

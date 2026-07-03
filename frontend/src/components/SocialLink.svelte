@@ -657,6 +657,23 @@
     cursor: not-allowed;
   }
 
+  @media (max-width: 420px) {
+    .social-connected-row {
+      gap: 0.5rem;
+      padding-inline: 0.75rem 0.5rem;
+    }
+
+    .social-connected-identity {
+      gap: 0.5rem;
+    }
+
+    .social-refresh-btn {
+      width: 34px;
+      height: 34px;
+      flex-basis: 34px;
+    }
+  }
+
   /* Compact pill (ProfileHeader) */
   .social-pill {
     position: relative;

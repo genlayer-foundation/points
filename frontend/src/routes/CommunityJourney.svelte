@@ -1108,9 +1108,34 @@
       padding: 12px 0 56px;
     }
 
+    .steps-card {
+      border-left: 0;
+      border-radius: 0;
+      border-right: 0;
+    }
+
     .task-panel,
     .x-post-panel {
       padding: 14px;
+    }
+
+    .task-panel-copy p,
+    .x-post-copy p {
+      max-width: none;
+    }
+
+    .task-card-frame,
+    .social-link-frame {
+      width: 100%;
+    }
+
+    .x-post-actions,
+    .verify-card .landing-button {
+      width: 100%;
+    }
+
+    .x-post-actions .landing-button {
+      flex: 1 1 140px;
     }
 
     .section-label {
