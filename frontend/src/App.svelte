@@ -535,7 +535,7 @@
   <Navbar {toggleSidebar} {sidebarOpen} />
   <div class="flex-1 min-h-0 flex overflow-hidden">
     <Sidebar bind:isOpen={sidebarOpen} bind:collapsed={sidebarCollapsed} />
-    <main class="flex-1 min-h-0 min-w-0 overflow-y-auto {isFullBleedPage ? '' : 'px-3 py-3'} {isRoleLandingPage ? 'role-landing-main' : ''}">
+    <main class="app-main flex-1 min-h-0 min-w-0 overflow-y-auto {isFullBleedPage ? '' : 'px-3 py-3'} {isRoleLandingPage ? 'role-landing-main' : ''}">
       <SystemAlerts />
       <Router
         {routes}
@@ -554,6 +554,10 @@
 
 <style>
   @media (max-width: 767px) {
+    .app-main {
+      padding-top: 0;
+    }
+
     .role-landing-main {
       padding: 0;
     }

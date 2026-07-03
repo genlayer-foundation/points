@@ -1342,9 +1342,27 @@
       padding: 12px 0 56px;
     }
 
+    .steps-card {
+      border-left: 0;
+      border-radius: 0;
+      border-right: 0;
+    }
+
     .task-panel,
     .compact-panel {
       padding: 14px;
+    }
+
+    .task-panel-copy p,
+    .task-panel-error p {
+      max-width: none;
+    }
+
+    .task-card-frame,
+    .social-link-frame,
+    .panel-actions,
+    .panel-actions .landing-button {
+      width: 100%;
     }
 
     .network-item {

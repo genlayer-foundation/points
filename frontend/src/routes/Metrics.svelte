@@ -2449,6 +2449,19 @@
   }
 
   @media (max-width: 640px) {
+    .metrics-view {
+      margin: -12px;
+      padding: 16px 12px 40px;
+    }
+
+    .metrics-shell {
+      padding: 0;
+    }
+
+    .metrics-header {
+      margin-bottom: 20px;
+    }
+
     .section-heading,
     .chart-heading {
       align-items: stretch;
@@ -2465,6 +2478,45 @@
     .chart-placeholder,
     .chart-empty {
       height: 300px;
+    }
+
+    .stat-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .stat-card {
+      aspect-ratio: 1 / 1;
+      min-height: 0;
+      padding: 12px;
+    }
+
+    .stat-card-main {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 10px;
+      height: 100%;
+      justify-content: space-between;
+    }
+
+    .stat-card-main :global(img) {
+      height: 34px !important;
+      width: 34px !important;
+    }
+
+    .stat-value {
+      font-size: clamp(24px, 8vw, 30px);
+      letter-spacing: -0.4px;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      line-height: 15px;
+    }
+
+    .filter-actions,
+    .filter-actions button {
+      width: 100%;
     }
   }
 

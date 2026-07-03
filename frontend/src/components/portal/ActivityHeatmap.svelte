@@ -443,7 +443,43 @@
     .activity-scroll,
     .activity-skeleton,
     .activity-empty {
-      min-height: 280px;
+      min-height: 232px;
+    }
+
+    .activity-scroll {
+      --cell-gap: 3px;
+      --cell-size: 13px;
+      padding: 16px 0 10px;
+    }
+
+    .activity-content {
+      margin-inline: 0;
+    }
+
+    .activity-range {
+      font-size: 12px;
+      line-height: 16px;
+      margin-bottom: 12px;
+    }
+
+    .month-row {
+      font-size: 11px;
+      grid-template-columns: 26px repeat(var(--week-count), var(--cell-size));
+      line-height: 16px;
+    }
+
+    .heatmap-row {
+      gap: 8px;
+    }
+
+    .weekday-labels {
+      flex-basis: 20px;
+      font-size: 10px;
+    }
+
+    .legend {
+      justify-content: flex-start;
+      margin-top: 16px;
     }
   }
 </style>

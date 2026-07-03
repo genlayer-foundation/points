@@ -287,7 +287,24 @@
     }
 
     .kpi-strip {
-      grid-template-columns: 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .kpi:nth-child(3) {
+      grid-column: 1 / -1;
+    }
+
+    .kpi {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 104px;
+      padding: 12px;
+    }
+
+    .kpi strong {
+      font-size: 30px;
+      letter-spacing: -0.4px;
     }
 
     .chart-panel .panel-head {
@@ -296,7 +313,12 @@
     }
 
     .view-tabs {
-      width: fit-content;
+      width: 100%;
+    }
+
+    .view-tabs button {
+      flex: 1;
+      min-height: 34px;
     }
   }
 </style>

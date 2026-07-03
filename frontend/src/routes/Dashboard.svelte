@@ -264,7 +264,7 @@
   });
 </script>
 
-<div class="max-w-full overflow-x-hidden space-y-8">
+<div class="dashboard-page max-w-full overflow-x-hidden space-y-8">
   <!-- 1. Hero Banner -->
   <HeroBanner category={category} compact={true} />
 
@@ -488,6 +488,13 @@
 </div>
 
 <style>
+  @media (max-width: 767px) {
+    .dashboard-page {
+      padding-inline: 4px;
+      padding-top: 10px;
+    }
+  }
+
   .hide-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;

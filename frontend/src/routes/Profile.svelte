@@ -916,7 +916,7 @@
       {/if}
 
 
-      <div class="w-auto -mx-3 -mb-3">
+      <div class="profile-cta-wrap w-auto -mx-3 -mb-3">
         <CTABanner variant="dark" {participant} {referralData} {topRole} />
       </div>
     {/if}
@@ -951,25 +951,31 @@
 
     .profile-stats-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 6px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
       align-items: stretch;
     }
 
     .profile-stat-card {
       height: auto;
-      min-height: 64px;
+      min-height: 112px;
       min-width: 0;
-      border-radius: 10px;
-      padding: 10px 8px;
+      border-radius: 12px;
+      padding: 14px;
       justify-content: center;
+    }
+
+    .profile-stat-card:first-child {
+      grid-column: 1 / -1;
+      min-height: 88px;
+      justify-content: flex-start;
     }
 
     .profile-stat-content {
       width: 100%;
       height: auto;
       align-items: flex-start;
-      justify-content: center;
+      justify-content: flex-start;
     }
 
     .profile-stat-icon {
@@ -980,31 +986,38 @@
       width: 100%;
       height: auto;
       white-space: normal;
+      justify-content: flex-start;
     }
 
     .profile-stat-text p:first-child {
       max-width: 100%;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-size: 18px;
-      line-height: 21px;
+      overflow-wrap: anywhere;
+      white-space: normal;
+      font-size: 26px;
+      line-height: 30px;
       letter-spacing: 0 !important;
     }
 
+    .profile-stat-card:first-child .profile-stat-text p:first-child {
+      font-size: 22px;
+      line-height: 26px;
+    }
+
     .profile-stat-card:nth-child(3) .profile-stat-text p:first-child {
-      font-size: 14px;
-      line-height: 18px;
+      font-size: 18px;
+      line-height: 22px;
     }
 
     .profile-stat-text p:last-child {
-      font-size: 10px;
-      line-height: 12px;
+      font-size: 12px;
+      line-height: 15px;
       max-width: 100%;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
       margin-top: 2px;
+    }
+
+    .profile-cta-wrap {
+      margin-left: 0;
+      margin-right: 0;
     }
   }
 
@@ -1014,23 +1027,23 @@
     }
 
     .profile-stat-card {
-      min-height: 58px;
-      padding: 8px 5px;
+      min-height: 104px;
+      padding: 12px;
     }
 
     .profile-stat-text p:first-child {
-      font-size: 15px;
-      line-height: 18px;
+      font-size: 23px;
+      line-height: 27px;
     }
 
     .profile-stat-card:nth-child(3) .profile-stat-text p:first-child {
-      font-size: 12px;
-      line-height: 16px;
+      font-size: 16px;
+      line-height: 20px;
     }
 
     .profile-stat-text p:last-child {
-      font-size: 9px;
-      line-height: 11px;
+      font-size: 11px;
+      line-height: 14px;
     }
   }
 </style>

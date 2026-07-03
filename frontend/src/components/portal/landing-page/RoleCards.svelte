@@ -72,13 +72,13 @@
   })));
 </script>
 
-<div class="flex flex-col gap-[40px] p-[20px] rounded-[8px]">
+<div class="flex flex-col gap-[28px] md:gap-[40px] p-[12px] sm:p-[16px] md:p-[20px] rounded-[8px]">
   <!-- Header -->
-  <div class="flex flex-col gap-[24px] items-center text-center">
-    <h2 class="text-[36px] md:text-[48px] font-medium font-display leading-[56px] text-black" style="letter-spacing: -0.96px;">
+  <div class="flex flex-col gap-[14px] md:gap-[24px] items-center text-center">
+    <h2 class="text-[32px] md:text-[48px] font-medium font-display leading-[36px] md:leading-[56px] text-black" style="letter-spacing: -0.02em;">
       {isLoggedIn ? 'Your contributions' : 'Choose how you contribute'}
     </h2>
-    <p class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">
+    <p class="text-[15px] md:text-[17px] text-black leading-[23px] md:leading-[28px]" style="letter-spacing: 0.02em;">
       {isLoggedIn ? 'Keep earning points across all your roles.' : 'Pick your path — you can always take on more roles later.'}
     </p>
   </div>
@@ -88,7 +88,7 @@
     {#each roles as role}
       <div class="bg-white border border-[#f5f5f5] rounded-[8px] p-[8px] flex-1 flex flex-col">
         <!-- Illustration area -->
-        <div class="border border-[#f5f5f5] rounded-[2px] h-[240px] overflow-hidden relative flex items-center justify-center">
+        <div class="border border-[#f5f5f5] rounded-[2px] h-[200px] md:h-[240px] overflow-hidden relative flex items-center justify-center">
           <div class="relative w-[360px] h-[240px] flex-shrink-0">
             <!-- Ellipse blur -->
             <div class="absolute -translate-x-1/2 w-[170px] h-[170px] {role.ellipseClass}">
@@ -126,12 +126,12 @@
         </div>
 
         <!-- Content -->
-        <div class="flex flex-col gap-[24px] p-[16px]">
-          <div class="flex flex-col gap-[12px]">
-            <h3 class="text-[24px] font-medium font-display leading-[40px] text-black" style="letter-spacing: -0.48px;">
+        <div class="flex flex-col gap-[18px] md:gap-[24px] p-[14px] md:p-[16px]">
+          <div class="flex flex-col gap-[8px] md:gap-[12px]">
+            <h3 class="text-[22px] md:text-[24px] font-medium font-display leading-[28px] md:leading-[40px] text-black" style="letter-spacing: -0.02em;">
               {role.title}
             </h3>
-            <p class="text-[14px] text-black leading-[21px]" style="letter-spacing: 0.28px;">
+            <p class="text-[14px] text-black leading-[21px]" style="letter-spacing: 0.02em;">
               {role.description}
             </p>
           </div>

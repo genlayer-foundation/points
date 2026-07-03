@@ -358,4 +358,32 @@
       width: 100%;
     }
   }
+
+  @media (max-width: 420px) {
+    .authenticated-role-landing {
+      padding: 52px 12px 64px;
+    }
+
+    h1 {
+      font-size: 34px;
+      line-height: 38px;
+    }
+
+    .start-panel {
+      gap: 18px;
+    }
+
+    .start-button,
+    .waitlist-status {
+      min-width: 0;
+      width: 100%;
+    }
+
+    .start-button span,
+    .waitlist-status {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
 </style>

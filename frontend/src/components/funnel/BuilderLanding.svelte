@@ -521,11 +521,13 @@
   .feature-card {
     align-items: center;
     border: 1px solid var(--builder-border);
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     gap: 12px;
     padding: 16px;
     text-align: center;
+    width: 100%;
   }
 
   .feature-heading {
@@ -765,11 +767,14 @@
     align-items: center;
     border: 1px solid var(--builder-border);
     border-radius: 8px;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     gap: 12px;
     padding: 16px;
     text-align: center;
+    min-width: 0;
+    width: 100%;
   }
 
   .stack-card h3 {
@@ -921,7 +926,42 @@
     }
 
     .feature-grid {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .capability-section,
+    .category-section,
+    .stack-section {
+      padding: 0;
+    }
+
+    .hero-copy {
+      gap: 16px;
+    }
+
+    .hero-copy > p {
+      font-size: 13px;
+      line-height: 20px;
+      text-transform: none;
+    }
+
+    .feature-card h3 {
+      white-space: normal;
+    }
+
+    .feature-card p {
+      font-size: 15px;
+      line-height: 22px;
+    }
+
+    .stack-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .stack-value {
+      font-size: 52px;
+      line-height: 56px;
+      max-width: 100%;
     }
 
     .project-chip-row a {
@@ -959,6 +999,11 @@
     .button-row {
       flex-wrap: wrap;
       justify-content: center;
+      width: 100%;
+    }
+
+    .button-row .landing-button {
+      width: 100%;
     }
   }
 </style>

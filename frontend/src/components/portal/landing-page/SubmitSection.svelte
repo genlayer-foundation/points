@@ -1,7 +1,7 @@
-<div class="flex flex-col md:flex-row gap-[24px] items-center p-[20px] rounded-[8px]">
+<div class="flex flex-col md:flex-row gap-[20px] md:gap-[24px] items-stretch md:items-center p-[12px] sm:p-[16px] md:p-[20px] rounded-[8px]">
   <!-- Left: code editor mockup -->
-  <div class="flex-1 border border-[#f5f5f5] rounded-[8px] h-[400px] overflow-hidden relative flex items-center justify-center">
-    <div class="relative w-[500px] h-[400px] flex-shrink-0 flex items-center justify-center">
+  <div class="flex-1 border border-[#f5f5f5] rounded-[8px] h-[260px] sm:h-[320px] md:h-[400px] overflow-hidden relative flex items-center justify-center">
+    <div class="relative w-[500px] h-[400px] flex-shrink-0 flex items-center justify-center scale-[0.62] sm:scale-[0.78] md:scale-100">
       <!-- Dashed connector lines -->
       <img
         src="/assets/illustrations/vector-connector.svg"
@@ -55,25 +55,25 @@
   </div>
 
   <!-- Right: text -->
-  <div class="flex-1 flex flex-col gap-[24px] justify-center">
-    <h2 class="text-[32px] font-medium font-display leading-[40px] text-black" style="letter-spacing: -0.64px;">
+  <div class="flex-1 flex flex-col gap-[16px] md:gap-[24px] justify-center">
+    <h2 class="text-[28px] md:text-[32px] font-medium font-display leading-[34px] md:leading-[40px] text-black" style="letter-spacing: -0.02em;">
       Submit contributions
     </h2>
-    <p class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">
+    <p class="text-[15px] md:text-[17px] text-black leading-[23px] md:leading-[28px]" style="letter-spacing: 0.02em;">
       Every contribution is reviewed by stewards. Accepted work earns GenLayer Points. Quality matters, the 18.5% acceptance rate means your work stands out.
     </p>
-    <div class="flex flex-col gap-[4px]">
-      <div class="flex gap-[10px] items-center">
+    <div class="flex flex-col gap-[10px] md:gap-[4px]">
+      <div class="flex gap-[10px] items-start md:items-center">
         <img src="/assets/icons/checkbox-circle-fill.svg" alt="" class="w-4 h-4 flex-shrink-0" />
-        <span class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">Repos verified through GitHub OAuth</span>
+        <span class="text-[15px] md:text-[17px] text-black leading-[23px] md:leading-[28px]" style="letter-spacing: 0.02em;">Repos verified through GitHub OAuth</span>
       </div>
-      <div class="flex gap-[10px] items-center">
+      <div class="flex gap-[10px] items-start md:items-center">
         <img src="/assets/icons/checkbox-circle-fill.svg" alt="" class="w-4 h-4 flex-shrink-0" />
-        <span class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">Validate subjective outcomes in Intelligent Contracts</span>
+        <span class="text-[15px] md:text-[17px] text-black leading-[23px] md:leading-[28px]" style="letter-spacing: 0.02em;">Validate subjective outcomes in Intelligent Contracts</span>
       </div>
-      <div class="flex gap-[10px] items-center">
+      <div class="flex gap-[10px] items-start md:items-center">
         <img src="/assets/icons/checkbox-circle-fill.svg" alt="" class="w-4 h-4 flex-shrink-0" />
-        <span class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">Points awarded on acceptance</span>
+        <span class="text-[15px] md:text-[17px] text-black leading-[23px] md:leading-[28px]" style="letter-spacing: 0.02em;">Points awarded on acceptance</span>
       </div>
     </div>
   </div>
