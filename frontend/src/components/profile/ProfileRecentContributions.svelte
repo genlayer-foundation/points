@@ -22,7 +22,7 @@
     try {
       loading = true;
       const params = {
-        limit: limit + 2,
+        page_size: limit + 2,
         ordering: '-created_at',
         exclude_onboarding: 'true',
       };

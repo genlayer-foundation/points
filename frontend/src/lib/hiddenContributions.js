@@ -39,7 +39,7 @@ export function isHiddenWelcomeContribution(contribution) {
   if (slug && HIDDEN_WELCOME_CONTRIBUTION_SLUGS.has(slug)) return true;
 
   const name = getContributionTypeName(contribution);
-  return Boolean(name && HIDDEN_WELCOME_CONTRIBUTION_NAMES.some((hiddenName) => name.includes(hiddenName)));
+  return Boolean(name && HIDDEN_WELCOME_CONTRIBUTION_NAMES.includes(name));
 }
 
 export function visibleContributions(contributions) {

@@ -26,7 +26,7 @@
     const requestId = ++requestSequence;
     loading = true;
     try {
-      const params = { exclude_onboarding: 'true' };
+      const params = { exclude_onboarding: 'true', limit: 0 };
       if (category) params.category = category;
       const response = await contributionsAPI.getAllHighlights(params);
       if (requestId !== requestSequence) return;
