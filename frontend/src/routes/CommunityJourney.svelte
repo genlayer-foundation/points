@@ -1105,13 +1105,7 @@
   @media (max-width: 640px) {
     .journey-page {
       gap: 20px;
-      padding: 12px 0 56px;
-    }
-
-    .steps-card {
-      border-left: 0;
-      border-radius: 0;
-      border-right: 0;
+      padding: 12px 4px 56px;
     }
 
     .task-panel,
