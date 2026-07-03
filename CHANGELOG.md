@@ -4,6 +4,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Polished remaining mobile rough edges: the Overview contributor metric icons fit their hexagons again, the How it works illustrations display at their intended size instead of collapsing or leaving large empty gaps, and the onboarding journeys keep proper card borders and side spacing on small screens (4240231e)
+
 - The portal now works much better on phones: role landing pages, onboarding journeys, dashboards, metrics, and profiles reflow cleanly on small screens, with the mobile sidebar aligned to the navbar, stat cards in a readable two-column grid, and buttons and cards sized to fit narrow screens without overflowing (d5222cee)
 
 - Node version is no longer edited by hand in the portal — it is detected automatically from your running node and shown read-only on your profile, so it always reflects reality instead of whatever was last typed in
