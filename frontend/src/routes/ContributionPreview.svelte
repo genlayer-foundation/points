@@ -3,6 +3,7 @@
   import { push } from 'svelte-spa-router';
   import { format } from 'date-fns';
   import { contributionsAPI } from '../lib/api.js';
+  import { isHiddenWelcomeContribution, visibleContributions } from '../lib/hiddenContributions.js';
   import { parseMarkdown, parseUserMarkdown } from '../lib/markdownLoader.js';
   import Avatar from '../components/Avatar.svelte';
   import EvidenceUrlCard from '../components/EvidenceUrlCard.svelte';
@@ -94,6 +95,10 @@
     try {
       const res = await contributionsAPI.getContribution(params.id);
       contribution = res.data;
+      if (isHiddenWelcomeContribution(contribution)) {
+        error = 'Contribution not found';
+        return;
+      }
 
       // Fetch related data in parallel
       const promises = [];
@@ -104,9 +109,10 @@
           contributionsAPI.getContributions({
             user_address: contribution.user_details.address,
             page_size: 7,
+            exclude_onboarding: 'true',
           }).then(r => {
             const results = r.data?.results || r.data || [];
-            userContributions = results.filter(c => c.id !== contribution.id).slice(0, 6);
+            userContributions = visibleContributions(results).filter(c => c.id !== contribution.id).slice(0, 6);
           }).catch(() => {})
         );
       }

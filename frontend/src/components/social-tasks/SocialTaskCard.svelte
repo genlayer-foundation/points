@@ -185,7 +185,7 @@
 </script>
 
 <div
-  class="relative flex h-[160px] w-full flex-col gap-2 rounded-[8px] border border-[#f0f0f0] bg-white p-4 transition-shadow {isCompleted ? 'opacity-70' : 'hover:shadow-sm'}"
+  class="social-task-card relative flex h-[160px] w-full flex-col gap-2 rounded-[8px] border border-[#f0f0f0] bg-white p-4 transition-shadow {isCompleted ? 'opacity-70' : 'hover:shadow-sm'}"
 >
   <!-- Title + points pill -->
   <div class="flex items-start justify-between gap-2">
@@ -211,7 +211,7 @@
   {/if}
 
   <!-- Action area -->
-  <div class="flex h-[32px] items-center gap-2">
+  <div class="social-task-actions flex min-h-[32px] items-center gap-2">
     {#if isCompleted}
       <span class="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700">
         <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -257,7 +257,7 @@
         {busy ? 'Verifying…' : 'Verify'}
       </button>
 
-      <div class="ml-auto flex items-center gap-2">
+      <div class="social-task-action-cluster ml-auto flex items-center gap-2">
         <a
           href={task.action_url}
           target="_blank"
@@ -293,7 +293,7 @@
         {task.cta_text || 'Open'} →
       </a>
 
-      <div class="ml-auto flex items-center gap-2">
+      <div class="social-task-action-cluster ml-auto flex items-center gap-2">
         {#if pendingClickThrough}
           <span class="text-[11px] text-gray-500" aria-live="polite">Crediting…</span>
         {/if}
@@ -329,3 +329,24 @@
     {/if}
   </div>
 </div>
+
+<style>
+  @media (max-width: 420px) {
+    .social-task-card {
+      height: auto;
+      min-height: 168px;
+    }
+
+    .social-task-actions {
+      align-items: flex-start;
+      flex-wrap: wrap;
+      height: auto;
+      row-gap: 0.375rem;
+    }
+
+    .social-task-action-cluster {
+      margin-left: 0;
+      min-width: 0;
+    }
+  }
+</style>

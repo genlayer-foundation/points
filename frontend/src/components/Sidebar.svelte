@@ -701,7 +701,10 @@
 ></div>
 
 <!-- Mobile Sidebar -->
-<aside class="md:hidden fixed top-16 left-0 right-0 bottom-0 z-40 bg-white border-r border-[#e6e6e6] transform transition-transform duration-300 ease-in-out flex flex-col overflow-hidden {isOpen ? 'translate-y-0' : '-translate-y-full'}">
+<aside
+  class="md:hidden fixed left-0 right-0 bottom-0 z-40 bg-white border-r border-[#e6e6e6] transform transition-transform duration-300 ease-in-out flex flex-col overflow-hidden {isOpen ? 'translate-y-0' : '-translate-y-full'}"
+  style="top: var(--mobile-navbar-height, 49px);"
+>
   <div class="min-h-0 flex-1 overflow-y-auto p-3">
     <nav class="space-y-1">
 

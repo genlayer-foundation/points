@@ -225,8 +225,35 @@
       padding: 14px;
     }
 
+    .metric-col {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
     .metric-row {
-      min-height: 64px;
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 9px;
+      min-height: 112px;
+      padding: 12px;
+    }
+
+    .metric-row :global(img),
+    .metric-icon-skeleton {
+      height: 34px !important;
+      width: 34px !important;
+      flex-basis: 34px;
+    }
+
+    .metric-copy strong {
+      font-size: 23px;
+      letter-spacing: -0.4px;
+    }
+
+    .metric-copy span {
+      font-size: 12px;
+      line-height: 15px;
     }
   }
 </style>

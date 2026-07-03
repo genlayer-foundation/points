@@ -4,6 +4,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- The portal now works much better on phones: role landing pages, onboarding journeys, dashboards, metrics, and profiles reflow cleanly on small screens, with the mobile sidebar aligned to the navbar, stat cards in a readable two-column grid, and buttons and cards sized to fit narrow screens without overflowing (d5222cee)
+
 - Node version is no longer edited by hand in the portal — it is detected automatically from your running node and shown read-only on your profile, so it always reflects reality instead of whatever was last typed in
 
 - Node upgrades are now detected automatically from live node metrics instead of relying on validators to edit their profile: when the network's first validator is seen running a new stable release, that version becomes the official upgrade target (the number of validators required to confirm a new version is configurable via a setting) and all validators are notified, each validator's running version is kept in sync from what their node actually reports (it can only move forward, so a brief reporting gap never shows a downgrade), and the node-upgrade points (more for upgrading sooner) are awarded automatically once a validator is seen on the target version — no manual submission or steward review needed. Only versions reported by known, non-banned validator nodes count, and stewards can pause the automatic points at any time by removing the node-upgrade multiplier

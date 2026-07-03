@@ -1,6 +1,7 @@
 <script>
   import { push } from 'svelte-spa-router';
   import { format } from 'date-fns';
+  import { isHiddenWelcomeContribution } from '../../lib/hiddenContributions.js';
 
   let { contribution, category = null, height = 180, pathPrefix = '/contribution' } = $props();
 
@@ -64,6 +65,7 @@
   );
   let hasHighlight = $derived(!!contribution?.highlight);
   let realId = $derived(contribution?.id);
+  let isHidden = $derived(isHiddenWelcomeContribution(contribution));
 
   function handleCardClick(event) {
     if (event.target.closest('button') || event.target.closest('a')) return;
@@ -78,6 +80,7 @@
   }
 </script>
 
+{#if !isHidden}
 <div
   class="rounded-[8px] p-4 flex flex-col gap-2 cursor-pointer hover:shadow-md transition-shadow w-full"
   style="background: {hasHighlight ? colors.tintedBg : '#FFFFFF'}; height: {height}px;{hasHighlight ? '' : ' border: 1px solid #f5f5f5;'}"
@@ -159,3 +162,4 @@
     </span>
   </div>
 </div>
+{/if}

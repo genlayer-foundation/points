@@ -220,6 +220,10 @@
 </header>
 
 <style>
+  :global(:root) {
+    --mobile-navbar-height: 49px;
+  }
+
   .social-metric-link {
     align-items: center;
     border-radius: 8px;

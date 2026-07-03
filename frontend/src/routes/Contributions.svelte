@@ -5,6 +5,7 @@
   import PortalContributionCard from '../components/portal/PortalContributionCard.svelte';
   import SocialTasksSection from '../components/social-tasks/SocialTasksSection.svelte';
   import { contributionsAPI } from '../lib/api';
+  import { visibleContributions } from '../lib/hiddenContributions.js';
   import { currentCategory } from '../stores/category.js';
   import { push } from 'svelte-spa-router';
   import { getCategoryButtonStyle, getCategoryGradientStyle } from '../lib/categoryPresentation.js';
@@ -83,8 +84,9 @@
   }
 
   function filterRecentContributions(contributions, category) {
-    if (category !== 'community') return contributions;
-    return contributions.filter((contribution) => !isCommunitySocialLinkContribution(contribution));
+    const visible = visibleContributions(contributions);
+    if (category !== 'community') return visible;
+    return visible.filter((contribution) => !isCommunitySocialLinkContribution(contribution));
   }
 
   /**
@@ -101,14 +103,11 @@
       const params = {
         limit: category === 'community' ? RECENT_LIMIT * 4 : RECENT_LIMIT,
         ordering: '-created_at',
+        exclude_onboarding: 'true',
       };
 
       if (category !== 'global') {
         params.category = category;
-      }
-
-      if (category === 'community') {
-        params.exclude_onboarding = 'true';
       }
 
       const response = await contributionsAPI.getContributions(params);

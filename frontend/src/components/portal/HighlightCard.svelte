@@ -2,6 +2,7 @@
   import { push } from 'svelte-spa-router';
   import { format } from 'date-fns';
   import Avatar from '../Avatar.svelte';
+  import { isHiddenWelcomeContribution } from '../../lib/hiddenContributions.js';
   import { parseMarkdown } from '../../lib/markdownLoader.js';
 
   let { highlight, height = 180 } = $props();
@@ -48,6 +49,7 @@
     has_validator_waitlist: highlight?.user_has_validator_waitlist,
     has_builder_welcome: highlight?.user_has_builder_welcome,
   });
+  let isHidden = $derived(isHiddenWelcomeContribution(highlight));
 
   function handleCardClick(event) {
     if (event.target.closest('button') || event.target.closest('a')) return;
@@ -64,6 +66,7 @@
   }
 </script>
 
+{#if !isHidden}
 <div
   class="rounded-[8px] p-4 flex flex-col gap-2 cursor-pointer hover:shadow-md transition-shadow w-full"
   style="background: {colors.tintedBg}; height: {height}px;"
@@ -126,6 +129,7 @@
     </span>
   </div>
 </div>
+{/if}
 
 <style>
   .markdown-content :global(p) {

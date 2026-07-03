@@ -426,11 +426,13 @@
     background: rgba(255, 255, 255, 0.78);
     border: 1px solid var(--role-border);
     border-radius: 8px;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     gap: 12px;
     padding: 18px;
     text-align: center;
+    width: 100%;
   }
 
   .feature-heading {
@@ -568,11 +570,14 @@
     align-items: center;
     border: 1px solid var(--role-border);
     border-radius: 8px;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     gap: 12px;
     padding: 16px;
     text-align: center;
+    min-width: 0;
+    width: 100%;
   }
 
   .stack-value {
@@ -696,6 +701,45 @@
 
     .points-banner {
       padding: 32px 20px;
+    }
+
+    .hero-copy,
+    .section-header,
+    .points-copy {
+      gap: 16px;
+    }
+
+    .hero-copy > p {
+      font-size: 13px;
+      line-height: 20px;
+      text-transform: none;
+    }
+
+    .feature-section,
+    .why-section {
+      padding: 0;
+    }
+
+    .feature-grid,
+    .stack-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .stack-value {
+      font-size: 52px;
+      line-height: 56px;
+      max-width: 100%;
+    }
+
+    .feature-card p {
+      font-size: 15px;
+      line-height: 22px;
+    }
+
+    .button-row,
+    .button-row .landing-button,
+    .final-cta .landing-button {
+      width: 100%;
     }
 
   }
