@@ -1,6 +1,6 @@
 <div class="flex flex-col md:flex-row gap-[20px] md:gap-[24px] items-stretch md:items-center p-[12px] sm:p-[16px] md:p-[20px] rounded-[8px]">
   <!-- Left: text -->
-  <div class="flex-1 flex flex-col gap-[16px] md:gap-[24px] justify-center">
+  <div class="md:flex-1 flex flex-col gap-[16px] md:gap-[24px] justify-center">
     <h2 class="text-[28px] md:text-[32px] font-medium font-display leading-[34px] md:leading-[40px] text-black" style="letter-spacing: -0.02em;">
       There's a place for everyone
     </h2>
@@ -24,7 +24,7 @@
   </div>
 
   <!-- Right: illustration -->
-  <div class="flex-1 bg-white border border-[#f5f5f5] rounded-[8px] h-[260px] sm:h-[320px] md:h-[400px] overflow-hidden relative flex items-center justify-center p-3 md:p-4">
+  <div class="md:flex-1 bg-white border border-[#f5f5f5] rounded-[8px] h-[260px] sm:h-[320px] md:h-[400px] overflow-hidden relative flex items-center justify-center p-3 md:p-4">
     <img
       src="/assets/illustrations/journey-illustration.svg"
       alt="Journey illustration"

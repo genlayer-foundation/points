@@ -1,6 +1,6 @@
 <div class="flex flex-col md:flex-row gap-[20px] md:gap-[24px] items-stretch md:items-center p-[12px] sm:p-[16px] md:p-[20px] rounded-[8px]">
   <!-- Left: code editor mockup -->
-  <div class="flex-1 border border-[#f5f5f5] rounded-[8px] h-[260px] sm:h-[320px] md:h-[400px] overflow-hidden relative flex items-center justify-center">
+  <div class="md:flex-1 border border-[#f5f5f5] rounded-[8px] h-[260px] sm:h-[320px] md:h-[400px] overflow-hidden relative flex items-center justify-center">
     <div class="relative w-[500px] h-[400px] flex-shrink-0 flex items-center justify-center scale-[0.62] sm:scale-[0.78] md:scale-100">
       <!-- Dashed connector lines -->
       <img
@@ -55,7 +55,7 @@
   </div>
 
   <!-- Right: text -->
-  <div class="flex-1 flex flex-col gap-[16px] md:gap-[24px] justify-center">
+  <div class="md:flex-1 flex flex-col gap-[16px] md:gap-[24px] justify-center">
     <h2 class="text-[28px] md:text-[32px] font-medium font-display leading-[34px] md:leading-[40px] text-black" style="letter-spacing: -0.02em;">
       Submit contributions
     </h2>

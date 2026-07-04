@@ -183,16 +183,20 @@ export async function connectWallet(provider = null, walletName = 'wallet') {
       throw new Error(`No wallet detected. Please install ${walletName} to continue.`);
     }
 
-    // First, try to request permissions to trigger account selection dialog
-    // This works with MetaMask and wallets that support wallet_requestPermissions
-    try {
-      await ethereumProvider.request({
-        method: 'wallet_requestPermissions',
-        params: [{ eth_accounts: {} }]
-      });
-    } catch (permissionError) {
-      // If the wallet doesn't support wallet_requestPermissions or user rejected,
-      // we'll continue with the normal flow
+    // Skip for the MetaMask Connect SDK provider: it intercepts
+    // wallet_requestPermissions as a forced re-connect and would double-prompt.
+    if (!ethereumProvider.__genlayerMetaMaskConnect) {
+      // First, try to request permissions to trigger account selection dialog
+      // This works with MetaMask and wallets that support wallet_requestPermissions
+      try {
+        await ethereumProvider.request({
+          method: 'wallet_requestPermissions',
+          params: [{ eth_accounts: {} }]
+        });
+      } catch (permissionError) {
+        // If the wallet doesn't support wallet_requestPermissions or user rejected,
+        // we'll continue with the normal flow
+      }
     }
 
     // Now get the accounts (either newly selected or existing)
@@ -482,6 +486,13 @@ export async function logout() {
   } catch (error) {
     // Silently handle logout errors
   } finally {
+    // Detach wallet listeners: while logged out nothing should react to
+    // wallet events. Stale listeners on the SDK provider otherwise fire
+    // during the NEXT connect attempt (the SDK re-emits chainChanged /
+    // accountsChanged mid-connection) and handleChainChanged's reload kills
+    // the in-progress sign-in. Listeners re-attach after each successful
+    // sign-in via setupWalletListeners().
+    removeWalletListeners();
     // Clear auth state using our store method
     authState.setAuthenticated(false, null);
     // Reset verification flag so next session will verify
@@ -549,6 +560,15 @@ export async function confirmEmailVerification(credential) {
 // Store listener functions for cleanup
 let accountsChangedHandler = null;
 let chainChangedHandler = null;
+let walletListenerProvider = null;
+
+// The SDK provider isn't window.ethereum, so listener wiring must target it
+// when an SDK session is active. Everything else keeps window.ethereum.
+function resolveWalletListenerTarget(provider) {
+  return provider?.__genlayerMetaMaskConnect
+    ? provider
+    : (typeof window !== 'undefined' ? window.ethereum : null);
+}
 
 /**
  * Handle account changes from wallet
@@ -559,12 +579,26 @@ async function handleAccountsChanged(accounts) {
   }
 
   const state = authState.get();
-  
+
+  // Distinguish a genuine account switch from connection-settling noise.
+  // The MetaMask Connect SDK session is a SET of permitted accounts: trailing
+  // wallet_sessionChanged notifications after a (re)connect re-emit the list
+  // in arbitrary order, and because sessions merge, a previous account can
+  // come back first right after signing in — that is not a switch. Only our
+  // account dropping out of the set means the user moved away. Injected
+  // providers follow EIP-1193 ordering (first item = active account), so a
+  // first-item change there is a real switch.
+  const currentAddress = state.address?.toLowerCase();
+  const nextAccounts = accounts.map((account) => String(account).toLowerCase());
+  const switchedAway = state.provider?.__genlayerMetaMaskConnect
+    ? !nextAccounts.includes(currentAddress)
+    : nextAccounts[0] !== currentAddress;
+
   if (accounts.length === 0) {
     // User disconnected their wallet or revoked permissions
     await logout();
     authState.setError('Wallet disconnected. Please reconnect to continue.');
-  } else if (state.isAuthenticated && accounts[0].toLowerCase() !== state.address?.toLowerCase()) {
+  } else if (state.isAuthenticated && switchedAway) {
     // User switched to a different account while authenticated
     const newAccount = accounts[0];
     
@@ -578,8 +612,8 @@ async function handleAccountsChanged(accounts) {
       authState.update(state => ({ ...state, provider: null }));
       
       // Automatically start re-authentication with the new account
-      // Get the current provider (should still be available)
-      const provider = window.ethereum;
+      // (state was captured before logout cleared it)
+      const provider = resolveWalletListenerTarget(state.provider);
       
       if (provider) {
         // Show user-friendly message
@@ -629,41 +663,58 @@ function handleChainChanged(chainId) {
  * Set up listeners for account and chain changes
  */
 function setupWalletListeners() {
-  if (!window.ethereum || accountsChangedHandler) return;
-  
+  const walletProvider = resolveWalletListenerTarget(authState.get().provider);
+  if (!walletProvider?.on) return;
+
+  // Already attached to this provider — nothing to do
+  if (walletListenerProvider === walletProvider && accountsChangedHandler) return;
+
+  // Target changed (e.g. injected at page load, SDK provider after a
+  // MetaMask Connect login) — detach from the old provider first so
+  // account/chain events from the active session aren't missed.
+  removeWalletListeners();
+
   // Create handlers
   accountsChangedHandler = handleAccountsChanged;
   chainChangedHandler = handleChainChanged;
-  
+  walletListenerProvider = walletProvider;
+
   // Add listeners
-  window.ethereum.on('accountsChanged', accountsChangedHandler);
-  window.ethereum.on('chainChanged', chainChangedHandler);
+  walletProvider.on('accountsChanged', accountsChangedHandler);
+  walletProvider.on('chainChanged', chainChangedHandler);
 }
 
 /**
  * Remove wallet event listeners (cleanup)
  */
 export function removeWalletListeners() {
-  if (!window.ethereum) return;
-  
+  const walletProvider = walletListenerProvider || (typeof window !== 'undefined' ? window.ethereum : null);
+  if (!walletProvider?.removeListener) return;
+
   if (accountsChangedHandler) {
-    window.ethereum.removeListener('accountsChanged', accountsChangedHandler);
+    walletProvider.removeListener('accountsChanged', accountsChangedHandler);
     accountsChangedHandler = null;
   }
-  
+
   if (chainChangedHandler) {
-    window.ethereum.removeListener('chainChanged', chainChangedHandler);
+    walletProvider.removeListener('chainChanged', chainChangedHandler);
     chainChangedHandler = null;
   }
+
+  walletListenerProvider = null;
 }
 
 // Initialize auth state on page load
 if (typeof window !== 'undefined') {
   // Only verify auth in browser environment
   verifyAuth().catch(() => {});
-  
-  // Set up wallet event listeners
-  setupWalletListeners();
+
+  // Set up wallet event listeners — only for a restored session. Anonymous
+  // visitors must not have listeners: chainChanged reloads the page, which
+  // would abort a wallet connection in progress.
+  if (authState.get().isAuthenticated) {
+    setupWalletListeners();
+  }
   
   // Set up periodic session refresh to keep user logged in
   setInterval(async () => {

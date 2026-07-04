@@ -16,6 +16,12 @@ logger = get_app_logger('leaderboard')
 # Gate 1 (user eligibility) is handled by get_eligible_referred_user_ids().
 # Gate 2 (contribution exclusion) uses this constant.
 REFERRAL_EXCLUDED_SLUGS = ['builder', 'builder-welcome', 'validator-waitlist']
+BUILDER_RANKING_EXCLUDED_CONTRIBUTION_TYPE_SLUGS = [
+    'builder-welcome',
+    'builder',
+    'community-link-github',
+]
+BUILDER_RANKING_EXCLUDED_SOCIAL_TASK_SLUGS = [settings.BUILDER_JOURNEY_TASK_SLUG]
 
 
 # Helper functions for leaderboard configuration
@@ -33,10 +39,18 @@ def calculate_category_points(user, category_slug):
     Sums Contribution.frozen_global_points and SocialTaskCompletion.points_awarded
     that fall under the given category.
     """
-    contribution_total = Contribution.objects.filter(
+    contributions = Contribution.objects.filter(
         user=user,
         contribution_type__category__slug=category_slug
-    ).aggregate(total=Sum('frozen_global_points'))['total'] or 0
+    )
+    if category_slug == 'builder':
+        contributions = contributions.exclude(
+            contribution_type__slug__in=BUILDER_RANKING_EXCLUDED_CONTRIBUTION_TYPE_SLUGS
+        )
+
+    contribution_total = (
+        contributions.aggregate(total=Sum('frozen_global_points'))['total'] or 0
+    )
 
     social_task_total = _social_task_category_points(user, category_slug)
 
@@ -77,6 +91,8 @@ def _social_task_category_points(user, category_slug, before_date=None):
         user=user,
         task__category__slug=category_slug,
     )
+    if category_slug == 'builder':
+        qs = qs.exclude(task__slug__in=BUILDER_RANKING_EXCLUDED_SOCIAL_TASK_SLUGS)
     if before_date is not None:
         qs = qs.filter(completed_at__lte=before_date)
     return qs.aggregate(total=Sum('points_awarded'))['total'] or 0
@@ -753,8 +769,11 @@ def recalculate_all_leaderboards():
             initial_builders_set = set(Builder.objects.values_list('user_id', flat=True))
             user_builder_contribs = defaultdict(list)
             for contrib in initial_contributions:
-                if (contrib['contribution_type__category__slug'] == 'builder' and
-                    contrib['contribution_type__slug'] not in ['builder-welcome', 'builder']):
+                if (
+                    contrib['contribution_type__category__slug'] == 'builder' and
+                    contrib['contribution_type__slug'] not in
+                    BUILDER_RANKING_EXCLUDED_CONTRIBUTION_TYPE_SLUGS
+                ):
                     user_builder_contribs[contrib['user_id']].append(contrib['contribution_date'])
 
             for user_id, dates in user_builder_contribs.items():
@@ -795,6 +814,7 @@ def recalculate_all_leaderboards():
                     'task__category'
                 ).values(
                     'user_id',
+                    'task__slug',
                     'task__category__slug',
                     'points_awarded',
                     'completed_at',
@@ -852,10 +872,17 @@ def recalculate_all_leaderboards():
 
                     elif leaderboard_type == 'builder':
                         for contrib in user_contribs:
-                            if contrib['contribution_type__category__slug'] == 'builder':
+                            if (
+                                contrib['contribution_type__category__slug'] == 'builder' and
+                                contrib['contribution_type__slug'] not in
+                                BUILDER_RANKING_EXCLUDED_CONTRIBUTION_TYPE_SLUGS
+                            ):
                                 points += contrib['frozen_global_points'] or 0
                         for stc in user_socials:
-                            if stc['task__category__slug'] == 'builder':
+                            if (
+                                stc['task__category__slug'] == 'builder' and
+                                stc['task__slug'] not in BUILDER_RANKING_EXCLUDED_SOCIAL_TASK_SLUGS
+                            ):
                                 points += stc['points_awarded'] or 0
 
                     elif leaderboard_type == 'validator-waitlist':
