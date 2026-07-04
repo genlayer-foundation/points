@@ -6,8 +6,7 @@ from django.utils.dateparse import parse_date
 from django.db.models import Count, Exists, OuterRef, Q, Sum
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import (
-    BUILDER_RANKING_EXCLUDED_CONTRIBUTION_TYPE_SLUGS,
-    BUILDER_RANKING_EXCLUDED_SOCIAL_TASK_SLUGS,
+    BUILDER_LEADERBOARD_ELIGIBILITY_EXCLUDED_CONTRIBUTION_TYPE_SLUGS,
     GlobalLeaderboardMultiplier,
     LEADERBOARD_CONFIG,
     LeaderboardEntry,
@@ -87,7 +86,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
     def _builder_ranking_submissions(self):
-        excluded_slugs = BUILDER_RANKING_EXCLUDED_CONTRIBUTION_TYPE_SLUGS
+        excluded_slugs = BUILDER_LEADERBOARD_ELIGIBILITY_EXCLUDED_CONTRIBUTION_TYPE_SLUGS
         return SubmittedContribution.objects.filter(
             state='accepted',
         ).filter(
@@ -577,13 +576,6 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         if category:
             contributions = contributions.filter(contribution_type__category__slug=category)
             social_completions = social_completions.filter(task__category__slug=category)
-            if category == 'builder':
-                contributions = contributions.exclude(
-                    contribution_type__slug__in=BUILDER_RANKING_EXCLUDED_CONTRIBUTION_TYPE_SLUGS
-                )
-                social_completions = social_completions.exclude(
-                    task__slug__in=BUILDER_RANKING_EXCLUDED_SOCIAL_TASK_SLUGS
-                )
 
         # Raw portal contribution points (audit trail). For community, displayed
         # points come from MEE6 via get_effective_community_points; for every

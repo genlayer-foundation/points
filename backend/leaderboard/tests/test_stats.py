@@ -597,7 +597,7 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(response.data['totalContributions'], 2)
         self.assertEqual(response.data['submittableContributionCount'], 1)
 
-    def test_builder_user_stats_exclude_simple_builder_contribution_types(self):
+    def test_builder_user_stats_include_eligibility_excluded_contribution_points(self):
         builder_user = self._create_user(
             'builder-simple-stats@example.com',
             '0x0000000000000000000000000000000000000029'
@@ -608,7 +608,7 @@ class LeaderboardStatsTest(TestCase):
             points=25,
         )
         self._create_builder_contribution(builder_user, github_link_type, 25)
-        self._create_builder_contribution(builder_user, self.builder_type, 25)
+        self._create_builder_contribution(builder_user, self.builder_type, 30)
 
         response = self.client.get(
             f'/api/v1/leaderboard/user_stats/by-address/{builder_user.address}/',
@@ -616,15 +616,15 @@ class LeaderboardStatsTest(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['totalPoints'], 25)
-        self.assertEqual(response.data['totalContributions'], 1)
+        self.assertEqual(response.data['totalPoints'], 55)
+        self.assertEqual(response.data['totalContributions'], 2)
         self.assertEqual(response.data['submittableContributionCount'], 1)
         self.assertEqual(
             [row['name'] for row in response.data['contributionTypes']],
-            ['Builder Submission'],
+            ['Builder Submission', 'Link GitHub Account'],
         )
 
-    def test_builder_user_stats_exclude_builder_journey_star_task(self):
+    def test_builder_user_stats_include_builder_journey_star_task(self):
         builder_user = self._create_user(
             'builder-social-stats@example.com',
             '0x0000000000000000000000000000000000000028'
@@ -667,9 +667,9 @@ class LeaderboardStatsTest(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['totalPoints'], 7)
-        self.assertEqual(response.data['socialTaskTotal'], 7)
-        self.assertEqual(response.data['socialTaskCount'], 1)
+        self.assertEqual(response.data['totalPoints'], 32)
+        self.assertEqual(response.data['socialTaskTotal'], 32)
+        self.assertEqual(response.data['socialTaskCount'], 2)
 
     def test_community_stats_use_effective_mee6_points_and_members(self):
         mee6_only_user = self._create_user(
