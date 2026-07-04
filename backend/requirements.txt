@@ -7,7 +7,6 @@ djangorestframework-simplejwt==5.5.1
 django-filter==25.2
 psycopg2-binary==2.9.12
 drf-yasg==1.21.15
-nodeenv==1.10.0
 siwe==4.4.0
 eth-account==0.13.7
 web3==7.16.0

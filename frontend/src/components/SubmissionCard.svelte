@@ -1,6 +1,6 @@
 <script>
   import { push } from 'svelte-spa-router';
-  import { format } from 'date-fns';
+  import { format } from '../lib/dates.js';
   import ContributionCard from './ContributionCard.svelte';
   import ContributionSelection from '../lib/components/ContributionSelection.svelte';
   import CRMNotesPanel from './CRMNotesPanel.svelte';

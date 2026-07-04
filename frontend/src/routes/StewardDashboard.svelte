@@ -3,7 +3,7 @@
   import { push } from 'svelte-spa-router';
   import { userStore } from '../lib/userStore.js';
   import { stewardAPI } from '../lib/api.js';
-  import { format } from 'date-fns';
+  import { format } from '../lib/dates.js';
   import Avatar from '../components/Avatar.svelte';
   import WorkingGroupsSection from '../components/WorkingGroupsSection.svelte';
   import SectionHeader from '../components/ui/SectionHeader.svelte';
