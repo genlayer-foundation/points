@@ -113,3 +113,42 @@ class BuilderEligibilityTest(TestCase):
         self.assertFalse(
             LeaderboardEntry.objects.filter(user=self.user, type='builder').exists()
         )
+
+    def test_deleting_a_contribution_refreshes_the_entry_total(self):
+        self._contribute(self.user, self.real_type, 10)
+        extra = self._contribute(self.user, self.real_type, 10)
+        self.assertEqual(
+            LeaderboardEntry.objects.get(user=self.user, type='builder').total_points,
+            20,
+        )
+
+        extra.delete()
+
+        self.assertEqual(
+            LeaderboardEntry.objects.get(user=self.user, type='builder').total_points,
+            10,
+        )
+
+    def test_deleting_last_eligible_contribution_removes_the_entry(self):
+        contribution = self._contribute(self.user, self.real_type, 10)
+        self.assertTrue(
+            LeaderboardEntry.objects.filter(user=self.user, type='builder').exists()
+        )
+
+        contribution.delete()
+
+        self.assertFalse(
+            LeaderboardEntry.objects.filter(user=self.user, type='builder').exists()
+        )
+
+    def test_user_delete_cascade_does_not_resurrect_entries(self):
+        self._contribute(self.user, self.real_type, 10)
+        user_id = self.user.id
+
+        # Cascade deletes contributions (firing the post_delete hook) and
+        # entries in arbitrary order; the hook must not recreate rows that
+        # would break the final user delete.
+        self.user.delete()
+
+        self.assertFalse(LeaderboardEntry.objects.filter(user_id=user_id).exists())
+        self.assertFalse(User.objects.filter(id=user_id).exists())

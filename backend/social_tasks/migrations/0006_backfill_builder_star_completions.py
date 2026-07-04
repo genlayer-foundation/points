@@ -50,6 +50,9 @@ def backfill_completions(apps, schema_editor):
             for user_id in to_grant
         ],
         batch_size=500,
+        # A user can organically complete the task while this runs; their row
+        # wins and must not abort the deploy on the (user, task) constraint.
+        ignore_conflicts=True,
     )
     print(f"social_tasks.0006: granted '{slug}' to {len(to_grant)} builders")
 
