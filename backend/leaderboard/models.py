@@ -580,6 +580,11 @@ def update_leaderboard_on_contribution_delete(sender, instance, **kwargs):
     for leaderboard_type in affected_types:
         LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
 
+    # Mirror the save path: a referred user's contribution also feeds the
+    # referrer's referral points and waitlist total.
+    if user.referred_by_id:
+        update_referrer_points(instance)
+
 
 class ReferralPoints(BaseModel):
     """

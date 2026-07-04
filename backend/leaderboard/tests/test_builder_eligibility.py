@@ -141,6 +141,34 @@ class BuilderEligibilityTest(TestCase):
             LeaderboardEntry.objects.filter(user=self.user, type='builder').exists()
         )
 
+    def test_deleting_referred_contribution_refreshes_referrer_points(self):
+        from leaderboard.models import ReferralPoints
+
+        referrer = User.objects.create_user(
+            email='referrer@example.com',
+            password='x',
+            visible=True,
+            address='0x00000000000000000000000000000000000000e3',
+        )
+        referred = User.objects.create_user(
+            email='referred@example.com',
+            password='x',
+            visible=True,
+            address='0x00000000000000000000000000000000000000e4',
+            referred_by=referrer,
+        )
+        self._contribute(referred, self.real_type, 10)
+        extra = self._contribute(referred, self.real_type, 10)
+        self.assertEqual(
+            ReferralPoints.objects.get(user=referrer).builder_points, 2
+        )
+
+        extra.delete()
+
+        self.assertEqual(
+            ReferralPoints.objects.get(user=referrer).builder_points, 1
+        )
+
     def test_user_delete_cascade_does_not_resurrect_entries(self):
         self._contribute(self.user, self.real_type, 10)
         user_id = self.user.id
