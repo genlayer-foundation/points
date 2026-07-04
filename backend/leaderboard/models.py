@@ -34,6 +34,23 @@ def has_contribution_badge(user, slug):
     ).exists()
 
 
+def has_eligible_builder_contribution(user):
+    """True when the user has at least one real builder contribution.
+
+    Builder leaderboard entry existence keys off this (plus the Builder
+    profile): eligibility is decided at write time, so reads never filter.
+    Excluded slugs are role/onboarding markers, not real work; their points
+    (and social-task points) still count toward the total once eligible.
+    Must stay in sync with the recalculate_all_leaderboards() predicate.
+    """
+    return Contribution.objects.filter(
+        user=user,
+        contribution_type__category__slug='builder',
+    ).exclude(
+        contribution_type__slug__in=BUILDER_LEADERBOARD_ELIGIBILITY_EXCLUDED_CONTRIBUTION_TYPE_SLUGS
+    ).exists()
+
+
 def calculate_category_points(user, category_slug):
     """Calculate total points from a specific category.
 
@@ -204,7 +221,12 @@ LEADERBOARD_CONFIG = {
     },
     'builder': {
         'name': 'Builder',
-        'participants': lambda user: hasattr(user, 'builder'),  # Has Builder profile
+        # Builder profile + ≥1 real builder contribution. Entry existence ==
+        # public-leaderboard eligibility (hasattr first: short-circuits the
+        # EXISTS query for non-builders).
+        'participants': lambda user: (
+            hasattr(user, 'builder') and has_eligible_builder_contribution(user)
+        ),
         'points_calculator': lambda user: calculate_category_points(user, 'builder'),
         'ranking_order': '-total_points',
     },
@@ -338,6 +360,10 @@ class LeaderboardEntry(BaseModel):
         ordering = ['-total_points', 'user__name']
         verbose_name_plural = 'Leaderboard entries'
         unique_together = ['user', 'type']
+        indexes = [
+            # Hot path: WHERE type=? ORDER BY rank LIMIT n (leaderboard pages).
+            models.Index(fields=['type', 'rank'], name='leaderboard_type_rank_idx'),
+        ]
     
     def __str__(self):
         leaderboard_name = self.get_type_display() if self.type else "Unknown"
@@ -797,6 +823,18 @@ def recalculate_all_leaderboards():
             for contrib in contributions:
                 user_contributions[contrib['user_id']].append(contrib)
 
+            # Builder-leaderboard eligibility over the same dataset entries are
+            # built from. Must stay in sync with has_eligible_builder_contribution().
+            eligible_builder_user_ids = {
+                contrib['user_id']
+                for contrib in contributions
+                if (
+                    contrib['contribution_type__category__slug'] == 'builder' and
+                    contrib['contribution_type__slug'] not in
+                    BUILDER_LEADERBOARD_ELIGIBILITY_EXCLUDED_CONTRIBUTION_TYPE_SLUGS
+                )
+            }
+
             # Bulk-load social-task completions and group by user. Reads as
             # empty while old data migrations replay before social_tasks 0001.
             social_completions = []
@@ -840,7 +878,7 @@ def recalculate_all_leaderboards():
                 if user_id in validators_set:
                     qualified_leaderboards.append('validator')
 
-                if user_id in builders_set:
+                if user_id in builders_set and user_id in eligible_builder_user_ids:
                     qualified_leaderboards.append('builder')
 
                 if 'validator-waitlist' in user_badges[user_id] and user_id not in validators_set:

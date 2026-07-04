@@ -133,6 +133,17 @@ backend/
   - `/api/v1/leaderboard/monthly/` - Top contribution totals for the current month by default, or for an explicit `start_date`/`end_date` range
   - `/api/v1/leaderboard/stats/` - Global statistics
   - `/api/v1/leaderboard/user_stats/by-address/{address}/` - User-specific stats
+- **Builder leaderboard eligibility is write-time**: a `type='builder'` LeaderboardEntry
+  exists iff the user has a Builder profile AND ≥1 builder-category contribution whose
+  slug is not in `BUILDER_LEADERBOARD_ELIGIBILITY_EXCLUDED_CONTRIBUTION_TYPE_SLUGS`
+  (`has_eligible_builder_contribution` in `leaderboard/models.py`; same predicate inline
+  in `recalculate_all_leaderboards`). Reads never filter — no per-request Exists — so
+  stored ranks are contiguous over exactly the displayed set and `LeaderboardEntry` has a
+  `(type, rank)` index for the page query. Excluded-slug and social-task points still
+  count toward the total once eligible; ineligible builders' earned builder points
+  surface via profile stats and the `BuilderSerializer.get_total_points` fallback.
+  `social_tasks/0006` backfilled the `star-genlayer-boilerplate` completion (25 pts) to
+  all pre-existing Builders and ran one full recalculation.
 - **Social-task plumbing**: `calculate_category_points` and `calculate_waitlist_points` sum
   `Contribution.frozen_global_points` AND `social_tasks.SocialTaskCompletion.points_awarded`
   for the matching category. The `update_leaderboard_on_social_task_completion` post_save

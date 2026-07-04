@@ -171,6 +171,12 @@ class BuilderJourneyTests(TestCase):
         self.assertEqual(
             Contribution.objects.filter(user=self.user).count(), 0
         )
+        # No real builder contribution yet -> no public leaderboard entry
+        # (write-time eligibility; the star-task points stay profile-only).
+        from leaderboard.models import LeaderboardEntry
+        self.assertFalse(
+            LeaderboardEntry.objects.filter(user=self.user, type='builder').exists()
+        )
 
     def test_complete_is_idempotent(self):
         self.complete_star_task()

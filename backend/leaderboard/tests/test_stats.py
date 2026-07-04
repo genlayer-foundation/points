@@ -109,13 +109,6 @@ class LeaderboardStatsTest(TestCase):
         Builder.objects.create(user=user)
         return user
 
-    def _set_builder_entry(self, user, total_points, rank):
-        LeaderboardEntry.objects.update_or_create(
-            user=user,
-            type='builder',
-            defaults={'total_points': total_points, 'rank': rank},
-        )
-
     def _ensure_builder_type(self, slug, name, points=0, is_submittable=False):
         contribution_type, _ = ContributionType.objects.get_or_create(
             slug=slug,
@@ -433,7 +426,7 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(response.data['contribution_count'], 0)
         self.assertEqual(response.data['total_points'], link_points)
 
-    def test_builder_lookup_uses_accepted_submission_ranking_eligibility(self):
+    def test_builder_list_and_lookup_use_contribution_based_eligibility(self):
         role_only_user = self._create_builder_user(
             'builder-role-only@example.com',
             '0x0000000000000000000000000000000000000020'
@@ -490,6 +483,9 @@ class LeaderboardStatsTest(TestCase):
             points=25,
         )
 
+        # Entries are created by the write path (post_save signals). Eligibility
+        # is contribution-based, so the direct (no-submission) contribution for
+        # contribution_only_user counts; excluded-slug-only users get no entry.
         self._accept_builder_submission(
             non_submittable_user,
             non_submittable_type,
@@ -500,14 +496,6 @@ class LeaderboardStatsTest(TestCase):
         self._accept_builder_submission(simple_builder_user, simple_builder_type, 50)
         self._accept_builder_submission(github_link_user, github_link_type, 25)
         self._create_builder_contribution(contribution_only_user, self.builder_type, 20)
-
-        self._set_builder_entry(role_only_user, total_points=100, rank=1)
-        self._set_builder_entry(welcome_only_user, total_points=0, rank=2)
-        self._set_builder_entry(simple_builder_user, total_points=50, rank=3)
-        self._set_builder_entry(non_submittable_user, total_points=50, rank=4)
-        self._set_builder_entry(ranked_builder, total_points=25, rank=5)
-        self._set_builder_entry(github_link_user, total_points=25, rank=6)
-        self._set_builder_entry(contribution_only_user, total_points=20, rank=7)
 
         list_response = self.client.get('/api/v1/leaderboard/', {'type': 'builder'})
         accepted_lookup_response = self.client.get(
@@ -526,25 +514,38 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(list_response.status_code, 200)
         self._assert_builder_list_addresses(
             list_response,
-            included_users=(ranked_builder, non_submittable_user),
+            included_users=(
+                non_submittable_user,
+                ranked_builder,
+                contribution_only_user,
+            ),
             excluded_users=(
                 role_only_user,
                 welcome_only_user,
                 simple_builder_user,
                 github_link_user,
-                contribution_only_user,
             ),
         )
-        self.assertEqual([row['rank'] for row in list_response.data], [4, 5])
+        # Ranks are contiguous over exactly the displayed (eligible) set.
+        self.assertEqual([row['rank'] for row in list_response.data], [1, 2, 3])
 
-        self._assert_builder_lookup_empty(role_only_user)
-        self._assert_builder_lookup_empty(welcome_only_user)
-        self._assert_builder_lookup_empty(simple_builder_user)
-        self._assert_builder_lookup_empty(github_link_user)
+        # Ineligible builders have no builder entries at all (write-time rule).
+        for ineligible_user in (
+            role_only_user,
+            welcome_only_user,
+            simple_builder_user,
+            github_link_user,
+        ):
+            self._assert_builder_lookup_empty(ineligible_user)
+            self.assertFalse(
+                LeaderboardEntry.objects.filter(
+                    user=ineligible_user, type='builder'
+                ).exists()
+            )
 
         self.assertEqual(accepted_lookup_response.status_code, 200)
         self.assertEqual(accepted_lookup_response.data[0]['type'], 'builder')
-        self.assertEqual(accepted_lookup_response.data[0]['rank'], 4)
+        self.assertEqual(accepted_lookup_response.data[0]['rank'], 1)
 
         self.assertEqual(accepted_all_entries_response.status_code, 200)
         self.assertTrue(

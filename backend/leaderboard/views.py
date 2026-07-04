@@ -3,18 +3,16 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 from django.utils.dateparse import parse_date
-from django.db.models import Count, Exists, OuterRef, Q, Sum
+from django.db.models import Count, Q, Sum
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import (
-    BUILDER_LEADERBOARD_ELIGIBILITY_EXCLUDED_CONTRIBUTION_TYPE_SLUGS,
     GlobalLeaderboardMultiplier,
     LEADERBOARD_CONFIG,
     LeaderboardEntry,
     recalculate_all_leaderboards,
-    update_all_ranks,
 )
 from .serializers import GlobalLeaderboardMultiplierSerializer, LeaderboardEntrySerializer
-from contributions.models import Category, Contribution, SubmittedContribution
+from contributions.models import Contribution
 
 ONBOARDING_CONTRIBUTION_TYPE_SLUGS = [
     'builder-welcome',
@@ -85,29 +83,6 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             )
         )
 
-    def _builder_ranking_submissions(self):
-        excluded_slugs = BUILDER_LEADERBOARD_ELIGIBILITY_EXCLUDED_CONTRIBUTION_TYPE_SLUGS
-        return SubmittedContribution.objects.filter(
-            state='accepted',
-        ).filter(
-            (
-                Q(
-                    converted_contribution__user_id=OuterRef('user_id'),
-                    converted_contribution__contribution_type__category__slug='builder',
-                ) &
-                ~Q(
-                    converted_contribution__contribution_type__slug__in=excluded_slugs
-                )
-            ) | (
-                Q(
-                    converted_contribution__isnull=True,
-                    user_id=OuterRef('user_id'),
-                    contribution_type__category__slug='builder',
-                ) &
-                ~Q(contribution_type__slug__in=excluded_slugs)
-            )
-        )
-
     def get_queryset(self):
         """
         Filter leaderboard by type, user address, and handle ordering.
@@ -136,8 +111,6 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             )
         )
 
-        eligible_builder_submissions = self._builder_ranking_submissions()
-
         # Filter by user address if provided
         user_address = self.request.query_params.get('user_address')
         if user_address:
@@ -146,12 +119,6 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             leaderboard_type = self.request.query_params.get('type')
             if leaderboard_type:
                 queryset = queryset.filter(type=leaderboard_type)
-                if leaderboard_type == 'builder':
-                    queryset = queryset.filter(Exists(eligible_builder_submissions))
-            else:
-                queryset = queryset.filter(
-                    ~Q(type='builder') | Exists(eligible_builder_submissions)
-                )
         else:
             # Get type from query params
             leaderboard_type = self.request.query_params.get('type')
@@ -161,9 +128,6 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             else:
                 # Default to validator leaderboard only when not filtering by user
                 queryset = queryset.filter(type='validator')
-
-            if leaderboard_type == 'builder':
-                queryset = queryset.filter(Exists(eligible_builder_submissions))
 
             # Handle network filtering for validators
             # Only include validators with active wallets on the specified network.
@@ -443,20 +407,6 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 )['total'] or 0
                 participant_count = leaderboard_entries.count()
 
-            # New participants in the last 30 days for the specific leaderboard type
-            if leaderboard_type == 'builder':
-                new_builders_count = LeaderboardEntry.objects.filter(
-                    type='builder', user__created_at__gte=last_month
-                ).count()
-                new_validators_count = 0
-            elif leaderboard_type == 'validator':
-                new_builders_count = 0
-                new_validators_count = get_validators().filter(
-                    created_at__gte=last_month
-                ).count()
-            else:
-                new_builders_count = 0
-                new_validators_count = 0
         else:
             # Global stats
             all_contributions = Contribution.objects.filter(
@@ -492,13 +442,6 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             new_points_count = all_contributions.filter(
                 created_at__gte=last_month
             ).aggregate(total=Sum('frozen_global_points'))['total'] or 0
-
-            new_builders_count = LeaderboardEntry.objects.filter(
-                type='builder', user__created_at__gte=last_month
-            ).count()
-            new_validators_count = LeaderboardEntry.objects.filter(
-                type='validator', user__created_at__gte=last_month
-            ).count()
 
         builder_contribs = Contribution.objects.filter(
             user__visible=True,
