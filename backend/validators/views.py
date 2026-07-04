@@ -18,6 +18,8 @@ from .serializers import (
     GrafanaValidatorSerializer,
     ValidatorWalletSerializer,
     WallOfShameSerializer,
+    grafana_explorer_url,
+    grafana_network_label,
 )
 from .permissions import IsCronToken
 from .genlayer_validators_service import GenLayerValidatorsService
@@ -1004,8 +1006,8 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
             .exclude(user_id__in=linked_user_ids)
             .order_by('user__name')
         )
-        label = settings.GRAFANA_NETWORK_LABELS.get(network, network)
-        explorer_url = settings.TESTNET_NETWORKS.get(network, {}).get('explorer_url', '')
+        label = grafana_network_label(network)
+        explorer_url = grafana_explorer_url(network)
         rows = []
         for validator in graduated:
             account = (validator.user.address or '').lower()

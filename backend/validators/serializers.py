@@ -3,6 +3,16 @@ from django.conf import settings
 from .models import ValidatorWallet, Validator
 
 
+def grafana_network_label(network):
+    """Grafana `network` label value for a portal network key (e.g. 'asimov-phase5')."""
+    return settings.GRAFANA_NETWORK_LABELS.get(network, network)
+
+
+def grafana_explorer_url(network):
+    """Explorer base URL for a portal network key ('' if unconfigured)."""
+    return settings.TESTNET_NETWORKS.get(network, {}).get('explorer_url', '')
+
+
 class ValidatorWalletSerializer(serializers.ModelSerializer):
     """
     Serializer for ValidatorWallet model.
@@ -101,7 +111,7 @@ class GrafanaValidatorSerializer(serializers.ModelSerializer):
         return None
 
     def get_network(self, obj):
-        return settings.GRAFANA_NETWORK_LABELS.get(obj.network, obj.network)
+        return grafana_network_label(obj.network)
 
     def get_node(self, obj):
         return (obj.address or '').lower()
@@ -124,7 +134,7 @@ class GrafanaValidatorSerializer(serializers.ModelSerializer):
         return user.name if user else None
 
     def get_explorer_url(self, obj):
-        return settings.TESTNET_NETWORKS.get(obj.network, {}).get('explorer_url', '')
+        return grafana_explorer_url(obj.network)
 
     def get_linked(self, obj):
         return obj.operator_id is not None
