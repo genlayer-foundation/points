@@ -486,6 +486,13 @@ export async function logout() {
   } catch (error) {
     // Silently handle logout errors
   } finally {
+    // Detach wallet listeners: while logged out nothing should react to
+    // wallet events. Stale listeners on the SDK provider otherwise fire
+    // during the NEXT connect attempt (the SDK re-emits chainChanged /
+    // accountsChanged mid-connection) and handleChainChanged's reload kills
+    // the in-progress sign-in. Listeners re-attach after each successful
+    // sign-in via setupWalletListeners().
+    removeWalletListeners();
     // Clear auth state using our store method
     authState.setAuthenticated(false, null);
     // Reset verification flag so next session will verify
@@ -687,9 +694,13 @@ export function removeWalletListeners() {
 if (typeof window !== 'undefined') {
   // Only verify auth in browser environment
   verifyAuth().catch(() => {});
-  
-  // Set up wallet event listeners
-  setupWalletListeners();
+
+  // Set up wallet event listeners — only for a restored session. Anonymous
+  // visitors must not have listeners: chainChanged reloads the page, which
+  // would abort a wallet connection in progress.
+  if (authState.get().isAuthenticated) {
+    setupWalletListeners();
+  }
   
   // Set up periodic session refresh to keep user logged in
   setInterval(async () => {
