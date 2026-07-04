@@ -66,7 +66,7 @@ class CalculateCategoryPointsTest(TestCase):
         total = calculate_category_points(self.user, 'builder')
         self.assertEqual(total, 15)
 
-    def test_excludes_builder_journey_star_task_from_category_total(self):
+    def test_includes_builder_journey_star_task_in_category_total(self):
         task = _create_builder_journey_task(self.builder_cat)
         SocialTaskCompletion.objects.create(
             user=self.user,
@@ -76,9 +76,9 @@ class CalculateCategoryPointsTest(TestCase):
         )
 
         total = calculate_category_points(self.user, 'builder')
-        self.assertEqual(total, 0)
+        self.assertEqual(total, 25)
 
-    def test_excludes_simple_builder_contribution_types_from_category_total(self):
+    def test_includes_eligibility_excluded_builder_contribution_points(self):
         included_type = ContributionType.objects.create(
             name='Builder Demo',
             slug='builder-demo-total-test',
@@ -119,7 +119,7 @@ class CalculateCategoryPointsTest(TestCase):
         )
 
         total = calculate_category_points(self.user, 'builder')
-        self.assertEqual(total, 10)
+        self.assertEqual(total, 85)
 
     def test_community_category_returns_social_task_only(self):
         task = SocialTask.objects.create(
@@ -161,7 +161,7 @@ class SignalUpdatesLeaderboardTest(TestCase):
         entry = LeaderboardEntry.objects.get(user=self.user, type='builder')
         self.assertEqual(entry.total_points, 12)
 
-    def test_builder_journey_star_completion_does_not_add_builder_points(self):
+    def test_builder_journey_star_completion_adds_builder_points(self):
         task = _create_builder_journey_task(self.builder_cat)
 
         SocialTaskCompletion.objects.create(
@@ -169,7 +169,7 @@ class SignalUpdatesLeaderboardTest(TestCase):
         )
 
         entry = LeaderboardEntry.objects.get(user=self.user, type='builder')
-        self.assertEqual(entry.total_points, 0)
+        self.assertEqual(entry.total_points, 25)
 
 
 class CommunityCategoryDoesNotMoveLeaderboardTest(TestCase):
@@ -218,7 +218,7 @@ class RecalculateIncludesSocialTasksTest(TestCase):
         entry = LeaderboardEntry.objects.get(user=user, type='builder')
         self.assertEqual(entry.total_points, 8)
 
-    def test_recalculate_excludes_builder_journey_star_task(self):
+    def test_recalculate_includes_builder_journey_star_task(self):
         user = User.objects.create_user(email='star@example.com', password='x', visible=True)
         Builder.objects.create(user=user)
         builder_cat, _ = Category.objects.get_or_create(slug='builder', defaults={'name': 'Builder'})
@@ -232,9 +232,9 @@ class RecalculateIncludesSocialTasksTest(TestCase):
         recalculate_all_leaderboards()
 
         entry = LeaderboardEntry.objects.get(user=user, type='builder')
-        self.assertEqual(entry.total_points, 0)
+        self.assertEqual(entry.total_points, 25)
 
-    def test_recalculate_excludes_simple_builder_contribution_types(self):
+    def test_recalculate_includes_eligibility_excluded_builder_contribution_points(self):
         user = User.objects.create_user(
             email='simple-builder@example.com',
             password='x',
@@ -279,7 +279,7 @@ class RecalculateIncludesSocialTasksTest(TestCase):
         recalculate_all_leaderboards()
 
         entry = LeaderboardEntry.objects.get(user=user, type='builder')
-        self.assertEqual(entry.total_points, 30)
+        self.assertEqual(entry.total_points, 55)
 
     def test_recalculate_sums_contribution_and_social_points(self):
         user = User.objects.create_user(email='vmix@example.com', password='x', visible=True)
