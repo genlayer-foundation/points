@@ -4,6 +4,12 @@ import { createEVMClient } from '@metamask/connect-evm';
 
 const GENLAYER_CHAIN_ID = '0x107d';
 const DEFAULT_GENLAYER_RPC_URL = 'https://rpc.testnet-chain.genlayer.com';
+const GENLAYER_STUDIO_CHAIN_ID = '0xf22f';
+const GENLAYER_STUDIO_RPC_URL = 'https://studio.genlayer.com/api';
+// Always granted: the SDK includes mainnet in every permission request as a
+// bootstrap fallback, so this scope is a safe last resort for signing.
+const MAINNET_CHAIN_ID = '0x1';
+const MAINNET_RPC_URL = 'https://cloudflare-eth.com';
 
 let metaMaskClientPromise = null;
 
@@ -17,10 +23,23 @@ function getDappIconUrl() {
   return `${window.location.origin}/favicon.svg`;
 }
 
+// The SDK provider rejects EVERY request (personal_sign included) whose
+// active chain is not listed here, and the active chain follows the wallet's
+// selected network — not just the chain we request. So this must cover the
+// networks our users actually sit on, plus mainnet as the universal fallback.
 function getSupportedNetworks() {
   return {
     [GENLAYER_CHAIN_ID]: import.meta.env.VITE_VALIDATOR_RPC_URL || DEFAULT_GENLAYER_RPC_URL,
+    [GENLAYER_STUDIO_CHAIN_ID]: GENLAYER_STUDIO_RPC_URL,
+    [MAINNET_CHAIN_ID]: MAINNET_RPC_URL,
   };
+}
+
+// ponytail: users on chains outside this map fall back to the mainnet scope
+// for signing; enumerate more networks (or an Infura key) if that ever bites.
+function pickSupportedChainId(selectedChainId) {
+  const current = String(selectedChainId || '').toLowerCase();
+  return getSupportedNetworks()[current] ? current : MAINNET_CHAIN_ID;
 }
 
 // The SDK rejects user cancels with shapes the app doesn't recognize:
@@ -89,6 +108,15 @@ export async function getMetaMaskConnectProvider() {
     throw error;
   }
   const provider = client.getProvider();
+  // After connect the provider's selected chain is whatever network the
+  // wallet is on (e.g. GenLayer Studio, Polygon). If that chain isn't in
+  // supportedNetworks, the SDK throws on personal_sign and SIWE login breaks.
+  // Pin to a supported chain: keep the wallet's network when we support it,
+  // otherwise use mainnet, which the SDK always includes in the session.
+  const pinnedChainId = pickSupportedChainId(provider.selectedChainId);
+  if (provider.selectedChainId !== pinnedChainId) {
+    provider.selectedChainId = pinnedChainId;
+  }
   Object.defineProperty(provider, '__genlayerMetaMaskConnect', {
     value: true,
     configurable: true,
