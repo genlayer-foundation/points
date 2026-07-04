@@ -6,6 +6,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 - Leaderboards load much faster and builder ranks are contiguous with no gaps; builders whose contributions were added directly by stewards now appear on the board, and every pre-existing builder received the star-the-boilerplate task and its points (11d6b38b)
 
+- Deleting a contribution now updates the owner's leaderboard totals and builder eligibility immediately instead of waiting for the next recalculation (9115c006)
+
 - The Grafana validator roster now says whether each validator wallet is linked to a portal account and carries the raw on-chain identity values (moniker, logo, description presence), so dashboards can show link status and setup completeness (e72de98)
 
 - The Grafana validator roster now lists graduated validators that are missing from a testnet, so the Wall of Shame can show every expected validator on both Asimov and Bradbury (99cb19e)
