@@ -1,6 +1,6 @@
 <script lang="ts">
   import { push, querystring } from "svelte-spa-router";
-  import { format } from "date-fns";
+  import { format } from '../lib/dates.js';
   import {
     usersAPI,
     statsAPI,

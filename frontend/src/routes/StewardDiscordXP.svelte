@@ -3,8 +3,8 @@
   import { replace, querystring } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
   import { stewardAPI, contributionsAPI } from '../lib/api.js';
-  import PaginationEnhanced from '../components/PaginationEnhanced.svelte';
-  import StewardXPSearchBar from '../components/StewardXPSearchBar.svelte';
+  import Pagination from '../components/Pagination.svelte';
+  import StewardSearchBar from '../components/StewardSearchBar.svelte';
   import { showSuccess, showError } from '../lib/toastStore';
   import { parseSearch } from '../lib/searchParser.js';
   import { xpSearchToParams } from '../lib/xpSearchToParams.js';
@@ -355,7 +355,8 @@
     </div>
 
     <div class="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm md:flex-row md:items-center">
-      <StewardXPSearchBar
+      <StewardSearchBar
+        variant="xp"
         bind:value={searchQuery}
         {contributionTypes}
         placeholder="from:alice type:community-call sort:-points..."
@@ -377,7 +378,7 @@
       </div>
     {:else}
       {#if totalCount > pageSize}
-        <PaginationEnhanced
+        <Pagination
           {currentPage}
           totalItems={totalCount}
           itemsPerPage={pageSize}
@@ -463,7 +464,7 @@
       </div>
 
       {#if totalCount > pageSize}
-        <PaginationEnhanced
+        <Pagination
           {currentPage}
           totalItems={totalCount}
           itemsPerPage={pageSize}

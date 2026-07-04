@@ -2,12 +2,11 @@
   import { push, querystring } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
   import { onMount } from 'svelte';
-  import api, { submissionsAPI } from '../lib/api.js';
+  import api, { contributionsAPI, submissionsAPI } from '../lib/api.js';
   import ConfirmDialog from '../components/ConfirmDialog.svelte';
   import ContributionSelection from '../lib/components/ContributionSelection.svelte';
   import SocialLink from '../components/SocialLink.svelte';
   import { userStore } from '../lib/userStore';
-  import { getContributionTypes } from '../lib/api/contributions.js';
   import { parseMarkdown } from '../lib/markdownLoader.js';
   import { isSafeHttpUrl } from '../lib/urlSafety.js';
 
@@ -396,7 +395,8 @@
 
       // Load contribution types to collect evidence URL types
       try {
-        const allTypes = await getContributionTypes();
+        const typesResponse = await contributionsAPI.getContributionTypes();
+        const allTypes = typesResponse.data.results || typesResponse.data;
         const urlTypeMap = new Map();
         for (const ct of allTypes) {
           for (const ut of ct.accepted_evidence_url_types || []) {

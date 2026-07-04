@@ -1,5 +1,5 @@
 from django.db import models, transaction
-from django.db.models.signals import post_save
+from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 from django.conf import settings
 from django.utils import timezone
@@ -32,6 +32,33 @@ def has_contribution_badge(user, slug):
         user=user,
         contribution_type__slug=slug
     ).exists()
+
+
+def has_eligible_builder_contribution(user):
+    """True when the user has at least one real builder contribution.
+
+    Builder leaderboard entry existence keys off this (plus the Builder
+    profile): eligibility is decided at write time, so reads never filter.
+    Excluded slugs are role/onboarding markers, not real work; their points
+    (and social-task points) still count toward the total once eligible.
+    ORM twin of _is_eligible_builder_contribution() used by the recalc.
+    """
+    return Contribution.objects.filter(
+        user=user,
+        contribution_type__category__slug='builder',
+    ).exclude(
+        contribution_type__slug__in=BUILDER_LEADERBOARD_ELIGIBILITY_EXCLUDED_CONTRIBUTION_TYPE_SLUGS
+    ).exists()
+
+
+def _is_eligible_builder_contribution(contrib):
+    """Dict twin of has_eligible_builder_contribution() for the recalc's
+    .values() rows — single source of truth for the predicate."""
+    return (
+        contrib['contribution_type__category__slug'] == 'builder' and
+        contrib['contribution_type__slug'] not in
+        BUILDER_LEADERBOARD_ELIGIBILITY_EXCLUDED_CONTRIBUTION_TYPE_SLUGS
+    )
 
 
 def calculate_category_points(user, category_slug):
@@ -204,7 +231,12 @@ LEADERBOARD_CONFIG = {
     },
     'builder': {
         'name': 'Builder',
-        'participants': lambda user: hasattr(user, 'builder'),  # Has Builder profile
+        # Builder profile + ≥1 real builder contribution. Entry existence ==
+        # public-leaderboard eligibility (hasattr first: short-circuits the
+        # EXISTS query for non-builders).
+        'participants': lambda user: (
+            hasattr(user, 'builder') and has_eligible_builder_contribution(user)
+        ),
         'points_calculator': lambda user: calculate_category_points(user, 'builder'),
         'ranking_order': '-total_points',
     },
@@ -338,6 +370,10 @@ class LeaderboardEntry(BaseModel):
         ordering = ['-total_points', 'user__name']
         verbose_name_plural = 'Leaderboard entries'
         unique_together = ['user', 'type']
+        indexes = [
+            # Hot path: WHERE type=? ORDER BY rank LIMIT n (leaderboard pages).
+            models.Index(fields=['type', 'rank'], name='leaderboard_type_rank_idx'),
+        ]
     
     def __str__(self):
         leaderboard_name = self.get_type_display() if self.type else "Unknown"
@@ -508,6 +544,46 @@ def update_user_leaderboard_entries(user):
     affected_leaderboards = set(qualified_leaderboards) | removed_leaderboards
     for leaderboard_type in affected_leaderboards:
         LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
+
+
+@receiver(post_delete, sender=Contribution)
+def update_leaderboard_on_contribution_delete(sender, instance, **kwargs):
+    """
+    Deleting a contribution must refresh the user's entries the same way
+    saving one does: totals drop, and removing the last eligible builder
+    contribution removes the builder entry.
+
+    Unlike the save path this NEVER creates entries: inside a user-delete
+    cascade sibling LeaderboardEntry rows may already be gone, and a row
+    recreated here would break the final user delete with an FK violation.
+    """
+    from users.models import User
+
+    try:
+        user = User.objects.get(pk=instance.user_id)
+    except User.DoesNotExist:
+        # Cascade from the user delete itself; entries go with the user.
+        return
+
+    affected_types = set()
+    for entry in LeaderboardEntry.objects.filter(user=user):
+        if entry.type == 'validator-waitlist-graduation':
+            continue  # frozen by design
+        config = LEADERBOARD_CONFIG[entry.type]
+        if config['participants'](user):
+            entry.total_points = config['points_calculator'](user)
+            entry.save()
+        else:
+            entry.delete()
+        affected_types.add(entry.type)
+
+    for leaderboard_type in affected_types:
+        LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
+
+    # Mirror the save path: a referred user's contribution also feeds the
+    # referrer's referral points and waitlist total.
+    if user.referred_by_id:
+        update_referrer_points(instance)
 
 
 class ReferralPoints(BaseModel):
@@ -760,11 +836,7 @@ def recalculate_all_leaderboards():
             initial_builders_set = set(Builder.objects.values_list('user_id', flat=True))
             user_builder_contribs = defaultdict(list)
             for contrib in initial_contributions:
-                if (
-                    contrib['contribution_type__category__slug'] == 'builder' and
-                    contrib['contribution_type__slug'] not in
-                    BUILDER_LEADERBOARD_ELIGIBILITY_EXCLUDED_CONTRIBUTION_TYPE_SLUGS
-                ):
+                if _is_eligible_builder_contribution(contrib):
                     user_builder_contribs[contrib['user_id']].append(contrib['contribution_date'])
 
             for user_id, dates in user_builder_contribs.items():
@@ -796,6 +868,14 @@ def recalculate_all_leaderboards():
             user_contributions = defaultdict(list)
             for contrib in contributions:
                 user_contributions[contrib['user_id']].append(contrib)
+
+            # Builder-leaderboard eligibility over the same dataset entries are
+            # built from.
+            eligible_builder_user_ids = {
+                contrib['user_id']
+                for contrib in contributions
+                if _is_eligible_builder_contribution(contrib)
+            }
 
             # Bulk-load social-task completions and group by user. Reads as
             # empty while old data migrations replay before social_tasks 0001.
@@ -840,7 +920,7 @@ def recalculate_all_leaderboards():
                 if user_id in validators_set:
                     qualified_leaderboards.append('validator')
 
-                if user_id in builders_set:
+                if user_id in builders_set and user_id in eligible_builder_user_ids:
                     qualified_leaderboards.append('builder')
 
                 if 'validator-waitlist' in user_badges[user_id] and user_id not in validators_set:

@@ -1,5 +1,5 @@
 <script>
-    import { format } from "date-fns";
+    import { format } from '../../lib/dates.js';
     import CategoryIcon from "../portal/CategoryIcon.svelte";
 
     let { participant = null } = $props();

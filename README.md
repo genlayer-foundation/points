@@ -83,22 +83,17 @@ eventually be part of the Deepthought DAO.
    pip install -r requirements.txt
    ```
 
-4. Setup Node.js environment using nodeenv:
-   ```
-   nodeenv -p
-   ```
-
-5. Run migrations:
+4. Run migrations:
    ```
    python manage.py migrate
    ```
 
-6. Create a superuser:
+5. Create a superuser:
    ```
    python manage.py createsuperuser
    ```
 
-7. Run the development server:
+6. Run the development server:
    ```
    python manage.py runserver
    ```

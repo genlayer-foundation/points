@@ -3,7 +3,6 @@
   import { push, location, loc } from 'svelte-spa-router';
   import { contributionsAPI, usersAPI } from '../lib/api';
   import { getMissions } from '../lib/missionsStore.js';
-  import { getContributionTypes } from '../lib/api/contributions.js';
   import HighlightCard from '../components/portal/HighlightCard.svelte';
   import HighlightsSlider from '../components/portal/HighlightsSlider.svelte';
   import PortalContributionCard from '../components/portal/PortalContributionCard.svelte';
@@ -483,7 +482,7 @@
     typesLoading = true;
     try {
       const [types, missions] = await Promise.all([
-        getContributionTypes(),
+        contributionsAPI.getContributionTypes().then((r) => r.data.results || r.data),
         getMissions({ include_inactive: true, page_size: 100 }),
       ]);
       allTypes = Array.isArray(types)
@@ -914,7 +913,7 @@
           {/each}
         </div>
         {#if highlightsTotalPages > 1}
-          <Pagination page={highlightsPage} limit={PAGE_SIZE} totalCount={highlightsCount} on:pageChange={handleHighlightsPageChange} />
+          <Pagination currentPage={highlightsPage} itemsPerPage={PAGE_SIZE} totalItems={highlightsCount} showPageSize={false} on:pageChange={handleHighlightsPageChange} />
         {/if}
       {/if}
     </section>
@@ -955,7 +954,7 @@
           {/each}
         </div>
         {#if contributionsCount > PAGE_SIZE}
-          <Pagination page={allPage} limit={PAGE_SIZE} totalCount={contributionsCount} on:pageChange={handleAllPageChange} />
+          <Pagination currentPage={allPage} itemsPerPage={PAGE_SIZE} totalItems={contributionsCount} showPageSize={false} on:pageChange={handleAllPageChange} />
         {/if}
       {/if}
     </section>

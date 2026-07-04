@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
-  import { format } from 'date-fns';
+  import { format } from '../lib/dates.js';
   import { leaderboardAPI, contributionsAPI } from '../lib/api';
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';

@@ -3,7 +3,7 @@
   import { authState } from '../lib/auth.js';
   import { onMount } from 'svelte';
   import api, { submissionsAPI } from '../lib/api.js';
-  import PaginationEnhanced from '../components/PaginationEnhanced.svelte';
+  import Pagination from '../components/Pagination.svelte';
   import SubmissionCard from '../components/SubmissionCard.svelte';
   import { showSuccess, showError } from '../lib/toastStore';
   import {
@@ -354,7 +354,7 @@
     <!-- Top Pagination -->
     {#if totalCount > 10}
       <div class="mb-4">
-        <PaginationEnhanced
+        <Pagination
           {currentPage}
           totalItems={totalCount}
           itemsPerPage={pageSize}
@@ -384,7 +384,7 @@
     <!-- Bottom Pagination -->
     {#if totalCount > 10}
       <div class="mt-6">
-        <PaginationEnhanced
+        <Pagination
           {currentPage}
           totalItems={totalCount}
           itemsPerPage={pageSize}

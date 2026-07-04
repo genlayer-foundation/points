@@ -1,6 +1,6 @@
 <script>
 	import { onMount } from 'svelte';
-	import { getContributionTypes } from '../api/contributions.js';
+	import { contributionsAPI } from '../api.js';
 	import Badge from '../../components/Badge.svelte';
 	import { showError } from '../toastStore';
 	import { getMissions } from '../missionsStore.js';
@@ -85,8 +85,8 @@
 			if (onlySubmittable && !stewardMode) {
 				params.is_submittable = 'true';
 			}
-			const types = await getContributionTypes(params);
-			contributionTypes = types;
+			const response = await contributionsAPI.getContributionTypes(params);
+			contributionTypes = response.data.results || response.data;
 
 			// Fetch missions for all types in current category
 			await loadMissions();

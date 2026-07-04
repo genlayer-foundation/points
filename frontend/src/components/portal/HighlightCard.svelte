@@ -1,6 +1,6 @@
 <script>
   import { push } from 'svelte-spa-router';
-  import { format } from 'date-fns';
+  import { format } from '../../lib/dates.js';
   import Avatar from '../Avatar.svelte';
   import { isHiddenWelcomeContribution } from '../../lib/hiddenContributions.js';
   import { parseMarkdown } from '../../lib/markdownLoader.js';

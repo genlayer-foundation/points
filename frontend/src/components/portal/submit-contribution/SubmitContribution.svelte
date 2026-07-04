@@ -3,7 +3,6 @@
   import { push } from "svelte-spa-router";
   import api from "../../../lib/api.js";
   import { contributionsAPI, submissionsAPI } from "../../../lib/api.js";
-  import { getContributionTypes } from "../../../lib/api/contributions.js";
   import { getMissions } from "../../../lib/missionsStore.js";
   import { authState } from "../../../lib/auth.js";
   import { userStore } from "../../../lib/userStore";
@@ -109,7 +108,8 @@
   onMount(async () => {
     try {
       loadingTypes = true;
-      const allTypes = await getContributionTypes();
+      const typesResponse = await contributionsAPI.getContributionTypes();
+      const allTypes = typesResponse.data.results || typesResponse.data;
 
       types = allTypes;
 
