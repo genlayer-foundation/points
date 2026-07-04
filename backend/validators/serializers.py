@@ -3,6 +3,16 @@ from django.conf import settings
 from .models import ValidatorWallet, Validator
 
 
+def grafana_network_label(network):
+    """Grafana `network` label value for a portal network key (e.g. 'asimov-phase5')."""
+    return settings.GRAFANA_NETWORK_LABELS.get(network, network)
+
+
+def grafana_explorer_url(network):
+    """Explorer base URL for a portal network key ('' if unconfigured)."""
+    return settings.TESTNET_NETWORKS.get(network, {}).get('explorer_url', '')
+
+
 class ValidatorWalletSerializer(serializers.ModelSerializer):
     """
     Serializer for ValidatorWallet model.
@@ -59,6 +69,13 @@ class GrafanaValidatorSerializer(serializers.ModelSerializer):
     join the roster straight onto metrics. Operator account identity (name,
     account address) is only exposed for visible operators; non-visible
     operators are identified by their on-chain operator address alone.
+
+    Raw facts only — verdicts are computed dashboard-side. `linked` says
+    whether the wallet is attributed to a portal account (safe for
+    non-visible operators: a bare boolean, never who). `moniker` / `logo_uri`
+    are the raw on-chain getIdentity() values as synced (empty string =
+    unset); `has_description` is a presence flag so the roster doesn't ship
+    long description texts.
     """
     network = serializers.SerializerMethodField()
     node = serializers.SerializerMethodField()
@@ -67,6 +84,8 @@ class GrafanaValidatorSerializer(serializers.ModelSerializer):
     account = serializers.SerializerMethodField()
     account_name = serializers.SerializerMethodField()
     explorer_url = serializers.SerializerMethodField()
+    linked = serializers.SerializerMethodField()
+    has_description = serializers.SerializerMethodField()
 
     class Meta:
         model = ValidatorWallet
@@ -79,6 +98,10 @@ class GrafanaValidatorSerializer(serializers.ModelSerializer):
             'account',
             'account_name',
             'explorer_url',
+            'linked',
+            'moniker',
+            'logo_uri',
+            'has_description',
         ]
         read_only_fields = fields
 
@@ -88,7 +111,7 @@ class GrafanaValidatorSerializer(serializers.ModelSerializer):
         return None
 
     def get_network(self, obj):
-        return settings.GRAFANA_NETWORK_LABELS.get(obj.network, obj.network)
+        return grafana_network_label(obj.network)
 
     def get_node(self, obj):
         return (obj.address or '').lower()
@@ -111,7 +134,13 @@ class GrafanaValidatorSerializer(serializers.ModelSerializer):
         return user.name if user else None
 
     def get_explorer_url(self, obj):
-        return settings.TESTNET_NETWORKS.get(obj.network, {}).get('explorer_url', '')
+        return grafana_explorer_url(obj.network)
+
+    def get_linked(self, obj):
+        return obj.operator_id is not None
+
+    def get_has_description(self, obj):
+        return bool(obj.description)
 
 
 class WallOfShameSerializer(serializers.ModelSerializer):
