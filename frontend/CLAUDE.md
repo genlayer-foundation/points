@@ -196,7 +196,7 @@ The application uses custom variable fonts for better visual hierarchy:
 
 **Display/Numbers:** F37 Lineca VF (variable font, all weights)
 - Use `font-display` class for large display text and stat numbers
-- Used in: "Points" in header, hero titles, LiveStats numbers, PointsAwarded titles, CTABanner headline, landing page headings
+- Used in: "Points" in header, hero titles, stat numbers, PointsAwarded titles, CTABanner headline, landing page headings
 - Falls back to Geist if F37 Lineca fails to load
 - Variable font supports all weights (`font-light` through `font-bold`)
 - Figma uses Medium weight — use `font-medium` with `font-display`
@@ -329,7 +329,7 @@ const routes = {
   '/auth/github/callback': GitHubCallback,
 
   // Overview & Global
-  '/': Overview,                    // Portal overview with HeroBanner, LiveStats, TrendingContributors, etc.
+  '/': Overview,                    // Portal overview with HeroBanner, NetworkActivity, FeaturedBuilds, etc.
   '/how-it-works': HowItWorks,      // How it works page (WelcomeHero, JourneySection, RoleCards, CTABanner)
   '/asimov': GlobalDashboard,       // Testnet Asimov dashboard
   '/contributions': Contributions,
@@ -536,11 +536,6 @@ Investor-oriented home page (`routes/Overview.svelte`), top to bottom: hero → 
 - **`DecisionsChart.svelte`** - chart.js (already a dep) smooth multi-line area chart: decisions/day for Studio + asimov + bradbury over 7 days. IMPORTANT: chart.js mutates the arrays it receives, so de-proxy Svelte `$props` arrays before passing them to `new Chart` (else `state_descriptors_fixed`); the canvas is always mounted so `bind:this` is set before data arrives.
 - **`PartnerLogoBanner.svelte`** - logos-only infinite marquee in TWO rows (even indices one row, odd the other, opposite directions, each tripled for a seamless loop). Fetches `partnersAPI.list({ show_in_overview: true, page_size: 100 })` so admins curate which partners appear (Partner.show_in_overview). Logos are flattened to grey silhouettes on a light band.
 - `metricsAPI` (`lib/api.js`): `getOverview()` (public; includes builders/validators/community_members/contributions counts + social + top_validators) and `getNetworkActivity()` (DB-snapshot-backed chart payload).
-
-#### Portal Hackathon Components (`src/components/portal/`)
-- **`HackathonWinnersSlider.svelte`** - Horizontal scroll slider for hackathon winners on the home page
-  - Displays grand winner, track winners, and honorable mentions with award labels
-  - Uses same scroll pattern as FeaturedBuilds
 
 #### Ecosystem Partners Components (`src/components/portal/partners/`)
 - **`PartnerCard.svelte`** - Square card for a partner / validator / project with rounded logo, hover frosted name strip, and category-tinted badge

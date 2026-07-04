@@ -3,6 +3,7 @@
 
   let {
     value = $bindable(''),
+    variant = 'submissions', // 'submissions' | 'xp'
     contributionTypes = [],
     stewardsList = [],
     templates = [],
@@ -26,7 +27,15 @@
     })
     .filter(Boolean);
 
-  const TAGS = [
+  const XP_TAGS = [
+    { name: 'type', description: 'Filter by community contribution type', values: () => contributionTypes.map(t => t.slug || t.name.toLowerCase().replace(/\s+/g, '-')) },
+    { name: 'from', description: 'Search by name, wallet, or Discord username', values: () => [] },
+    { name: 'include', description: 'Only show contributions containing text', values: () => [] },
+    { name: 'exclude', description: 'Exclude contributions containing text', values: () => [] },
+    { name: 'sort', description: 'Sort order', values: () => ['created', '-created', 'date', '-date', 'points', '-points', 'distributed', '-distributed'] }
+  ];
+
+  const SUBMISSION_TAGS = [
     {
       name: 'status',
       description: 'Filter by review status',
@@ -51,6 +60,8 @@
     { name: 'min-contributions', description: 'Min accepted contributions', values: () => ['1', '2', '3', '4', '5'] },
     { name: 'sort', description: 'Sort order', values: () => ['created', '-created', 'date', '-date', 'reviewed', '-reviewed', 'points', '-points'] }
   ];
+
+  const TAGS = variant === 'xp' ? XP_TAGS : SUBMISSION_TAGS;
 
   function getCurrentWord() {
     if (!inputRef) return { word: '', start: 0, end: 0 };
@@ -198,7 +209,7 @@
   });
 </script>
 
-<div class="search-container" bind:this={containerRef}>
+<div class="search-container {variant}" bind:this={containerRef}>
   <div class="search-input-wrapper">
     <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -234,7 +245,27 @@
     </div>
   {/if}
 
-  {#if showHelp}
+  {#if showHelp && variant === 'xp'}
+    <div class="help-tooltip">
+      <div class="help-header">XP Search</div>
+      <div class="help-content">
+        <div class="help-section">
+          <div class="help-row"><code>type:ama</code><span>Community contribution type</span></div>
+          <div class="help-row"><code>from:alice</code><span>Name, email, wallet, or Discord username</span></div>
+          <div class="help-row"><code>include:genlayer</code><span>Title, notes, type, or evidence contains text</span></div>
+          <div class="help-row"><code>exclude:duplicate</code><span>Hide matching title, notes, type, or evidence</span></div>
+          <div class="help-row"><code>sort:-points</code><span>created, date, points, distributed, or their negative form</span></div>
+        </div>
+        <div class="help-section">
+          <div class="help-subtitle">Examples</div>
+          <div class="help-example">from:alice include:thread sort:-date</div>
+          <div class="help-example">type:community-call sort:-points</div>
+          <div class="help-example">include:thread exclude:duplicate</div>
+        </div>
+        <div class="help-note">Untagged text searches contributor, Discord, title, notes, type, and evidence.</div>
+      </div>
+    </div>
+  {:else if showHelp}
     <div class="help-tooltip">
       <div class="help-header">Submission Search</div>
       <div class="help-content">
@@ -335,6 +366,11 @@
     border-color: #2563eb;
     background-color: white;
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  }
+
+  .search-container.xp .search-input:focus {
+    border-color: #19a663;
+    box-shadow: 0 0 0 3px rgba(25, 166, 99, 0.12);
   }
 
   .search-input::placeholder {

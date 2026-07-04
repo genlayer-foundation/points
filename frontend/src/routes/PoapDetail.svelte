@@ -1,6 +1,6 @@
 <script>
   import { params, push } from 'svelte-spa-router';
-  import { format } from 'date-fns';
+  import { format } from '../lib/dates.js';
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
   import { poapsAPI } from '../lib/api.js';

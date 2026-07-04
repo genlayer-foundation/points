@@ -1,5 +1,5 @@
 <script>
-  import { format } from 'date-fns';
+  import { format } from '../../../lib/dates.js';
 
   let { stream, variant = 'past' } = $props();
 

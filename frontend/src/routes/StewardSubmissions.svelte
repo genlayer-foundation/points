@@ -5,7 +5,7 @@
   import { userStore } from '../lib/userStore.js';
   import { stewardAPI, contributionsAPI, leaderboardAPI } from '../lib/api.js';
   import { stewardPermissions } from '../lib/stewardPermissions.js';
-  import PaginationEnhanced from '../components/PaginationEnhanced.svelte';
+  import Pagination from '../components/Pagination.svelte';
   import SubmissionCard from '../components/SubmissionCard.svelte';
   import StewardSearchBar from '../components/StewardSearchBar.svelte';
   import { showSuccess, showError } from '../lib/toastStore';
@@ -887,7 +887,7 @@
     <!-- Top Pagination -->
     {#if totalCount > 10}
       <div class="mb-4">
-        <PaginationEnhanced
+        <Pagination
           {currentPage}
           totalItems={totalCount}
           itemsPerPage={pageSize}
@@ -973,7 +973,7 @@
     <!-- Bottom Pagination -->
     {#if totalCount > 10}
       <div class="mt-6">
-        <PaginationEnhanced
+        <Pagination
           {currentPage}
           totalItems={totalCount}
           itemsPerPage={pageSize}

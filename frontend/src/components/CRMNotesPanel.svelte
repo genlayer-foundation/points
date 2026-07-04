@@ -1,5 +1,5 @@
 <script>
-  import { formatDistanceToNow } from 'date-fns';
+  import { relativeTime } from '../lib/relativeTime.js';
 
   let {
     submissionId,
@@ -18,11 +18,7 @@
 
   function formatDate(dateString) {
     if (!dateString) return '';
-    try {
-      return formatDistanceToNow(new Date(dateString), { addSuffix: true });
-    } catch {
-      return dateString;
-    }
+    return relativeTime(dateString, { verbose: true }) || dateString;
   }
 
   async function handleAddNote() {

@@ -1,7 +1,7 @@
 <script>
   // @ts-nocheck
   import { onMount } from 'svelte';
-  import { format } from 'date-fns';
+  import { format } from '../lib/dates.js';
   import { push } from 'svelte-spa-router';
   import { contributionsAPI } from '../lib/api';
   import { visibleContributions } from '../lib/hiddenContributions.js';

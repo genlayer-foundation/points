@@ -1,6 +1,6 @@
 <script>
   import { push } from 'svelte-spa-router';
-  import { format } from 'date-fns';
+  import { format } from '../../lib/dates.js';
 
   let { items = [], density = 'large', showDetails = true, showCaptions = true, showOpenBadge = false } = $props();
 

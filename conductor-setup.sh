@@ -37,12 +37,12 @@ echo "  Installing Python packages..."
 pip install --quiet --upgrade pip
 pip install --quiet -r requirements.txt
 
-# Setup Node.js environment in the virtual environment (skip if system Node.js available)
+# Require system Node.js (nodeenv fallback removed)
 if command -v node &> /dev/null; then
     echo "  Using system Node.js ($(node -v))..."
 else
-    echo "  Setting up Node.js environment..."
-    nodeenv -p --quiet
+    echo "  ❌ Node.js not found. Install Node.js (https://nodejs.org) and re-run setup."
+    exit 1
 fi
 
 # Copy environment file if it exists in root

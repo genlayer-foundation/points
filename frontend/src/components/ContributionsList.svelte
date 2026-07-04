@@ -95,12 +95,13 @@
       {/each}
     </div>
 
-    {#if userAddress}
+    {#if userAddress && totalCount > limit}
       <div class="mt-4">
         <Pagination
-          page={page}
-          limit={limit}
-          totalCount={totalCount}
+          currentPage={page}
+          itemsPerPage={limit}
+          totalItems={totalCount}
+          showPageSize={false}
           on:pageChange={handlePageChange}
         />
       </div>

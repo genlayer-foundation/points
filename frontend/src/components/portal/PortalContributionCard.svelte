@@ -1,6 +1,6 @@
 <script>
   import { push } from 'svelte-spa-router';
-  import { format } from 'date-fns';
+  import { format } from '../../lib/dates.js';
   import { isHiddenWelcomeContribution } from '../../lib/hiddenContributions.js';
 
   let { contribution, category = null, height = 180, pathPrefix = '/contribution' } = $props();
