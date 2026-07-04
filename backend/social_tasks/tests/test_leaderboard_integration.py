@@ -144,7 +144,48 @@ class SignalUpdatesLeaderboardTest(TestCase):
         Builder.objects.create(user=self.user)
         self.builder_cat, _ = Category.objects.get_or_create(slug='builder', defaults={'name': 'Builder'})
 
-    def test_completion_creates_or_updates_builder_entry(self):
+    def _add_eligible_contribution(self, points=10):
+        """A real builder contribution — the write-time eligibility gate."""
+        ct, _ = ContributionType.objects.get_or_create(
+            slug='builder-real-work-signal',
+            defaults={
+                'name': 'Builder Real Work',
+                'category': self.builder_cat,
+                'min_points': points,
+                'max_points': points,
+            },
+        )
+        _ensure_multiplier(ct)
+        return Contribution.objects.create(
+            user=self.user,
+            contribution_type=ct,
+            points=points,
+            frozen_global_points=points,
+            contribution_date=timezone.now(),
+        )
+
+    def test_completion_alone_does_not_create_builder_entry(self):
+        task = SocialTask.objects.create(
+            slug='b-follow',
+            name='Builder follow',
+            category=self.builder_cat,
+            points=12,
+            verification_type='click_through',
+            action_url='https://example.com',
+        )
+
+        SocialTaskCompletion.objects.create(
+            user=self.user, task=task, points_awarded=12, verification_type='click_through',
+        )
+
+        # Social-task points are earnings, not eligibility: without a real
+        # builder contribution there is no public leaderboard entry.
+        self.assertFalse(
+            LeaderboardEntry.objects.filter(user=self.user, type='builder').exists()
+        )
+
+    def test_completion_updates_builder_entry_once_eligible(self):
+        self._add_eligible_contribution(points=10)
         task = SocialTask.objects.create(
             slug='b-follow',
             name='Builder follow',
@@ -159,9 +200,10 @@ class SignalUpdatesLeaderboardTest(TestCase):
         )
 
         entry = LeaderboardEntry.objects.get(user=self.user, type='builder')
-        self.assertEqual(entry.total_points, 12)
+        self.assertEqual(entry.total_points, 22)
 
     def test_builder_journey_star_completion_adds_builder_points(self):
+        self._add_eligible_contribution(points=10)
         task = _create_builder_journey_task(self.builder_cat)
 
         SocialTaskCompletion.objects.create(
@@ -169,7 +211,7 @@ class SignalUpdatesLeaderboardTest(TestCase):
         )
 
         entry = LeaderboardEntry.objects.get(user=self.user, type='builder')
-        self.assertEqual(entry.total_points, 25)
+        self.assertEqual(entry.total_points, 35)
 
 
 class CommunityCategoryDoesNotMoveLeaderboardTest(TestCase):
@@ -194,7 +236,7 @@ class CommunityCategoryDoesNotMoveLeaderboardTest(TestCase):
 
 
 class RecalculateIncludesSocialTasksTest(TestCase):
-    def test_recalculate_picks_up_completions_for_users_without_contributions(self):
+    def test_recalculate_skips_completion_only_builders(self):
         user = User.objects.create_user(email='b2@example.com', password='x', visible=True)
         Builder.objects.create(user=user)
         builder_cat, _ = Category.objects.get_or_create(slug='builder', defaults={'name': 'Builder'})
@@ -211,17 +253,35 @@ class RecalculateIncludesSocialTasksTest(TestCase):
             user=user, task=task, points_awarded=8, verification_type='click_through',
         )
 
-        # Wipe entries to simulate a stale leaderboard, then recalc.
         LeaderboardEntry.objects.all().delete()
         recalculate_all_leaderboards()
 
-        entry = LeaderboardEntry.objects.get(user=user, type='builder')
-        self.assertEqual(entry.total_points, 8)
+        # No real builder contribution -> not eligible -> no entry, even
+        # though the completion points exist (they surface in profile stats).
+        self.assertFalse(
+            LeaderboardEntry.objects.filter(user=user, type='builder').exists()
+        )
 
     def test_recalculate_includes_builder_journey_star_task(self):
         user = User.objects.create_user(email='star@example.com', password='x', visible=True)
         Builder.objects.create(user=user)
         builder_cat, _ = Category.objects.get_or_create(slug='builder', defaults={'name': 'Builder'})
+
+        included_type = ContributionType.objects.create(
+            name='Builder Real Work',
+            slug='builder-real-work-star-recalc',
+            category=builder_cat,
+            min_points=10,
+            max_points=10,
+        )
+        _ensure_multiplier(included_type)
+        Contribution.objects.create(
+            user=user,
+            contribution_type=included_type,
+            points=10,
+            frozen_global_points=10,
+            contribution_date=timezone.now(),
+        )
 
         task = _create_builder_journey_task(builder_cat)
         SocialTaskCompletion.objects.create(
@@ -232,7 +292,7 @@ class RecalculateIncludesSocialTasksTest(TestCase):
         recalculate_all_leaderboards()
 
         entry = LeaderboardEntry.objects.get(user=user, type='builder')
-        self.assertEqual(entry.total_points, 25)
+        self.assertEqual(entry.total_points, 35)
 
     def test_recalculate_includes_eligibility_excluded_builder_contribution_points(self):
         user = User.objects.create_user(

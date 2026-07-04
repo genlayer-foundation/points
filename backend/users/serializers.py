@@ -381,7 +381,12 @@ class BuilderSerializer(serializers.ModelSerializer):
     def get_total_points(self, obj):
         """Get total points for builder leaderboard."""
         leaderboard = LeaderboardEntry.objects.filter(user=obj.user, type='builder').first()
-        return leaderboard.total_points if leaderboard else 0
+        if leaderboard:
+            return leaderboard.total_points
+        # No entry == not eligible for the public ranking (no real builder
+        # contribution yet); earned builder points still show on the profile.
+        from leaderboard.models import calculate_category_points
+        return calculate_category_points(obj.user, 'builder')
     
     def get_rank(self, obj):
         """Get rank in builder leaderboard."""
