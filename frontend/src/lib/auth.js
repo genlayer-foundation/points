@@ -579,12 +579,26 @@ async function handleAccountsChanged(accounts) {
   }
 
   const state = authState.get();
-  
+
+  // Distinguish a genuine account switch from connection-settling noise.
+  // The MetaMask Connect SDK session is a SET of permitted accounts: trailing
+  // wallet_sessionChanged notifications after a (re)connect re-emit the list
+  // in arbitrary order, and because sessions merge, a previous account can
+  // come back first right after signing in — that is not a switch. Only our
+  // account dropping out of the set means the user moved away. Injected
+  // providers follow EIP-1193 ordering (first item = active account), so a
+  // first-item change there is a real switch.
+  const currentAddress = state.address?.toLowerCase();
+  const nextAccounts = accounts.map((account) => String(account).toLowerCase());
+  const switchedAway = state.provider?.__genlayerMetaMaskConnect
+    ? !nextAccounts.includes(currentAddress)
+    : nextAccounts[0] !== currentAddress;
+
   if (accounts.length === 0) {
     // User disconnected their wallet or revoked permissions
     await logout();
     authState.setError('Wallet disconnected. Please reconnect to continue.');
-  } else if (state.isAuthenticated && accounts[0].toLowerCase() !== state.address?.toLowerCase()) {
+  } else if (state.isAuthenticated && switchedAway) {
     // User switched to a different account while authenticated
     const newAccount = accounts[0];
     
