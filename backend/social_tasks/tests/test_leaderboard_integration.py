@@ -26,6 +26,21 @@ def _ensure_multiplier(ct):
         )
 
 
+def _create_builder_journey_task(category):
+    task, _ = SocialTask.objects.update_or_create(
+        slug=settings.BUILDER_JOURNEY_TASK_SLUG,
+        defaults={
+            'name': 'Star the GenLayer boilerplate',
+            'category': category,
+            'points': 25,
+            'verification_type': 'github_star',
+            'target_repo': 'genlayerlabs/genlayer-project-boilerplate',
+            'action_url': 'https://github.com/genlayerlabs/genlayer-project-boilerplate',
+        },
+    )
+    return task
+
+
 class CalculateCategoryPointsTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(email='u@example.com', password='x', visible=True)
@@ -52,17 +67,7 @@ class CalculateCategoryPointsTest(TestCase):
         self.assertEqual(total, 15)
 
     def test_excludes_builder_journey_star_task_from_category_total(self):
-        task, _ = SocialTask.objects.update_or_create(
-            slug=settings.BUILDER_JOURNEY_TASK_SLUG,
-            defaults={
-                'name': 'Star the GenLayer boilerplate',
-                'category': self.builder_cat,
-                'points': 25,
-                'verification_type': 'github_star',
-                'target_repo': 'genlayerlabs/genlayer-project-boilerplate',
-                'action_url': 'https://github.com/genlayerlabs/genlayer-project-boilerplate',
-            },
-        )
+        task = _create_builder_journey_task(self.builder_cat)
         SocialTaskCompletion.objects.create(
             user=self.user,
             task=task,
@@ -72,6 +77,49 @@ class CalculateCategoryPointsTest(TestCase):
 
         total = calculate_category_points(self.user, 'builder')
         self.assertEqual(total, 0)
+
+    def test_excludes_simple_builder_contribution_types_from_category_total(self):
+        included_type = ContributionType.objects.create(
+            name='Builder Demo',
+            slug='builder-demo-total-test',
+            category=self.builder_cat,
+            min_points=10,
+            max_points=10,
+        )
+        _ensure_multiplier(included_type)
+        excluded_specs = [
+            ('builder-welcome', 'Builder Welcome', 0),
+            ('builder', 'Builder', 50),
+            ('community-link-github', 'Link GitHub Account', 25),
+        ]
+        for slug, name, points in excluded_specs:
+            excluded_type, _ = ContributionType.objects.get_or_create(
+                slug=slug,
+                defaults={
+                    'name': name,
+                    'category': self.builder_cat,
+                    'min_points': points,
+                    'max_points': points,
+                },
+            )
+            _ensure_multiplier(excluded_type)
+            Contribution.objects.create(
+                user=self.user,
+                contribution_type=excluded_type,
+                points=points,
+                frozen_global_points=points,
+                contribution_date=timezone.now(),
+            )
+        Contribution.objects.create(
+            user=self.user,
+            contribution_type=included_type,
+            points=10,
+            frozen_global_points=10,
+            contribution_date=timezone.now(),
+        )
+
+        total = calculate_category_points(self.user, 'builder')
+        self.assertEqual(total, 10)
 
     def test_community_category_returns_social_task_only(self):
         task = SocialTask.objects.create(
@@ -114,17 +162,7 @@ class SignalUpdatesLeaderboardTest(TestCase):
         self.assertEqual(entry.total_points, 12)
 
     def test_builder_journey_star_completion_does_not_add_builder_points(self):
-        task, _ = SocialTask.objects.update_or_create(
-            slug=settings.BUILDER_JOURNEY_TASK_SLUG,
-            defaults={
-                'name': 'Star the GenLayer boilerplate',
-                'category': self.builder_cat,
-                'points': 25,
-                'verification_type': 'github_star',
-                'target_repo': 'genlayerlabs/genlayer-project-boilerplate',
-                'action_url': 'https://github.com/genlayerlabs/genlayer-project-boilerplate',
-            },
-        )
+        task = _create_builder_journey_task(self.builder_cat)
 
         SocialTaskCompletion.objects.create(
             user=self.user, task=task, points_awarded=25, verification_type='github_star',
@@ -185,17 +223,7 @@ class RecalculateIncludesSocialTasksTest(TestCase):
         Builder.objects.create(user=user)
         builder_cat, _ = Category.objects.get_or_create(slug='builder', defaults={'name': 'Builder'})
 
-        task, _ = SocialTask.objects.update_or_create(
-            slug=settings.BUILDER_JOURNEY_TASK_SLUG,
-            defaults={
-                'name': 'Star the GenLayer boilerplate',
-                'category': builder_cat,
-                'points': 25,
-                'verification_type': 'github_star',
-                'target_repo': 'genlayerlabs/genlayer-project-boilerplate',
-                'action_url': 'https://github.com/genlayerlabs/genlayer-project-boilerplate',
-            },
-        )
+        task = _create_builder_journey_task(builder_cat)
         SocialTaskCompletion.objects.create(
             user=user, task=task, points_awarded=25, verification_type='github_star',
         )
@@ -205,6 +233,53 @@ class RecalculateIncludesSocialTasksTest(TestCase):
 
         entry = LeaderboardEntry.objects.get(user=user, type='builder')
         self.assertEqual(entry.total_points, 0)
+
+    def test_recalculate_excludes_simple_builder_contribution_types(self):
+        user = User.objects.create_user(
+            email='simple-builder@example.com',
+            password='x',
+            visible=True,
+        )
+        Builder.objects.create(user=user)
+        builder_cat, _ = Category.objects.get_or_create(
+            slug='builder',
+            defaults={'name': 'Builder'},
+        )
+        included_type = ContributionType.objects.create(
+            name='Builder Real Work',
+            slug='builder-real-work-recalc',
+            category=builder_cat,
+            min_points=30,
+            max_points=30,
+        )
+        _ensure_multiplier(included_type)
+        github_link_type, _ = ContributionType.objects.get_or_create(
+            slug='community-link-github',
+            defaults={
+                'name': 'Link GitHub Account',
+                'category': builder_cat,
+                'min_points': 25,
+                'max_points': 25,
+            },
+        )
+        _ensure_multiplier(github_link_type)
+        for contribution_type, points in (
+            (github_link_type, 25),
+            (included_type, 30),
+        ):
+            Contribution.objects.create(
+                user=user,
+                contribution_type=contribution_type,
+                points=points,
+                frozen_global_points=points,
+                contribution_date=timezone.now(),
+            )
+
+        LeaderboardEntry.objects.all().delete()
+        recalculate_all_leaderboards()
+
+        entry = LeaderboardEntry.objects.get(user=user, type='builder')
+        self.assertEqual(entry.total_points, 30)
 
     def test_recalculate_sums_contribution_and_social_points(self):
         user = User.objects.create_user(email='vmix@example.com', password='x', visible=True)

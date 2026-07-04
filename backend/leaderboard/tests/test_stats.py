@@ -104,6 +104,80 @@ class LeaderboardStatsTest(TestCase):
             visible=visible
         )
 
+    def _create_builder_user(self, email, address):
+        user = self._create_user(email, address)
+        Builder.objects.create(user=user)
+        return user
+
+    def _set_builder_entry(self, user, total_points, rank):
+        LeaderboardEntry.objects.update_or_create(
+            user=user,
+            type='builder',
+            defaults={'total_points': total_points, 'rank': rank},
+        )
+
+    def _ensure_builder_type(self, slug, name, points=0, is_submittable=False):
+        contribution_type, _ = ContributionType.objects.get_or_create(
+            slug=slug,
+            defaults={
+                'name': name,
+                'category': self.builder_category,
+                'is_submittable': is_submittable,
+                'min_points': points,
+                'max_points': points,
+            },
+        )
+        GlobalLeaderboardMultiplier.objects.get_or_create(
+            contribution_type=contribution_type,
+            defaults={
+                'multiplier_value': 1,
+                'valid_from': timezone.now() - timezone.timedelta(days=30),
+            },
+        )
+        return contribution_type
+
+    def _create_builder_contribution(self, user, contribution_type, points):
+        return Contribution.objects.create(
+            user=user,
+            contribution_type=contribution_type,
+            points=points,
+            frozen_global_points=points,
+            contribution_date=timezone.now(),
+        )
+
+    def _accept_builder_submission(self, user, contribution_type, points):
+        contribution = self._create_builder_contribution(
+            user,
+            contribution_type,
+            points,
+        )
+        SubmittedContribution.objects.create(
+            user=user,
+            contribution_type=contribution_type,
+            contribution_date=timezone.now(),
+            state='accepted',
+            converted_contribution=contribution,
+        )
+        return contribution
+
+    def _assert_builder_lookup_empty(self, user):
+        response = self.client.get(
+            '/api/v1/leaderboard/',
+            {'type': 'builder', 'user_address': user.address},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, [])
+
+    def _assert_builder_list_addresses(self, response, included_users, excluded_users):
+        listed_addresses = [
+            row['user_details']['address']
+            for row in response.data
+        ]
+        for user in included_users:
+            self.assertIn(user.address, listed_addresses)
+        for user in excluded_users:
+            self.assertNotIn(user.address, listed_addresses)
+
     def _create_current_mee6_xp(self, user, discord_id, xp):
         now = timezone.now()
         run = Mee6SyncRun.objects.create(
@@ -360,229 +434,82 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(response.data['total_points'], link_points)
 
     def test_builder_lookup_uses_accepted_submission_ranking_eligibility(self):
-        role_only_user = self._create_user(
+        role_only_user = self._create_builder_user(
             'builder-role-only@example.com',
             '0x0000000000000000000000000000000000000020'
         )
-        non_submittable_user = self._create_user(
+        non_submittable_user = self._create_builder_user(
             'builder-non-submittable@example.com',
             '0x0000000000000000000000000000000000000023'
         )
-        ranked_builder = self._create_user(
+        ranked_builder = self._create_builder_user(
             'ranked-builder@example.com',
             '0x0000000000000000000000000000000000000021'
         )
-        welcome_only_user = self._create_user(
+        welcome_only_user = self._create_builder_user(
             'builder-welcome-only@example.com',
             '0x0000000000000000000000000000000000000025'
         )
-        simple_builder_user = self._create_user(
+        simple_builder_user = self._create_builder_user(
             'builder-simple-only@example.com',
             '0x0000000000000000000000000000000000000026'
         )
-        github_link_user = self._create_user(
+        github_link_user = self._create_builder_user(
             'builder-github-link-only@example.com',
             '0x0000000000000000000000000000000000000027'
         )
-        contribution_only_user = self._create_user(
+        contribution_only_user = self._create_builder_user(
             'builder-contribution-only@example.com',
             '0x0000000000000000000000000000000000000024'
-        )
-        Builder.objects.create(user=role_only_user)
-        Builder.objects.create(user=non_submittable_user)
-        Builder.objects.create(user=ranked_builder)
-        Builder.objects.create(user=welcome_only_user)
-        Builder.objects.create(user=simple_builder_user)
-        Builder.objects.create(user=github_link_user)
-        Builder.objects.create(user=contribution_only_user)
-
-        LeaderboardEntry.objects.update_or_create(
-            user=role_only_user,
-            type='builder',
-            defaults={'total_points': 100, 'rank': 1},
-        )
-        LeaderboardEntry.objects.update_or_create(
-            user=non_submittable_user,
-            type='builder',
-            defaults={'total_points': 50, 'rank': 4},
-        )
-        LeaderboardEntry.objects.update_or_create(
-            user=ranked_builder,
-            type='builder',
-            defaults={'total_points': 25, 'rank': 5},
-        )
-        LeaderboardEntry.objects.update_or_create(
-            user=welcome_only_user,
-            type='builder',
-            defaults={'total_points': 0, 'rank': 2},
-        )
-        LeaderboardEntry.objects.update_or_create(
-            user=simple_builder_user,
-            type='builder',
-            defaults={'total_points': 50, 'rank': 3},
-        )
-        LeaderboardEntry.objects.update_or_create(
-            user=contribution_only_user,
-            type='builder',
-            defaults={'total_points': 20, 'rank': 7},
-        )
-        LeaderboardEntry.objects.update_or_create(
-            user=github_link_user,
-            type='builder',
-            defaults={'total_points': 25, 'rank': 6},
         )
         non_submittable_type = ContributionType.objects.create(
             name='Builder Manual Review',
             slug='builder-manual-review-lookup-test',
             category=self.builder_category,
             is_submittable=False,
-        )
-        builder_welcome_type, _ = ContributionType.objects.get_or_create(
-            slug='builder-welcome',
-            defaults={
-                'name': 'Builder Welcome',
-                'category': self.builder_category,
-                'is_submittable': False,
-                'min_points': 0,
-                'max_points': 0,
-            },
-        )
-        simple_builder_type, _ = ContributionType.objects.get_or_create(
-            slug='builder',
-            defaults={
-                'name': 'Builder',
-                'category': self.builder_category,
-                'is_submittable': False,
-            },
-        )
-        github_link_type, _ = ContributionType.objects.get_or_create(
-            slug='community-link-github',
-            defaults={
-                'name': 'Link GitHub Account',
-                'category': self.builder_category,
-                'is_submittable': False,
-                'min_points': 25,
-                'max_points': 25,
-            },
+            min_points=50,
+            max_points=50,
         )
         GlobalLeaderboardMultiplier.objects.create(
             contribution_type=non_submittable_type,
             multiplier_value=1,
             valid_from=timezone.now() - timezone.timedelta(days=30),
         )
-        if not GlobalLeaderboardMultiplier.objects.filter(contribution_type=builder_welcome_type).exists():
-            GlobalLeaderboardMultiplier.objects.create(
-                contribution_type=builder_welcome_type,
-                multiplier_value=1,
-                valid_from=timezone.now() - timezone.timedelta(days=30),
-            )
-        if not GlobalLeaderboardMultiplier.objects.filter(contribution_type=simple_builder_type).exists():
-            GlobalLeaderboardMultiplier.objects.create(
-                contribution_type=simple_builder_type,
-                multiplier_value=1,
-                valid_from=timezone.now() - timezone.timedelta(days=30),
-            )
-        if not GlobalLeaderboardMultiplier.objects.filter(contribution_type=github_link_type).exists():
-            GlobalLeaderboardMultiplier.objects.create(
-                contribution_type=github_link_type,
-                multiplier_value=1,
-                valid_from=timezone.now() - timezone.timedelta(days=30),
-            )
-        non_submittable_contribution = Contribution.objects.create(
-            user=non_submittable_user,
-            contribution_type=non_submittable_type,
+        builder_welcome_type = self._ensure_builder_type(
+            'builder-welcome',
+            'Builder Welcome',
+        )
+        simple_builder_type = self._ensure_builder_type(
+            'builder',
+            'Builder',
             points=50,
-            frozen_global_points=50,
-            contribution_date=timezone.now()
         )
-        ranked_contribution = Contribution.objects.create(
-            user=ranked_builder,
-            contribution_type=self.builder_type,
+        github_link_type = self._ensure_builder_type(
+            'community-link-github',
+            'Link GitHub Account',
             points=25,
-            frozen_global_points=25,
-            contribution_date=timezone.now()
-        )
-        welcome_contribution = Contribution.objects.create(
-            user=welcome_only_user,
-            contribution_type=builder_welcome_type,
-            points=0,
-            frozen_global_points=0,
-            contribution_date=timezone.now()
-        )
-        simple_builder_contribution = Contribution.objects.create(
-            user=simple_builder_user,
-            contribution_type=simple_builder_type,
-            points=50,
-            frozen_global_points=50,
-            contribution_date=timezone.now()
-        )
-        github_link_contribution = Contribution.objects.create(
-            user=github_link_user,
-            contribution_type=github_link_type,
-            points=25,
-            frozen_global_points=25,
-            contribution_date=timezone.now()
-        )
-        Contribution.objects.create(
-            user=contribution_only_user,
-            contribution_type=self.builder_type,
-            points=20,
-            frozen_global_points=20,
-            contribution_date=timezone.now()
-        )
-        SubmittedContribution.objects.create(
-            user=non_submittable_user,
-            contribution_type=non_submittable_type,
-            contribution_date=timezone.now(),
-            state='accepted',
-            converted_contribution=non_submittable_contribution,
-        )
-        SubmittedContribution.objects.create(
-            user=ranked_builder,
-            contribution_type=self.builder_type,
-            contribution_date=timezone.now(),
-            state='accepted',
-            converted_contribution=ranked_contribution,
-        )
-        SubmittedContribution.objects.create(
-            user=welcome_only_user,
-            contribution_type=builder_welcome_type,
-            contribution_date=timezone.now(),
-            state='accepted',
-            converted_contribution=welcome_contribution,
-        )
-        SubmittedContribution.objects.create(
-            user=simple_builder_user,
-            contribution_type=simple_builder_type,
-            contribution_date=timezone.now(),
-            state='accepted',
-            converted_contribution=simple_builder_contribution,
-        )
-        SubmittedContribution.objects.create(
-            user=github_link_user,
-            contribution_type=github_link_type,
-            contribution_date=timezone.now(),
-            state='accepted',
-            converted_contribution=github_link_contribution,
         )
 
+        self._accept_builder_submission(
+            non_submittable_user,
+            non_submittable_type,
+            50,
+        )
+        self._accept_builder_submission(ranked_builder, self.builder_type, 25)
+        self._accept_builder_submission(welcome_only_user, builder_welcome_type, 0)
+        self._accept_builder_submission(simple_builder_user, simple_builder_type, 50)
+        self._accept_builder_submission(github_link_user, github_link_type, 25)
+        self._create_builder_contribution(contribution_only_user, self.builder_type, 20)
+
+        self._set_builder_entry(role_only_user, total_points=100, rank=1)
+        self._set_builder_entry(welcome_only_user, total_points=0, rank=2)
+        self._set_builder_entry(simple_builder_user, total_points=50, rank=3)
+        self._set_builder_entry(non_submittable_user, total_points=50, rank=4)
+        self._set_builder_entry(ranked_builder, total_points=25, rank=5)
+        self._set_builder_entry(github_link_user, total_points=25, rank=6)
+        self._set_builder_entry(contribution_only_user, total_points=20, rank=7)
+
         list_response = self.client.get('/api/v1/leaderboard/', {'type': 'builder'})
-        role_lookup_response = self.client.get(
-            '/api/v1/leaderboard/',
-            {'type': 'builder', 'user_address': role_only_user.address},
-        )
-        welcome_lookup_response = self.client.get(
-            '/api/v1/leaderboard/',
-            {'type': 'builder', 'user_address': welcome_only_user.address},
-        )
-        simple_builder_lookup_response = self.client.get(
-            '/api/v1/leaderboard/',
-            {'type': 'builder', 'user_address': simple_builder_user.address},
-        )
-        github_link_lookup_response = self.client.get(
-            '/api/v1/leaderboard/',
-            {'type': 'builder', 'user_address': github_link_user.address},
-        )
         accepted_lookup_response = self.client.get(
             '/api/v1/leaderboard/',
             {'type': 'builder', 'user_address': non_submittable_user.address},
@@ -597,34 +524,27 @@ class LeaderboardStatsTest(TestCase):
         )
 
         self.assertEqual(list_response.status_code, 200)
-        listed_addresses = [
-            row['user_details']['address']
-            for row in list_response.data
-        ]
-        self.assertIn(ranked_builder.address, listed_addresses)
-        self.assertIn(non_submittable_user.address, listed_addresses)
-        self.assertNotIn(role_only_user.address, listed_addresses)
-        self.assertNotIn(welcome_only_user.address, listed_addresses)
-        self.assertNotIn(simple_builder_user.address, listed_addresses)
-        self.assertNotIn(github_link_user.address, listed_addresses)
-        self.assertNotIn(contribution_only_user.address, listed_addresses)
-        self.assertEqual([row['rank'] for row in list_response.data], [2, 4])
+        self._assert_builder_list_addresses(
+            list_response,
+            included_users=(ranked_builder, non_submittable_user),
+            excluded_users=(
+                role_only_user,
+                welcome_only_user,
+                simple_builder_user,
+                github_link_user,
+                contribution_only_user,
+            ),
+        )
+        self.assertEqual([row['rank'] for row in list_response.data], [4, 5])
 
-        self.assertEqual(role_lookup_response.status_code, 200)
-        self.assertEqual(role_lookup_response.data, [])
-
-        self.assertEqual(welcome_lookup_response.status_code, 200)
-        self.assertEqual(welcome_lookup_response.data, [])
-
-        self.assertEqual(simple_builder_lookup_response.status_code, 200)
-        self.assertEqual(simple_builder_lookup_response.data, [])
-
-        self.assertEqual(github_link_lookup_response.status_code, 200)
-        self.assertEqual(github_link_lookup_response.data, [])
+        self._assert_builder_lookup_empty(role_only_user)
+        self._assert_builder_lookup_empty(welcome_only_user)
+        self._assert_builder_lookup_empty(simple_builder_user)
+        self._assert_builder_lookup_empty(github_link_user)
 
         self.assertEqual(accepted_lookup_response.status_code, 200)
         self.assertEqual(accepted_lookup_response.data[0]['type'], 'builder')
-        self.assertEqual(accepted_lookup_response.data[0]['rank'], 2)
+        self.assertEqual(accepted_lookup_response.data[0]['rank'], 4)
 
         self.assertEqual(accepted_all_entries_response.status_code, 200)
         self.assertTrue(
@@ -676,6 +596,33 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['totalContributions'], 2)
         self.assertEqual(response.data['submittableContributionCount'], 1)
+
+    def test_builder_user_stats_exclude_simple_builder_contribution_types(self):
+        builder_user = self._create_user(
+            'builder-simple-stats@example.com',
+            '0x0000000000000000000000000000000000000029'
+        )
+        github_link_type = self._ensure_builder_type(
+            'community-link-github',
+            'Link GitHub Account',
+            points=25,
+        )
+        self._create_builder_contribution(builder_user, github_link_type, 25)
+        self._create_builder_contribution(builder_user, self.builder_type, 25)
+
+        response = self.client.get(
+            f'/api/v1/leaderboard/user_stats/by-address/{builder_user.address}/',
+            {'category': 'builder'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['totalPoints'], 25)
+        self.assertEqual(response.data['totalContributions'], 1)
+        self.assertEqual(response.data['submittableContributionCount'], 1)
+        self.assertEqual(
+            [row['name'] for row in response.data['contributionTypes']],
+            ['Builder Submission'],
+        )
 
     def test_builder_user_stats_exclude_builder_journey_star_task(self):
         builder_user = self._create_user(

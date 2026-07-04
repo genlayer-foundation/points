@@ -6,6 +6,7 @@ from django.utils.dateparse import parse_date
 from django.db.models import Count, Exists, OuterRef, Q, Sum
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import (
+    BUILDER_RANKING_EXCLUDED_CONTRIBUTION_TYPE_SLUGS,
     BUILDER_RANKING_EXCLUDED_SOCIAL_TASK_SLUGS,
     GlobalLeaderboardMultiplier,
     LEADERBOARD_CONFIG,
@@ -23,11 +24,6 @@ ONBOARDING_CONTRIBUTION_TYPE_SLUGS = [
     'validator',
     'community-link-x',
     'community-link-discord',
-]
-BUILDER_RANKING_EXCLUDED_TYPE_SLUGS = [
-    'builder-welcome',
-    'builder',
-    'community-link-github',
 ]
 JOURNEY_AUTO_AWARD_SLUGS = ONBOARDING_CONTRIBUTION_TYPE_SLUGS
 COMMUNITY_RANKING_MIN_POINTS = 2500
@@ -91,6 +87,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
     def _builder_ranking_submissions(self):
+        excluded_slugs = BUILDER_RANKING_EXCLUDED_CONTRIBUTION_TYPE_SLUGS
         return SubmittedContribution.objects.filter(
             state='accepted',
         ).filter(
@@ -99,14 +96,16 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                     converted_contribution__user_id=OuterRef('user_id'),
                     converted_contribution__contribution_type__category__slug='builder',
                 ) &
-                ~Q(converted_contribution__contribution_type__slug__in=BUILDER_RANKING_EXCLUDED_TYPE_SLUGS)
+                ~Q(
+                    converted_contribution__contribution_type__slug__in=excluded_slugs
+                )
             ) | (
                 Q(
                     converted_contribution__isnull=True,
                     user_id=OuterRef('user_id'),
                     contribution_type__category__slug='builder',
                 ) &
-                ~Q(contribution_type__slug__in=BUILDER_RANKING_EXCLUDED_TYPE_SLUGS)
+                ~Q(contribution_type__slug__in=excluded_slugs)
             )
         )
 
@@ -579,6 +578,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             contributions = contributions.filter(contribution_type__category__slug=category)
             social_completions = social_completions.filter(task__category__slug=category)
             if category == 'builder':
+                contributions = contributions.exclude(
+                    contribution_type__slug__in=BUILDER_RANKING_EXCLUDED_CONTRIBUTION_TYPE_SLUGS
+                )
                 social_completions = social_completions.exclude(
                     task__slug__in=BUILDER_RANKING_EXCLUDED_SOCIAL_TASK_SLUGS
                 )
