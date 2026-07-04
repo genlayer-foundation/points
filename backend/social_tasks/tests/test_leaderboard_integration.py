@@ -1,5 +1,6 @@
 """Verify SocialTaskCompletion points feed the existing leaderboard plumbing."""
 
+from django.conf import settings
 from django.test import TestCase
 from django.utils import timezone
 
@@ -50,6 +51,28 @@ class CalculateCategoryPointsTest(TestCase):
         total = calculate_category_points(self.user, 'builder')
         self.assertEqual(total, 15)
 
+    def test_excludes_builder_journey_star_task_from_category_total(self):
+        task, _ = SocialTask.objects.update_or_create(
+            slug=settings.BUILDER_JOURNEY_TASK_SLUG,
+            defaults={
+                'name': 'Star the GenLayer boilerplate',
+                'category': self.builder_cat,
+                'points': 25,
+                'verification_type': 'github_star',
+                'target_repo': 'genlayerlabs/genlayer-project-boilerplate',
+                'action_url': 'https://github.com/genlayerlabs/genlayer-project-boilerplate',
+            },
+        )
+        SocialTaskCompletion.objects.create(
+            user=self.user,
+            task=task,
+            points_awarded=25,
+            verification_type='github_star',
+        )
+
+        total = calculate_category_points(self.user, 'builder')
+        self.assertEqual(total, 0)
+
     def test_community_category_returns_social_task_only(self):
         task = SocialTask.objects.create(
             slug='community-follow',
@@ -89,6 +112,26 @@ class SignalUpdatesLeaderboardTest(TestCase):
 
         entry = LeaderboardEntry.objects.get(user=self.user, type='builder')
         self.assertEqual(entry.total_points, 12)
+
+    def test_builder_journey_star_completion_does_not_add_builder_points(self):
+        task, _ = SocialTask.objects.update_or_create(
+            slug=settings.BUILDER_JOURNEY_TASK_SLUG,
+            defaults={
+                'name': 'Star the GenLayer boilerplate',
+                'category': self.builder_cat,
+                'points': 25,
+                'verification_type': 'github_star',
+                'target_repo': 'genlayerlabs/genlayer-project-boilerplate',
+                'action_url': 'https://github.com/genlayerlabs/genlayer-project-boilerplate',
+            },
+        )
+
+        SocialTaskCompletion.objects.create(
+            user=self.user, task=task, points_awarded=25, verification_type='github_star',
+        )
+
+        entry = LeaderboardEntry.objects.get(user=self.user, type='builder')
+        self.assertEqual(entry.total_points, 0)
 
 
 class CommunityCategoryDoesNotMoveLeaderboardTest(TestCase):
@@ -136,6 +179,32 @@ class RecalculateIncludesSocialTasksTest(TestCase):
 
         entry = LeaderboardEntry.objects.get(user=user, type='builder')
         self.assertEqual(entry.total_points, 8)
+
+    def test_recalculate_excludes_builder_journey_star_task(self):
+        user = User.objects.create_user(email='star@example.com', password='x', visible=True)
+        Builder.objects.create(user=user)
+        builder_cat, _ = Category.objects.get_or_create(slug='builder', defaults={'name': 'Builder'})
+
+        task, _ = SocialTask.objects.update_or_create(
+            slug=settings.BUILDER_JOURNEY_TASK_SLUG,
+            defaults={
+                'name': 'Star the GenLayer boilerplate',
+                'category': builder_cat,
+                'points': 25,
+                'verification_type': 'github_star',
+                'target_repo': 'genlayerlabs/genlayer-project-boilerplate',
+                'action_url': 'https://github.com/genlayerlabs/genlayer-project-boilerplate',
+            },
+        )
+        SocialTaskCompletion.objects.create(
+            user=user, task=task, points_awarded=25, verification_type='github_star',
+        )
+
+        LeaderboardEntry.objects.all().delete()
+        recalculate_all_leaderboards()
+
+        entry = LeaderboardEntry.objects.get(user=user, type='builder')
+        self.assertEqual(entry.total_points, 0)
 
     def test_recalculate_sums_contribution_and_social_points(self):
         user = User.objects.create_user(email='vmix@example.com', password='x', visible=True)

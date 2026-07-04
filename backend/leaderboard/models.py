@@ -16,6 +16,7 @@ logger = get_app_logger('leaderboard')
 # Gate 1 (user eligibility) is handled by get_eligible_referred_user_ids().
 # Gate 2 (contribution exclusion) uses this constant.
 REFERRAL_EXCLUDED_SLUGS = ['builder', 'builder-welcome', 'validator-waitlist']
+BUILDER_RANKING_EXCLUDED_SOCIAL_TASK_SLUGS = [settings.BUILDER_JOURNEY_TASK_SLUG]
 
 
 # Helper functions for leaderboard configuration
@@ -77,6 +78,8 @@ def _social_task_category_points(user, category_slug, before_date=None):
         user=user,
         task__category__slug=category_slug,
     )
+    if category_slug == 'builder':
+        qs = qs.exclude(task__slug__in=BUILDER_RANKING_EXCLUDED_SOCIAL_TASK_SLUGS)
     if before_date is not None:
         qs = qs.filter(completed_at__lte=before_date)
     return qs.aggregate(total=Sum('points_awarded'))['total'] or 0
@@ -795,6 +798,7 @@ def recalculate_all_leaderboards():
                     'task__category'
                 ).values(
                     'user_id',
+                    'task__slug',
                     'task__category__slug',
                     'points_awarded',
                     'completed_at',
@@ -855,7 +859,10 @@ def recalculate_all_leaderboards():
                             if contrib['contribution_type__category__slug'] == 'builder':
                                 points += contrib['frozen_global_points'] or 0
                         for stc in user_socials:
-                            if stc['task__category__slug'] == 'builder':
+                            if (
+                                stc['task__category__slug'] == 'builder' and
+                                stc['task__slug'] not in BUILDER_RANKING_EXCLUDED_SOCIAL_TASK_SLUGS
+                            ):
                                 points += stc['points_awarded'] or 0
 
                     elif leaderboard_type == 'validator-waitlist':

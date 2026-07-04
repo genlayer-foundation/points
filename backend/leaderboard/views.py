@@ -5,9 +5,16 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.db.models import Count, Exists, OuterRef, Q, Sum
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import GlobalLeaderboardMultiplier, LeaderboardEntry, update_all_ranks, recalculate_all_leaderboards, LEADERBOARD_CONFIG
+from .models import (
+    BUILDER_RANKING_EXCLUDED_SOCIAL_TASK_SLUGS,
+    GlobalLeaderboardMultiplier,
+    LEADERBOARD_CONFIG,
+    LeaderboardEntry,
+    recalculate_all_leaderboards,
+    update_all_ranks,
+)
 from .serializers import GlobalLeaderboardMultiplierSerializer, LeaderboardEntrySerializer
-from contributions.models import Category, Contribution
+from contributions.models import Category, Contribution, SubmittedContribution
 
 ONBOARDING_CONTRIBUTION_TYPE_SLUGS = [
     'builder-welcome',
@@ -16,6 +23,11 @@ ONBOARDING_CONTRIBUTION_TYPE_SLUGS = [
     'validator',
     'community-link-x',
     'community-link-discord',
+]
+BUILDER_RANKING_EXCLUDED_TYPE_SLUGS = [
+    'builder-welcome',
+    'builder',
+    'community-link-github',
 ]
 JOURNEY_AUTO_AWARD_SLUGS = ONBOARDING_CONTRIBUTION_TYPE_SLUGS
 COMMUNITY_RANKING_MIN_POINTS = 2500
@@ -78,11 +90,24 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             )
         )
 
-    def _builder_ranking_contributions(self):
-        return Contribution.objects.filter(
-            user_id=OuterRef('user_id'),
-            contribution_type__category__slug='builder',
-            contribution_type__is_submittable=True,
+    def _builder_ranking_submissions(self):
+        return SubmittedContribution.objects.filter(
+            state='accepted',
+        ).filter(
+            (
+                Q(
+                    converted_contribution__user_id=OuterRef('user_id'),
+                    converted_contribution__contribution_type__category__slug='builder',
+                ) &
+                ~Q(converted_contribution__contribution_type__slug__in=BUILDER_RANKING_EXCLUDED_TYPE_SLUGS)
+            ) | (
+                Q(
+                    converted_contribution__isnull=True,
+                    user_id=OuterRef('user_id'),
+                    contribution_type__category__slug='builder',
+                ) &
+                ~Q(contribution_type__slug__in=BUILDER_RANKING_EXCLUDED_TYPE_SLUGS)
+            )
         )
 
     def get_queryset(self):
@@ -113,7 +138,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             )
         )
 
-        eligible_builder_contributions = self._builder_ranking_contributions()
+        eligible_builder_submissions = self._builder_ranking_submissions()
 
         # Filter by user address if provided
         user_address = self.request.query_params.get('user_address')
@@ -124,10 +149,10 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             if leaderboard_type:
                 queryset = queryset.filter(type=leaderboard_type)
                 if leaderboard_type == 'builder':
-                    queryset = queryset.filter(Exists(eligible_builder_contributions))
+                    queryset = queryset.filter(Exists(eligible_builder_submissions))
             else:
                 queryset = queryset.filter(
-                    ~Q(type='builder') | Exists(eligible_builder_contributions)
+                    ~Q(type='builder') | Exists(eligible_builder_submissions)
                 )
         else:
             # Get type from query params
@@ -140,7 +165,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 queryset = queryset.filter(type='validator')
 
             if leaderboard_type == 'builder':
-                queryset = queryset.filter(Exists(eligible_builder_contributions))
+                queryset = queryset.filter(Exists(eligible_builder_submissions))
 
             # Handle network filtering for validators
             # Only include validators with active wallets on the specified network.
@@ -553,6 +578,10 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         if category:
             contributions = contributions.filter(contribution_type__category__slug=category)
             social_completions = social_completions.filter(task__category__slug=category)
+            if category == 'builder':
+                social_completions = social_completions.exclude(
+                    task__slug__in=BUILDER_RANKING_EXCLUDED_SOCIAL_TASK_SLUGS
+                )
 
         # Raw portal contribution points (audit trail). For community, displayed
         # points come from MEE6 via get_effective_community_points; for every

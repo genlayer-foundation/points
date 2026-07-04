@@ -543,8 +543,8 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
 
         The journey is POINT-FREE: becoming a Builder awards no points. The old
         `builder` (+50) contribution was self-serve and farmable, so it was
-        removed. Points come only from the verifiable task inside the journey
-        (starring the boilerplate repo, a builder-category social task).
+        removed. Starring the boilerplate repo is only the verifiable role gate;
+        it is excluded from Builder ranking totals.
 
         Requirement: the user has completed the boilerplate-star social task
         (`settings.BUILDER_JOURNEY_TASK_SLUG`), which itself requires a linked

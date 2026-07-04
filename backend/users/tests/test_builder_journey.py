@@ -1,8 +1,8 @@
-"""Builder journey is point-free: the role is granted, no points awarded.
+"""Builder journey is point-free: the role is granted, no ranking points awarded.
 
-Points come only from the boilerplate-star social task, which also gates the
-role grant. The old farmable `builder-welcome` (+20) / `builder` (+50) awards
-are gone.
+The boilerplate-star social task gates the role grant. The old farmable
+`builder-welcome` (+20) / `builder` (+50) awards are gone, and the star task is
+excluded from Builder ranking totals.
 """
 
 from django.conf import settings
