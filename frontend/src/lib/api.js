@@ -324,6 +324,8 @@ export const stewardAPI = {
 
   // Proposals
   proposeSubmission: (id, data) => api.post(`/steward-submissions/${id}/propose/`, data),
+  questionProposal: (id, message) =>
+    api.post(`/steward-submissions/${id}/question-proposal/`, { message }),
 
   // CRM Notes
   getNotes: (id) => api.get(`/steward-submissions/${id}/notes/`),

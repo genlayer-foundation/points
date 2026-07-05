@@ -16,6 +16,7 @@ from contributions.models import (
     SubmissionNote,
     SubmittedContribution,
 )
+from contributions.proposal_filters import ProposalReviewStatusFilterMixin
 from contributions.rubric_review import rubric_summary_text, uses_project_rubric
 from service_accounts.authentication import ServiceAccountAuthentication
 from service_accounts.permissions import HasServiceAccountScope
@@ -38,7 +39,7 @@ class AIReviewPagination(PageNumberPagination):
 
 # ─── FilterSet ────────────────────────────────────────────────────────────────
 
-class AIReviewFilterSet(FilterSet):
+class AIReviewFilterSet(ProposalReviewStatusFilterMixin, FilterSet):
     """Filterset for AI review agent submission queries."""
 
     contribution_type = NumberFilter(field_name='contribution_type_id')
@@ -60,6 +61,7 @@ class AIReviewFilterSet(FilterSet):
     has_proposal = BooleanFilter(method='filter_has_proposal')
     exclude_state = CharFilter(method='filter_exclude_state')
     proposed_action = CharFilter(method='filter_proposed_action')
+    proposal_review_status = CharFilter(method='filter_proposal_review_status')
     proposed_confidence = CharFilter(method='filter_proposed_confidence')
     proposed_template = NumberFilter(method='filter_proposed_template')
     is_interesting = BooleanFilter(field_name='is_interesting')
@@ -326,13 +328,6 @@ class AIReviewFilterSet(FilterSet):
             ).filter(user_accepted_count__gte=value)
         return queryset
 
-    def filter_has_proposal(self, queryset, name, value):
-        if value is True:
-            return queryset.filter(proposed_action__isnull=False)
-        elif value is False:
-            return queryset.filter(proposed_action__isnull=True)
-        return queryset
-
     def filter_exclude_state(self, queryset, name, value):
         if value:
             return queryset.exclude(state=value)
@@ -413,6 +408,7 @@ class AIReviewViewSet(
         'proposed_by',
         'exclude_proposed_by',
         'proposed_action',
+        'proposal_review_status',
         'proposed_confidence',
         'proposed_template',
     }
@@ -447,6 +443,7 @@ class AIReviewViewSet(
                 'proposed_contribution_type',
                 'proposed_user',
                 'proposed_template',
+                'proposal_questioned_by',
                 'project_milestone_review',
                 'project_milestone_review__proposer',
             )
@@ -487,6 +484,10 @@ class AIReviewViewSet(
         submission.proposed_by = ai_user
         submission.proposed_at = timezone.now()
         submission.proposed_confidence = data.get('confidence', 'medium')
+        submission.proposal_review_status = SubmittedContribution.PROPOSAL_STATUS_PENDING_REVIEW
+        submission.proposal_review_feedback = ''
+        submission.proposal_questioned_by = None
+        submission.proposal_questioned_at = None
         if 'gate_reviewed' in data:
             submission.gate_reviewed = data['gate_reviewed']
 
@@ -569,6 +570,8 @@ class AIReviewViewSet(
                 'contribution_type',
                 'contribution_type__category',
                 'user',
+                'proposed_by',
+                'proposal_questioned_by',
                 'project_milestone_review',
                 'project_milestone_review__proposer',
             ),
@@ -636,12 +639,18 @@ class AIReviewViewSet(
                 'proposed_contribution_type',
                 'proposed_user',
                 'proposed_template',
+                'proposal_questioned_by',
                 'project_milestone_review',
                 'project_milestone_review__proposer',
             )
             .prefetch_related('evidence_items')
             .order_by('-proposed_at')
         )
+        if 'proposal_review_status' not in request.query_params:
+            queryset = queryset.filter(
+                Q(proposal_review_status=SubmittedContribution.PROPOSAL_STATUS_PENDING_REVIEW)
+                | Q(proposal_review_status__isnull=True)
+            )
 
         queryset = self.filter_queryset(queryset)
 

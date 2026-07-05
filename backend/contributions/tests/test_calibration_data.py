@@ -580,6 +580,19 @@ class TestAIReviewAPI(APITestCase):
             proposed_confidence='low',
             proposed_template=self.fixtures['reject_template'],
         )
+        questioned_submission = SubmittedContribution.objects.create(
+            user=self.fixtures['submitter'],
+            contribution_type=self.fixtures['ct'],
+            contribution_date=timezone.now(),
+            notes='Questioned human proposal',
+            state='pending',
+            proposed_action='reject',
+            proposed_by=self.fixtures['steward_user'],
+            proposed_staff_reply='Reject before checking feedback.',
+            proposed_confidence='low',
+            proposal_review_status=SubmittedContribution.PROPOSAL_STATUS_QUESTIONED,
+            proposal_review_feedback='Please re-check the evidence first.',
+        )
 
         response = self.client.get(
             '/api/v1/ai-review/proposed/',
@@ -591,6 +604,7 @@ class TestAIReviewAPI(APITestCase):
         ids = {str(item['id']) for item in response.data['results']}
         self.assertIn(str(ai_submission.id), ids)
         self.assertIn(str(human_submission.id), ids)
+        self.assertNotIn(str(questioned_submission.id), ids)
         human_payload = next(
             item for item in response.data['results'] if str(item['id']) == str(human_submission.id)
         )
@@ -612,6 +626,16 @@ class TestAIReviewAPI(APITestCase):
         ai_only_ids = {str(item['id']) for item in ai_only_response.data['results']}
         self.assertIn(str(ai_submission.id), ai_only_ids)
         self.assertNotIn(str(human_submission.id), ai_only_ids)
+
+        questioned_response = self.client.get(
+            '/api/v1/ai-review/proposed/',
+            data={'proposal_review_status': 'questioned'},
+            **self.ai_auth,
+        )
+        self.assertEqual(questioned_response.status_code, 200)
+        questioned_ids = {str(item['id']) for item in questioned_response.data['results']}
+        self.assertIn(str(questioned_submission.id), questioned_ids)
+        self.assertNotIn(str(ai_submission.id), questioned_ids)
 
     def test_ai_cannot_update_human_created_proposal(self):
         submission = self.fixtures['submission']

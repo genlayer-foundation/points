@@ -36,6 +36,7 @@ class AIReviewProposalFieldsMixin(serializers.Serializer):
     proposed_by_name = serializers.SerializerMethodField()
     proposed_user_details = serializers.SerializerMethodField()
     proposed_template_name = serializers.SerializerMethodField()
+    proposal_questioned_by_name = serializers.SerializerMethodField()
     assigned_to_name = serializers.SerializerMethodField()
     rubric_review = serializers.SerializerMethodField()
 
@@ -62,6 +63,11 @@ class AIReviewProposalFieldsMixin(serializers.Serializer):
     def get_proposed_template_name(self, obj):
         if obj.proposed_template:
             return obj.proposed_template.label
+        return None
+
+    def get_proposal_questioned_by_name(self, obj):
+        if obj.proposal_questioned_by:
+            return obj.proposal_questioned_by.name or str(obj.proposal_questioned_by.id)
         return None
 
     def get_rubric_review(self, obj):
@@ -118,6 +124,11 @@ class LightAIReviewSubmissionSerializer(AIReviewProposalFieldsMixin, serializers
             'proposed_confidence',
             'proposed_template',
             'proposed_template_name',
+            'proposal_review_status',
+            'proposal_review_feedback',
+            'proposal_questioned_by',
+            'proposal_questioned_by_name',
+            'proposal_questioned_at',
             'rubric_review',
             'created_at',
         ]
@@ -228,6 +239,11 @@ class AIReviewSubmissionSerializer(AIReviewProposalFieldsMixin, serializers.Mode
             'proposed_confidence',
             'proposed_template',
             'proposed_template_name',
+            'proposal_review_status',
+            'proposal_review_feedback',
+            'proposal_questioned_by',
+            'proposal_questioned_by_name',
+            'proposal_questioned_at',
             'rubric_review',
             'created_at',
         ]

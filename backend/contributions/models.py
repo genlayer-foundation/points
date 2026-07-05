@@ -643,6 +643,13 @@ class SubmittedContribution(BaseModel):
     Represents a contribution submission that needs staff review.
     Once accepted, it will be converted to an actual Contribution.
     """
+    PROPOSAL_STATUS_PENDING_REVIEW = 'pending_review'
+    PROPOSAL_STATUS_QUESTIONED = 'questioned'
+    PROPOSAL_REVIEW_STATUS_CHOICES = [
+        (PROPOSAL_STATUS_PENDING_REVIEW, 'Pending Review'),
+        (PROPOSAL_STATUS_QUESTIONED, 'Questioned'),
+    ]
+
     # Use UUID for public-facing URLs
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
@@ -797,6 +804,31 @@ class SubmittedContribution(BaseModel):
         blank=True,
         related_name='proposed_submissions',
         help_text="Review template used for the proposal"
+    )
+    proposal_review_status = models.CharField(
+        max_length=20,
+        choices=PROPOSAL_REVIEW_STATUS_CHOICES,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Internal review status for the active proposal"
+    )
+    proposal_review_feedback = models.TextField(
+        blank=True,
+        help_text="Feedback sent to the proposer when a proposal is questioned"
+    )
+    proposal_questioned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='questioned_submission_proposals',
+        help_text="Steward who questioned the active proposal"
+    )
+    proposal_questioned_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the active proposal was questioned"
     )
 
     # Link to actual contribution when accepted

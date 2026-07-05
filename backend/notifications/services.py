@@ -480,6 +480,35 @@ def notify_submission_reopened_for_steward(submission, *, kind, actor=None):
     )
 
 
+def notify_submission_proposal_questioned(submission, actor=None):
+    """Notify the proposal author that their proposal needs another review pass."""
+    if not submission.proposed_by_id:
+        return None
+
+    name = _display_submission_name(submission)
+    questioned_at = submission.proposal_questioned_at or submission.updated_at
+    questioned_marker = questioned_at.isoformat() if questioned_at else ''
+
+    return notify(
+        'submission.proposal_questioned',
+        recipient=submission.proposed_by,
+        actor=actor or submission.proposal_questioned_by,
+        title='Proposal questioned',
+        body=f'Your proposal for {name} was questioned. Review the feedback and submit a revised proposal.',
+        link_url=steward_submission_review_link(submission),
+        link_label='Open submission',
+        payload={
+            'submission_id': str(submission.id),
+            'state': submission.state,
+            'proposal_review_status': submission.proposal_review_status,
+            'feedback': submission.proposal_review_feedback,
+            'contribution_type': submission.contribution_type.name if submission.contribution_type_id else '',
+        },
+        source=submission,
+        dedupe_key=f"submission-proposal-questioned:{submission.id}:{questioned_marker}",
+    )
+
+
 def notify_contribution_highlighted(highlight):
     contribution = highlight.contribution
     if not contribution or not contribution.user_id:
