@@ -4,8 +4,9 @@ description: >
   Use the GenLayer AI Review API to fetch submissions, inspect details, create
   AI review proposals, update AI-created proposals, list active proposals,
   inspect active human steward proposals, and inspect reviewed AI proposals for
-  calibration. All requests require X-AI-Review-Key. The AI Review API creates
-  proposals only; it does not apply final accept, reject, or more-info decisions.
+  calibration. All requests require a service account bearer token. The AI
+  Review API creates proposals only; it does not apply final accept, reject,
+  or more-info decisions.
 ---
 
 # AI Review API
@@ -23,14 +24,19 @@ description: >
 
 Set:
 
-- `KEY`: `AI_REVIEW_API_KEY` from backend `.env`
+- `TOKEN`: a service account token (`sa_<id>_<secret>`) with the
+  `ai_review:read` and `ai_review:propose` scopes, issued with
+  `python manage.py issue_service_account_token`
 - `BASE_URL`: backend base URL, usually `http://localhost:8000`
 
 Every request needs:
 
 ```bash
--H "X-AI-Review-Key: $KEY"
+-H "Authorization: Bearer $TOKEN"
 ```
+
+Read endpoints need the `ai_review:read` scope; propose needs
+`ai_review:propose` (a read-only token gets 403 on propose).
 
 ## Endpoints
 
@@ -63,7 +69,7 @@ Create proposal:
 
 ```bash
 curl -s -X POST \
-  -H "X-AI-Review-Key: $KEY" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   "$BASE_URL/api/v1/ai-review/{uuid}/propose/" \
   -d '{
@@ -78,7 +84,7 @@ Update AI-created proposal:
 
 ```bash
 curl -s -X PUT \
-  -H "X-AI-Review-Key: $KEY" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   "$BASE_URL/api/v1/ai-review/{uuid}/propose/" \
   -d '{
@@ -193,39 +199,39 @@ inspect `internal_notes`.
 
 ```bash
 # New unproposed builder submissions with URL evidence.
-curl -s -H "X-AI-Review-Key: $KEY" \
+curl -s -H "Authorization: Bearer $TOKEN" \
   "$BASE_URL/api/v1/ai-review/?category=builder&exclude_empty_evidence=true"
 
 # Pending submissions edited after a more-info request.
-curl -s -H "X-AI-Review-Key: $KEY" \
+curl -s -H "Authorization: Bearer $TOKEN" \
   "$BASE_URL/api/v1/ai-review/?resubmitted_more_info=true"
 
 # Active more-info proposals from AI or human stewards.
-curl -s -H "X-AI-Review-Key: $KEY" \
+curl -s -H "Authorization: Bearer $TOKEN" \
   "$BASE_URL/api/v1/ai-review/proposed/?proposed_action=more_info"
 
 # Active low-confidence AI proposals.
-curl -s -H "X-AI-Review-Key: $KEY" \
+curl -s -H "Authorization: Bearer $TOKEN" \
   "$BASE_URL/api/v1/ai-review/proposed/?proposed_confidence=low&proposed_by=ai"
 
 # Active proposals assigned to and proposed by a specific steward.
-curl -s -H "X-AI-Review-Key: $KEY" \
+curl -s -H "Authorization: Bearer $TOKEN" \
   "$BASE_URL/api/v1/ai-review/proposed/?assigned_to=123&proposed_by=123&page_size=20"
 
 # Exclude unassigned submissions and one steward's assigned submissions.
-curl -s -H "X-AI-Review-Key: $KEY" \
+curl -s -H "Authorization: Bearer $TOKEN" \
   "$BASE_URL/api/v1/ai-review/?exclude_assigned_to=unassigned,123&page_size=20"
 
 # Equivalent active-proposal query through the main list endpoint.
-curl -s -H "X-AI-Review-Key: $KEY" \
+curl -s -H "Authorization: Bearer $TOKEN" \
   "$BASE_URL/api/v1/ai-review/?has_proposal=true&assigned_to=123&proposed_by=123&page_size=20"
 
 # Reviewed AI-proposed submissions with final more-info state.
-curl -s -H "X-AI-Review-Key: $KEY" \
+curl -s -H "Authorization: Bearer $TOKEN" \
   "$BASE_URL/api/v1/ai-review/reviewed/?state=more_info_needed"
 
 # Include appealed submissions in the new-work list.
-curl -s -H "X-AI-Review-Key: $KEY" \
+curl -s -H "Authorization: Bearer $TOKEN" \
   "$BASE_URL/api/v1/ai-review/?has_appeal=true"
 ```
 
@@ -312,7 +318,7 @@ Template labels for gate-failure rejects:
 Fetch templates:
 
 ```bash
-curl -s -H "X-AI-Review-Key: $KEY" \
+curl -s -H "Authorization: Bearer $TOKEN" \
   "$BASE_URL/api/v1/ai-review/templates/"
 ```
 
@@ -320,7 +326,7 @@ Example gate-failure Project reject:
 
 ```bash
 curl -s -X POST \
-  -H "X-AI-Review-Key: $KEY" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   "$BASE_URL/api/v1/ai-review/{uuid}/propose/" \
   -d '{
@@ -342,7 +348,7 @@ Example passing Project proposal:
 
 ```bash
 curl -s -X POST \
-  -H "X-AI-Review-Key: $KEY" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   "$BASE_URL/api/v1/ai-review/{uuid}/propose/" \
   -d '{
@@ -368,7 +374,7 @@ curl -s -X POST \
 | Status | Meaning |
 |---:|---|
 | 400 | Invalid body or invalid query value |
-| 401/403 | Missing/invalid key, or forbidden proposal update |
+| 401 | Missing, invalid, expired, or revoked bearer token |
+| 403 | Token lacks the required scope, or the proposal is not AI-created (PUT) |
 | 404 | Submission not found, not pending, or no AI proposal exists for PUT |
 | 409 | POST attempted when an active proposal already exists |
-| 500 | Backend setup issue, often missing AI steward user |

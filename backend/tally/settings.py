@@ -83,6 +83,7 @@ INSTALLED_APPS = [
     'poaps.apps.PoapsConfig',
     'social_tasks',
     'notifications.apps.NotificationsConfig',
+    'service_accounts',
 ]
 
 MIDDLEWARE = [
@@ -526,8 +527,6 @@ GRAFANA_NETWORK_LABELS = {
     'bradbury': os.environ.get('GRAFANA_BRADBURY_LABEL', 'bradbury-phase1'),
 }
 
-# AI review agent authentication token for automated submission review
-AI_REVIEW_API_KEY = os.environ.get('AI_REVIEW_API_KEY', '')
 
 # =============================================================================
 # LOGGING CONFIGURATION

@@ -27,6 +27,7 @@ from django.core.management.base import BaseCommand
 from django.db.models import Count, Q
 from django.utils import timezone
 
+from contributions.ai_attribution import AI_STEWARD_EMAIL, get_ai_steward
 from contributions.models import (
     BlocklistedURL,
     ContributionType,
@@ -39,8 +40,6 @@ from users.models import User
 
 logger = logging.getLogger(__name__)
 
-AI_STEWARD_EMAIL = 'genlayer-steward@genlayer.foundation'
-AI_STEWARD_NAME = 'GenLayer Steward'
 MISSING_TEMPLATE = object()
 
 
@@ -530,20 +529,8 @@ class Command(BaseCommand):
         submission.save(update_fields=['gate_reviewed', 'updated_at'])
 
     def _ensure_ai_steward(self):
-        """Get or create the AI steward user."""
-        user, created = User.objects.get_or_create(
-            email=AI_STEWARD_EMAIL,
-            defaults={
-                'name': AI_STEWARD_NAME,
-                'visible': False,
-            },
-        )
-        if created:
-            user.set_unusable_password()
-            user.save()
-            self.stdout.write(self.style.SUCCESS(
-                f'Created AI steward user: {user.email}'
-            ))
+        """Get or create the AI steward user with full steward permissions."""
+        user = get_ai_steward()
 
         steward, created = Steward.objects.get_or_create(user=user)
         if created:

@@ -33,6 +33,7 @@ backend/
 ├── partners/              # Ecosystem partners directory
 ├── gen_tv/                # Gen TV livestream index
 ├── notifications/         # Portal notification system
+├── service_accounts/      # Machine identities + scoped bearer tokens (AI review agent)
 ├── utils/                 # Shared utilities
 └── tally/                 # Django project settings (settings.py, urls.py)
 ```
@@ -98,6 +99,16 @@ backend/
   - `/api/v1/ai-review/proposed/` - List pending submissions with active proposals awaiting steward review; use `proposed_by=ai` for AI-created proposals only
   - `/api/v1/ai-review/reviewed/` - List reviewed submissions that had AI proposals for calibration
   - `/api/v1/ai-review/templates/` - List review templates available to the AI review agent
+  - **Auth**: service account bearer tokens (`Authorization: Bearer sa_<id>_<secret>`) with scopes `ai_review:read` (all GETs) and `ai_review:propose` (propose). Proposals are attributed to the hidden AI steward user (`contributions/ai_attribution.py:get_ai_steward()`, `genlayer-steward@genlayer.foundation`); the authenticating account's name is recorded in the proposal note's `data.service_account` for audit. The old `X-AI-Review-Key` shared key has been removed; tokens are the only way in.
+
+### Service Accounts
+
+- **App**: `service_accounts/` provides machine identities for server-to-server API access. No HTTP API of its own.
+- **Models**: `ServiceAccount` (name, description, is_active; acts as the DRF request principal; it is NOT a User and can never become a session) and `ServiceAccountToken` (unique non-secret `identifier`; unique SHA-256 `digest` of the plaintext, which is never stored; `scopes` list; `expires_at`/`revoked_at`/`last_used_at`, with `last_used_at` writes throttled to once per minute).
+- **Auth class**: `service_accounts.authentication.ServiceAccountAuthentication` parses `Bearer sa_<id>_<secret>`, looks up the token by non-secret id, compares digests in constant time, rejects expired/revoked/inactive with a generic 401. Non-`sa_` credentials pass through to other authenticators.
+- **Permission**: `service_accounts.permissions.HasServiceAccountScope`; views declare `required_scopes = {'<action>': '<scope>', '*': '<default>'}`.
+- **Issue a token**: `python manage.py issue_service_account_token <account> --scopes <scope>... [--expires-days N]`; plaintext printed exactly once. Rotate = issue new + revoke old (admin action on Service account tokens); kill switch = deactivate the account.
+- **Tests**: `service_accounts/tests/`; test helper `service_accounts.testing.service_account_auth_headers()` returns client auth kwargs.
 
 ### Node Upgrade (Sub-app)
 - **Models**: `contributions/node_upgrade/models.py`
@@ -446,11 +457,11 @@ GET    /api/v1/validators/wallets/grafana/         (public, cached 60s, ?network
 GET    /api/v1/steward-submissions/stats/           (requires steward)
 GET    /api/v1/steward-submissions/daily-metrics/   (requires steward)
 
-# AI Review Agent
+# AI Review Agent (service account bearer token; ai_review:read / ai_review:propose scopes)
 GET    /api/v1/ai-review/
 GET    /api/v1/ai-review/{id}/
-POST   /api/v1/ai-review/{id}/propose/     (create new proposal)
-PUT    /api/v1/ai-review/{id}/propose/     (update existing proposal)
+POST   /api/v1/ai-review/{id}/propose/     (create new proposal; requires ai_review:propose)
+PUT    /api/v1/ai-review/{id}/propose/     (update existing proposal; requires ai_review:propose)
 GET    /api/v1/ai-review/proposed/     (pending active proposals awaiting steward review; add proposed_by=ai for AI-only)
 GET    /api/v1/ai-review/reviewed/
 GET    /api/v1/ai-review/templates/
@@ -557,6 +568,12 @@ python manage.py collectstatic
 4. Backend verifies signature and creates session
 5. Session cookie is set for subsequent requests
 6. All authenticated endpoints require session cookie
+
+Server-to-server callers (currently only the AI review agent) do not use
+sessions: they authenticate per request with a service account bearer token
+(`Authorization: Bearer sa_<id>_<secret>`), verified by
+`service_accounts.authentication.ServiceAccountAuthentication` and scoped by
+`HasServiceAccountScope`. See the "Service Accounts" section above.
 
 ## Key Patterns
 - All models inherit from `utils.models.BaseModel` (adds created_at, updated_at)

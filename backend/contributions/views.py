@@ -52,6 +52,7 @@ from .project_milestones import (
     project_contribution_display_title,
     project_contribution_github_url,
 )
+from .ai_attribution import AI_STEWARD_EMAIL
 from .url_utils import normalize_url
 from leaderboard.models import GlobalLeaderboardMultiplier
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -59,7 +60,6 @@ from ethereum_auth.authentication import EthereumAuthentication
 from utils.dates import day_start
 import requests
 
-AI_STEWARD_EMAIL = 'genlayer-steward@genlayer.foundation'
 COMMUNITY_CATEGORY_SLUGS = ('community', 'creator')
 
 
