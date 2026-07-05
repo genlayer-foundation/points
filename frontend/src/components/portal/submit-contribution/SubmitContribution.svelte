@@ -856,10 +856,35 @@
           recaptchaToken = token;
           if (error && error.includes("reCAPTCHA")) error = "";
         },
+        "expired-callback": () => {
+          recaptchaToken = "";
+        },
+        "error-callback": () => {
+          recaptchaToken = "";
+        },
       });
       return true;
     } catch (e) {
       return false;
+    }
+  }
+
+  function getRecaptchaToken() {
+    if (recaptchaToken) return recaptchaToken;
+    if (
+      typeof window === "undefined" ||
+      recaptchaWidgetId === null ||
+      !window.grecaptcha ||
+      !window.grecaptcha.getResponse
+    ) {
+      return "";
+    }
+    try {
+      const token = window.grecaptcha.getResponse(recaptchaWidgetId);
+      if (token) recaptchaToken = token;
+      return token || "";
+    } catch (e) {
+      return "";
     }
   }
 
@@ -982,7 +1007,8 @@
       return;
     }
 
-    if (!recaptchaToken) {
+    const currentRecaptchaToken = getRecaptchaToken();
+    if (!currentRecaptchaToken) {
       error = "Please complete the reCAPTCHA verification";
       return;
     }
@@ -1002,7 +1028,7 @@
         contribution_date: formData.contribution_date + "T00:00:00Z",
         title: formData.title,
         notes: formData.notes,
-        recaptcha: recaptchaToken,
+        recaptcha: currentRecaptchaToken,
       };
 
       if (isMilestoneType(selectedType)) {
@@ -1944,7 +1970,7 @@
     </div>
 
     <!-- Error display -->
-    {#if error}
+    {#if error && !error.includes("reCAPTCHA")}
       <div class="w-full bg-red-50 border-l-4 border-red-500 p-4 rounded-md">
         <p class="text-red-700 text-sm font-['Switzer']">{error}</p>
       </div>
