@@ -747,6 +747,70 @@ describe('SubmissionCard', () => {
     expect(screen.getByRole('button', { name: 'Question proposal' })).toBeTruthy();
   });
 
+  it('preserves typed question feedback if the proposal becomes non-questionable mid-edit', async () => {
+    const pendingProposal = makeSubmission({
+      has_proposal: true,
+      proposed_action: 'reject',
+      proposed_staff_reply: 'Rejecting too quickly.',
+      proposed_by: 21,
+      proposed_by_details: { name: 'Proposal Reviewer' },
+      proposal_review_status: 'pending_review'
+    });
+    const { rerender } = render(SubmissionCard, {
+      props: {
+        submission: pendingProposal,
+        showReviewForm: true,
+        onReview: vi.fn(),
+        onPropose: vi.fn(),
+        onQuestionProposal: vi.fn().mockResolvedValue(),
+        permissions: {
+          7: ['accept', 'reject']
+        },
+        contributionTypes: [
+          {
+            id: 7,
+            name: 'Builder Project',
+            category: 'builder',
+            min_points: 0,
+            max_points: 100,
+            review_flow: 'builder_project'
+          }
+        ],
+        multipliers: { 7: 1 },
+        templates: [],
+        notes: [],
+        currentUserId: 22,
+        enableRubricReview: true
+      }
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Question proposal' }));
+    await fireEvent.input(screen.getByLabelText('Feedback to reviewer'), {
+      target: { value: 'Draft feedback that should not be lost.' }
+    });
+
+    await rerender({
+      submission: makeSubmission({
+        id: pendingProposal.id,
+        has_proposal: true,
+        proposed_action: 'reject',
+        proposed_by: 21,
+        proposed_by_details: { name: 'Proposal Reviewer' },
+        proposal_review_status: 'questioned',
+        proposal_review_feedback: 'Someone else already questioned this proposal.'
+      })
+    });
+
+    expect(screen.queryByLabelText('Feedback to reviewer')).toBeNull();
+
+    await rerender({ submission: pendingProposal });
+    await fireEvent.click(screen.getByRole('button', { name: 'Question proposal' }));
+
+    expect(screen.getByLabelText('Feedback to reviewer').value).toBe(
+      'Draft feedback that should not be lost.'
+    );
+  });
+
   it('shows questioned proposal feedback and hides final review actions from other stewards', async () => {
     render(SubmissionCard, {
       props: {

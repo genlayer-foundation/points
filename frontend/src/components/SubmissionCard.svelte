@@ -67,6 +67,7 @@
   let showQuestionForm = $state(false);
   let questionFeedback = $state('');
   let questionSubmitting = $state(false);
+  let lastQuestionSubmissionId = $state(null);
   /** @type {string[]} */
   let rubricGateFailures = $state([]);
   let rubricSections = $state(defaultRubricSections());
@@ -464,9 +465,14 @@
   });
 
   $effect(() => {
-    if (!canQuestionProposal) {
+    if (submission.id !== lastQuestionSubmissionId) {
+      lastQuestionSubmissionId = submission.id;
       showQuestionForm = false;
       questionFeedback = '';
+      return;
+    }
+    if (!canQuestionProposal) {
+      showQuestionForm = false;
     }
   });
 

@@ -536,6 +536,18 @@ class StewardPermissionTest(TestCase):
             self.submission.proposal_review_feedback,
             'Please re-check the resubmitted details.',
         )
+        self.assertEqual(self.submission.proposal_questioned_by, self.steward_user)
+        self.assertIsNotNone(self.submission.proposal_questioned_at)
+        self.assertTrue(
+            SubmissionNote.objects.filter(
+                submitted_contribution=self.submission,
+                is_proposal=False,
+                data__action='question_proposal',
+            ).exists()
+        )
+        notification = Notification.objects.get(recipient=proposer_user)
+        self.assertEqual(notification.event_type, 'submission.proposal_questioned')
+        self.assertEqual(notification.actor, self.steward_user)
 
     def test_question_proposal_rejects_blank_self_and_missing_review_permission(self):
         self.submission.proposed_action = 'reject'
