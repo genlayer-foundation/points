@@ -1320,6 +1320,15 @@ class SubmissionProposeSerializer(serializers.Serializer):
         return data
 
 
+class SubmissionQuestionProposalSerializer(serializers.Serializer):
+    """Serializer for questioning an active proposal."""
+    message = serializers.CharField(
+        max_length=5000,
+        trim_whitespace=True,
+        allow_blank=False,
+    )
+
+
 class StewardSubmissionSerializer(MoreInfoRequestsMixin, serializers.ModelSerializer):
     """
     Enhanced serializer for steward view of submissions with all needed data.
@@ -1334,6 +1343,7 @@ class StewardSubmissionSerializer(MoreInfoRequestsMixin, serializers.ModelSerial
     # Proposal fields
     proposed_by_details = serializers.SerializerMethodField()
     proposed_user_details = serializers.SerializerMethodField()
+    proposal_questioned_by_details = serializers.SerializerMethodField()
     has_proposal = serializers.SerializerMethodField()
     proposed_template_name = serializers.SerializerMethodField()
     notes_count = serializers.SerializerMethodField()
@@ -1352,6 +1362,9 @@ class StewardSubmissionSerializer(MoreInfoRequestsMixin, serializers.ModelSerial
                   'proposed_highlight_title', 'proposed_highlight_description',
                   'proposed_by', 'proposed_at', 'proposed_by_details', 'has_proposal',
                   'proposed_confidence', 'proposed_template', 'proposed_template_name',
+                  'proposal_review_status', 'proposal_review_feedback',
+                  'proposal_questioned_by', 'proposal_questioned_by_details',
+                  'proposal_questioned_at',
                   'rubric_review',
                   'notes_count', 'is_interesting', 'gate_reviewed',
                   'has_appeal', 'appeal_reason', 'more_info_requests',
@@ -1367,6 +1380,8 @@ class StewardSubmissionSerializer(MoreInfoRequestsMixin, serializers.ModelSerial
                             'proposed_staff_reply', 'proposed_create_highlight',
                             'proposed_highlight_title', 'proposed_highlight_description',
                             'proposed_by', 'proposed_at', 'proposed_confidence', 'proposed_template',
+                            'proposal_review_status', 'proposal_review_feedback',
+                            'proposal_questioned_by', 'proposal_questioned_at',
                             'created_at', 'updated_at', 'last_edited_at', 'proposed_points',
                             'is_interesting', 'gate_reviewed', 'has_appeal', 'appeal_reason',
                             'converted_contribution', 'mission', 'milestone_version']
@@ -1491,6 +1506,14 @@ class StewardSubmissionSerializer(MoreInfoRequestsMixin, serializers.ModelSerial
                 'address': obj.proposed_user.address,
                 'display_name': obj.proposed_user.name or f"{obj.proposed_user.address[:6]}...{obj.proposed_user.address[-4:]}",
                 'profile_image_url': obj.proposed_user.profile_image_url,
+            }
+        return None
+
+    def get_proposal_questioned_by_details(self, obj):
+        if obj.proposal_questioned_by:
+            return {
+                'name': obj.proposal_questioned_by.name or obj.proposal_questioned_by.address[:10] + '...',
+                'address': obj.proposal_questioned_by.address,
             }
         return None
 

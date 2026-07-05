@@ -28,6 +28,7 @@
     showReviewForm = false,
     onReview = null,
     onPropose = null,
+    onQuestionProposal = null,
     onCancel = null,
     reviewData = null,
     isProcessing = false,
@@ -63,6 +64,9 @@
   let appealReason = $state('');
   let submittingAppeal = $state(false);
   let showUserPicker = $state(false);
+  let showQuestionForm = $state(false);
+  let questionFeedback = $state('');
+  let questionSubmitting = $state(false);
   /** @type {string[]} */
   let rubricGateFailures = $state([]);
   let rubricSections = $state(defaultRubricSections());
@@ -84,6 +88,16 @@
     submission.state !== 'rejected' &&
     submission.state !== 'canceled' &&
     !(submission.state === 'more_info_needed' && moreInfoRequests.length > 0)
+  ));
+  let isProposalQuestioned = $derived(submission.proposal_review_status === 'questioned');
+  let isProposalPendingReview = $derived(
+    submission.has_proposal &&
+    (submission.proposal_review_status === 'pending_review' || !submission.proposal_review_status)
+  );
+  let isCurrentProposalOwner = $derived(Boolean(
+    currentUserId &&
+    submission.proposed_by &&
+    String(submission.proposed_by) === String(currentUserId)
   ));
 
   async function writeClipboard(text) {
@@ -134,19 +148,22 @@
 
   // Determine which actions this steward can take on this submission
   let canAccept = $derived(
-    showReviewForm && permissions[submission.contribution_type]?.includes('accept')
+    showReviewForm && !isProposalQuestioned && permissions[submission.contribution_type]?.includes('accept')
   );
   let canReject = $derived(
-    showReviewForm && permissions[submission.contribution_type]?.includes('reject')
+    showReviewForm && !isProposalQuestioned && permissions[submission.contribution_type]?.includes('reject')
   );
   let canRequestInfo = $derived(
-    showReviewForm && permissions[submission.contribution_type]?.includes('request_more_info')
+    showReviewForm && !isProposalQuestioned && permissions[submission.contribution_type]?.includes('request_more_info')
   );
   let canPropose = $derived(
-    showReviewForm && permissions[submission.contribution_type]?.includes('propose')
+    showReviewForm &&
+    permissions[submission.contribution_type]?.includes('propose') &&
+    (!isProposalQuestioned || isCurrentProposalOwner)
   );
   let canChangeContributionType = $derived(
     showReviewForm &&
+    !isProposalQuestioned &&
     (permissions[submission.contribution_type]?.includes('accept') ||
       permissions[submission.contribution_type]?.includes('reject'))
   );
@@ -154,9 +171,23 @@
     canPropose &&
     submission.state === 'pending' &&
     submission.has_proposal &&
+    !isProposalQuestioned &&
     currentUserId &&
     String(submission.proposed_by) === String(currentUserId)
   );
+  let canQuestionProposal = $derived(Boolean(
+    showReviewForm &&
+    onQuestionProposal &&
+    submission.state === 'pending' &&
+    isProposalPendingReview &&
+    currentUserId &&
+    !isCurrentProposalOwner &&
+    (
+      permissions[submission.contribution_type]?.includes('accept') ||
+      permissions[submission.contribution_type]?.includes('reject') ||
+      permissions[submission.contribution_type]?.includes('request_more_info')
+    )
+  ));
   let activeProposalNoteId = $derived.by(() => {
     if (!canEditActiveProposalNote) return null;
     const proposalNotes = (notes || []).filter(note => note.is_proposal);
@@ -426,6 +457,13 @@
   $effect(() => {
     if (hasRubricGateFailures && proposedAction !== 'reject') {
       proposedAction = 'reject';
+    }
+  });
+
+  $effect(() => {
+    if (!canQuestionProposal) {
+      showQuestionForm = false;
+      questionFeedback = '';
     }
   });
 
@@ -828,6 +866,26 @@
     }
   }
 
+  async function handleQuestionProposal() {
+    if (!onQuestionProposal) return;
+    const message = questionFeedback.trim();
+    if (!message) {
+      showError('Add feedback before questioning this proposal.');
+      return;
+    }
+
+    questionSubmitting = true;
+    try {
+      await onQuestionProposal(submission.id, message);
+      questionFeedback = '';
+      showQuestionForm = false;
+    } catch {
+      // Parent reports the error; keep the form open so feedback is not lost.
+    } finally {
+      questionSubmitting = false;
+    }
+  }
+
   const SOCIAL_PLATFORMS = [
     {
       key: 'github_connection',
@@ -1077,8 +1135,8 @@
           </label>
         {/if}
         {#if submission.has_proposal}
-          <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-            Proposal
+          <span class="px-2 py-0.5 rounded-full text-xs font-medium {isProposalQuestioned ? 'bg-orange-100 text-orange-800' : 'bg-amber-100 text-amber-800'}">
+            {isProposalQuestioned ? 'Proposal questioned' : 'Proposal'}
           </span>
         {/if}
         {#if !isOwnSubmission && submission.has_appeal}
@@ -1324,27 +1382,81 @@
         {:else if showReviewForm && (submission.state === 'pending' || submission.state === 'more_info_needed')}
           <!-- Proposal Notice -->
           {#if submission.has_proposal}
-            <div class="{proposalNoticeTone.container} border {proposalNoticeTone.border} rounded-lg px-3 py-2">
+            <div class="{isProposalQuestioned ? 'bg-orange-50 border-orange-300' : `${proposalNoticeTone.container} ${proposalNoticeTone.border}`} border rounded-lg px-3 py-2">
               <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div class="flex items-center gap-2">
-                  <svg class="w-4 h-4 {proposalNoticeTone.body} flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="w-4 h-4 {isProposalQuestioned ? 'text-orange-800' : proposalNoticeTone.body} flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span class="text-sm {proposalNoticeTone.body}">
+                  <span class="text-sm {isProposalQuestioned ? 'text-orange-900' : proposalNoticeTone.body}">
                     Proposed by <span class="font-medium">{submission.proposed_by_details?.name || 'a steward'}</span>
                     {#if submission.proposed_at}
                       on {formatDate(submission.proposed_at)}
                     {/if}
                   </span>
                 </div>
-                <span class="inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-semibold {proposalNoticeTone.pill}">
-                  {proposalNoticeTone.label}
-                </span>
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-semibold {isProposalQuestioned ? 'bg-orange-600 text-white' : proposalNoticeTone.pill}">
+                    {isProposalQuestioned ? 'Questioned' : proposalNoticeTone.label}
+                  </span>
+                  {#if canQuestionProposal}
+                    <button
+                      type="button"
+                      onclick={() => showQuestionForm = !showQuestionForm}
+                      class="inline-flex w-fit items-center rounded-md border border-orange-300 bg-white px-2.5 py-1 text-xs font-semibold text-orange-700 hover:bg-orange-50 transition-colors"
+                    >
+                      Question proposal
+                    </button>
+                  {/if}
+                </div>
               </div>
               {#if isProjectReview && submission.rubric_review}
-                <p class="mt-2 text-xs {proposalNoticeTone.body}">
+                <p class="mt-2 text-xs {isProposalQuestioned ? 'text-orange-800' : proposalNoticeTone.body}">
                   Builder project rubric saved for this {proposalNoticeTone.shortLabel.toLowerCase()} proposal.
                 </p>
+              {/if}
+              {#if isProposalQuestioned}
+                <div class="mt-3 rounded-md border border-orange-200 bg-white px-3 py-2">
+                  <div class="mb-1 flex flex-wrap items-center gap-2 text-xs font-medium text-orange-900">
+                    <span>Feedback from {submission.proposal_questioned_by_details?.name || 'a steward'}</span>
+                    {#if submission.proposal_questioned_at}
+                      <span class="text-orange-700">{formatDate(submission.proposal_questioned_at)}</span>
+                    {/if}
+                  </div>
+                  <p class="text-sm text-orange-950 whitespace-pre-wrap">{submission.proposal_review_feedback}</p>
+                </div>
+              {/if}
+              {#if showQuestionForm}
+                <div class="mt-3 rounded-md border border-orange-200 bg-white p-3">
+                  <label for="question-proposal-{submission.id}" class="block text-sm font-medium text-orange-950 mb-1">
+                    Feedback to reviewer
+                  </label>
+                  <textarea
+                    id="question-proposal-{submission.id}"
+                    bind:value={questionFeedback}
+                    rows="3"
+                    placeholder="Explain what should be reconsidered before this proposal is resubmitted."
+                    class="w-full rounded-md border border-orange-200 px-3 py-2 text-sm text-gray-800 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-300"
+                  ></textarea>
+                  <div class="mt-2 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onclick={() => { showQuestionForm = false; questionFeedback = ''; }}
+                      disabled={questionSubmitting}
+                      class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onclick={handleQuestionProposal}
+                      disabled={questionSubmitting || !questionFeedback.trim()}
+                      class="rounded-md bg-orange-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {questionSubmitting ? 'Sending...' : 'Send feedback'}
+                    </button>
+                  </div>
+                </div>
               {/if}
             </div>
           {/if}

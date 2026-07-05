@@ -54,6 +54,7 @@
     { name: 'is', description: 'Filter by internal flag', values: () => ['interesting', 'appealed', 'resubmitted'] },
     { name: 'not', description: 'Exclude by internal flag', values: () => ['interesting', 'appealed', 'resubmitted'] },
     { name: 'proposal', description: 'Filter by proposed action', values: () => ['accept', 'reject', 'more-info'] },
+    { name: 'proposal-status', description: 'Filter by proposal review status', values: () => ['pending', 'questioned'] },
     { name: 'confidence', description: 'Filter by proposal confidence', values: () => ['high', 'medium', 'low'] },
     { name: 'template', description: 'Filter by review template', values: () => templates.map(t => t.label.toLowerCase().replace(/\s+/g, '-')) },
     { name: 'mission', description: 'Filter by mission', values: () => ['none', ...missions.map(m => m.name.toLowerCase().replace(/\s+/g, '-'))] },
@@ -300,6 +301,7 @@
           <div class="help-row"><code>has:proposal</code><span>Only submissions with an active proposal</span></div>
           <div class="help-row"><code>proposed-by:ai</code><span>Only active proposals from the AI reviewer</span></div>
           <div class="help-row"><code>proposal:reject</code><span>Proposed action (accept, reject, more-info)</span></div>
+          <div class="help-row"><code>proposal-status:questioned</code><span>Proposals returned to reviewers for revision</span></div>
           <div class="help-row"><code>confidence:high</code><span>Proposal confidence</span></div>
           <div class="help-row"><code>template:spam</code><span>Proposal template</span></div>
           <div class="help-row"><code>has:appeal</code><span>Appealed by submitter</span></div>

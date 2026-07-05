@@ -44,6 +44,11 @@ function makeSubmission(overrides = {}) {
     proposed_confidence: null,
     proposed_template: null,
     proposed_template_name: null,
+    proposal_review_status: null,
+    proposal_review_feedback: '',
+    proposal_questioned_by: null,
+    proposal_questioned_by_details: null,
+    proposal_questioned_at: null,
     rubric_review: null,
     notes_count: 0,
     is_interesting: false,
@@ -640,5 +645,179 @@ describe('SubmissionCard', () => {
     });
 
     expect(screen.queryByRole('button', { name: 'Accept & Create Contribution' })).toBeNull();
+  });
+
+  it('lets final reviewers question pending proposals with feedback', async () => {
+    const onQuestionProposal = vi.fn().mockResolvedValue();
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          has_proposal: true,
+          proposed_action: 'reject',
+          proposed_staff_reply: 'Rejecting too quickly.',
+          proposed_by: 21,
+          proposed_by_details: { name: 'Proposal Reviewer' },
+          proposal_review_status: 'pending_review'
+        }),
+        showReviewForm: true,
+        onReview: vi.fn(),
+        onPropose: vi.fn(),
+        onQuestionProposal,
+        reviewData: {
+          action: 'accept',
+          user: 9,
+          contribution_type: 7,
+          points: 0,
+          staff_reply: ''
+        },
+        permissions: {
+          7: ['accept', 'reject']
+        },
+        contributionTypes: [
+          {
+            id: 7,
+            name: 'Builder Project',
+            category: 'builder',
+            min_points: 0,
+            max_points: 100,
+            review_flow: 'builder_project'
+          }
+        ],
+        multipliers: { 7: 1 },
+        templates: [],
+        notes: [],
+        currentUserId: 22,
+        enableRubricReview: true
+      }
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Question proposal' }));
+    await fireEvent.input(screen.getByLabelText('Feedback to reviewer'), {
+      target: { value: 'Please check the repository evidence first.' }
+    });
+    await fireEvent.click(screen.getByRole('button', { name: 'Send feedback' }));
+
+    await waitFor(() => {
+      expect(onQuestionProposal).toHaveBeenCalledWith(
+        42,
+        'Please check the repository evidence first.'
+      );
+    });
+  });
+
+  it('shows questioned proposal feedback and hides final review actions from other stewards', async () => {
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          has_proposal: true,
+          proposed_action: 'reject',
+          proposed_by: 21,
+          proposed_by_details: { name: 'Proposal Reviewer' },
+          proposal_review_status: 'questioned',
+          proposal_review_feedback: 'Please check the repository evidence first.',
+          proposal_questioned_by_details: { name: 'Senior Steward' },
+          proposal_questioned_at: '2026-06-03T12:00:00Z'
+        }),
+        showReviewForm: true,
+        onReview: vi.fn(),
+        onPropose: vi.fn(),
+        onQuestionProposal: vi.fn(),
+        permissions: {
+          7: ['accept', 'reject']
+        },
+        contributionTypes: [
+          {
+            id: 7,
+            name: 'Builder Project',
+            category: 'builder',
+            min_points: 0,
+            max_points: 100,
+            review_flow: 'builder_project'
+          }
+        ],
+        multipliers: { 7: 1 },
+        templates: [],
+        notes: [],
+        currentUserId: 22,
+        enableRubricReview: true
+      }
+    });
+
+    expect(screen.getByText('Questioned')).toBeTruthy();
+    expect(screen.getByText(/Feedback from Senior Steward/)).toBeTruthy();
+    expect(screen.getByText('Please check the repository evidence first.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Reject Submission' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Accept & Create Contribution' })).toBeNull();
+  });
+
+  it('lets the original proposer revise a questioned proposal from the proposal form', async () => {
+    const onPropose = vi.fn();
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          has_proposal: true,
+          proposed_action: 'reject',
+          proposed_staff_reply: 'Rejecting too quickly.',
+          proposed_by: 21,
+          proposed_by_details: { name: 'Proposal Reviewer' },
+          proposal_review_status: 'questioned',
+          proposal_review_feedback: 'Please check the repository evidence first.',
+          rubric_review: {
+            action: 'reject',
+            confidence: 'medium',
+            gate_failures: [],
+            sections: {
+              genlayer_fit: { score: 1, reason: '' },
+              contract_quality: { score: 1, reason: '' },
+              engineering: { score: 1, reason: '' },
+              frontend_ux: { score: 1, reason: '' }
+            },
+            extras: [],
+            overall_reason: 'The reviewer still thinks this should be rejected.'
+          }
+        }),
+        showReviewForm: true,
+        onReview: vi.fn(),
+        onPropose,
+        reviewData: {
+          action: 'accept',
+          user: 9,
+          contribution_type: 7,
+          points: 0,
+          staff_reply: ''
+        },
+        permissions: {
+          7: ['propose']
+        },
+        contributionTypes: [
+          {
+            id: 7,
+            name: 'Builder Project',
+            category: 'builder',
+            min_points: 0,
+            max_points: 100,
+            review_flow: 'builder_project'
+          }
+        ],
+        multipliers: { 7: 1 },
+        templates: [],
+        notes: [],
+        currentUserId: 21,
+        enableRubricReview: true
+      }
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Submit Reject Proposal' })).toBeTruthy();
+    });
+    await fireEvent.click(screen.getByRole('button', { name: 'Submit Reject Proposal' }));
+
+    await waitFor(() => {
+      expect(onPropose).toHaveBeenCalledTimes(1);
+    });
+    expect(onPropose.mock.calls[0][1]).toEqual(expect.objectContaining({
+      proposed_action: 'reject',
+      proposed_staff_reply: 'Rejecting too quickly.'
+    }));
   });
 });

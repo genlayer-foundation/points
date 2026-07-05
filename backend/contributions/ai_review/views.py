@@ -60,6 +60,7 @@ class AIReviewFilterSet(FilterSet):
     has_proposal = BooleanFilter(method='filter_has_proposal')
     exclude_state = CharFilter(method='filter_exclude_state')
     proposed_action = CharFilter(method='filter_proposed_action')
+    proposal_review_status = CharFilter(method='filter_proposal_review_status')
     proposed_confidence = CharFilter(method='filter_proposed_confidence')
     proposed_template = NumberFilter(method='filter_proposed_template')
     is_interesting = BooleanFilter(field_name='is_interesting')
@@ -328,7 +329,13 @@ class AIReviewFilterSet(FilterSet):
 
     def filter_has_proposal(self, queryset, name, value):
         if value is True:
-            return queryset.filter(proposed_action__isnull=False)
+            queryset = queryset.filter(proposed_action__isnull=False)
+            if not self.data.get('proposal_review_status'):
+                queryset = queryset.filter(
+                    Q(proposal_review_status=SubmittedContribution.PROPOSAL_STATUS_PENDING_REVIEW)
+                    | Q(proposal_review_status__isnull=True)
+                )
+            return queryset
         elif value is False:
             return queryset.filter(proposed_action__isnull=True)
         return queryset
@@ -342,6 +349,20 @@ class AIReviewFilterSet(FilterSet):
         if value:
             return queryset.filter(proposed_action=value.lower())
         return queryset
+
+    def filter_proposal_review_status(self, queryset, name, value):
+        status_map = {
+            'pending': SubmittedContribution.PROPOSAL_STATUS_PENDING_REVIEW,
+            'pending_review': SubmittedContribution.PROPOSAL_STATUS_PENDING_REVIEW,
+            'questioned': SubmittedContribution.PROPOSAL_STATUS_QUESTIONED,
+        }
+        status_value = status_map.get(str(value).lower())
+        if status_value:
+            return queryset.filter(
+                proposed_action__isnull=False,
+                proposal_review_status=status_value,
+            )
+        return queryset.none()
 
     def filter_proposed_confidence(self, queryset, name, value):
         if value:
@@ -413,6 +434,7 @@ class AIReviewViewSet(
         'proposed_by',
         'exclude_proposed_by',
         'proposed_action',
+        'proposal_review_status',
         'proposed_confidence',
         'proposed_template',
     }
@@ -447,6 +469,7 @@ class AIReviewViewSet(
                 'proposed_contribution_type',
                 'proposed_user',
                 'proposed_template',
+                'proposal_questioned_by',
                 'project_milestone_review',
                 'project_milestone_review__proposer',
             )
@@ -487,6 +510,10 @@ class AIReviewViewSet(
         submission.proposed_by = ai_user
         submission.proposed_at = timezone.now()
         submission.proposed_confidence = data.get('confidence', 'medium')
+        submission.proposal_review_status = SubmittedContribution.PROPOSAL_STATUS_PENDING_REVIEW
+        submission.proposal_review_feedback = ''
+        submission.proposal_questioned_by = None
+        submission.proposal_questioned_at = None
         if 'gate_reviewed' in data:
             submission.gate_reviewed = data['gate_reviewed']
 
@@ -569,6 +596,8 @@ class AIReviewViewSet(
                 'contribution_type',
                 'contribution_type__category',
                 'user',
+                'proposed_by',
+                'proposal_questioned_by',
                 'project_milestone_review',
                 'project_milestone_review__proposer',
             ),
@@ -636,12 +665,18 @@ class AIReviewViewSet(
                 'proposed_contribution_type',
                 'proposed_user',
                 'proposed_template',
+                'proposal_questioned_by',
                 'project_milestone_review',
                 'project_milestone_review__proposer',
             )
             .prefetch_related('evidence_items')
             .order_by('-proposed_at')
         )
+        if 'proposal_review_status' not in request.query_params:
+            queryset = queryset.filter(
+                Q(proposal_review_status=SubmittedContribution.PROPOSAL_STATUS_PENDING_REVIEW)
+                | Q(proposal_review_status__isnull=True)
+            )
 
         queryset = self.filter_queryset(queryset)
 

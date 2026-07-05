@@ -15,13 +15,14 @@
  * - is:interesting|appealed|resubmitted
  * - not:interesting|appealed|resubmitted
  * - min-contributions:number
+ * - proposal-status:pending|questioned
  * - sort:created|-created|date|-date|reviewed|-reviewed|points|-points
  *
  * Negation: -tag:value or NOT tag:value
  * Quoted values: tag:"value with spaces"
  */
 
-const SINGLE_VALUE_TAGS = ['status', 'type', 'category', 'from', 'assigned', 'reviewed', 'proposed-by', 'sort', 'confidence', 'template', 'proposal', 'mission'];
+const SINGLE_VALUE_TAGS = ['status', 'type', 'category', 'from', 'assigned', 'reviewed', 'proposed-by', 'sort', 'confidence', 'template', 'proposal', 'proposal-status', 'mission'];
 const MULTI_VALUE_TAGS = ['exclude', 'include', 'has', 'no', 'is', 'not'];
 const NUMERIC_TAGS = ['min-contributions'];
 const KNOWN_TAGS = [...SINGLE_VALUE_TAGS, ...MULTI_VALUE_TAGS, ...NUMERIC_TAGS];

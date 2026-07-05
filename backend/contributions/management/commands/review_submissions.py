@@ -503,6 +503,10 @@ class Command(BaseCommand):
         submission.proposed_at = None
         submission.proposed_confidence = None
         submission.proposed_template = None
+        submission.proposal_review_status = None
+        submission.proposal_review_feedback = ''
+        submission.proposal_questioned_by = None
+        submission.proposal_questioned_at = None
         submission.save()
 
         SubmissionNote.objects.create(

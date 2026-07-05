@@ -296,6 +296,20 @@ export function searchToParams(parsed, options = {}) {
     }
   }
 
+  // proposal-status → proposal_review_status
+  if (filters['proposal-status']) {
+    const statusMap = {
+      pending: 'pending_review',
+      'pending-review': 'pending_review',
+      pending_review: 'pending_review',
+      questioned: 'questioned',
+    };
+    const mapped = statusMap[filters['proposal-status'].value.toLowerCase()];
+    if (mapped) {
+      params.proposal_review_status = mapped;
+    }
+  }
+
   // confidence → proposed_confidence
   if (filters.confidence) {
     params.proposed_confidence = filters.confidence.value.toLowerCase();

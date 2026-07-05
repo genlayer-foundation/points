@@ -30,6 +30,7 @@ _EVENT_TYPES = [
     EventType('submission.accepted', category='submission'),
     EventType('submission.rejected', category='submission', priority=Notification.PRIORITY_HIGH),
     EventType('submission.more_info_needed', category='submission', priority=Notification.PRIORITY_HIGH),
+    EventType('submission.proposal_questioned', category='submission', priority=Notification.PRIORITY_HIGH),
     EventType('submission.appealed', category='submission', priority=Notification.PRIORITY_HIGH),
     EventType('submission.more_info_resubmitted', category='submission', priority=Notification.PRIORITY_HIGH),
     EventType('contribution.highlighted', category='contribution'),
