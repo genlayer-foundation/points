@@ -12,6 +12,7 @@ from django.utils import timezone
 from django.utils.html import format_html
 
 from .models import ServiceAccount, ServiceAccountToken
+from .scopes import ALLOWED_SERVICE_ACCOUNT_SCOPES, AI_REVIEW_SCOPES
 
 
 class ServiceAccountTokenIssueForm(forms.Form):
@@ -38,6 +39,16 @@ class ServiceAccountTokenIssueForm(forms.Form):
                 seen.add(scope)
         if not scopes:
             raise forms.ValidationError('Enter at least one scope.')
+        invalid_scopes = [
+            scope for scope in scopes
+            if scope not in ALLOWED_SERVICE_ACCOUNT_SCOPES
+        ]
+        if invalid_scopes:
+            allowed = ', '.join(sorted(ALLOWED_SERVICE_ACCOUNT_SCOPES))
+            invalid = ', '.join(invalid_scopes)
+            raise forms.ValidationError(
+                f'Unknown scope(s): {invalid}. Allowed scopes: {allowed}.'
+            )
         return scopes
 
     def clean_expires_at(self):
@@ -85,7 +96,7 @@ class ServiceAccountAdmin(admin.ModelAdmin):
 
         form = ServiceAccountTokenIssueForm(
             request.POST or None,
-            initial={'scopes': 'ai_review:read ai_review:propose'},
+            initial={'scopes': ' '.join(AI_REVIEW_SCOPES)},
         )
         token = None
         plaintext = None

@@ -19,6 +19,7 @@ from contributions.models import (
 from contributions.rubric_review import rubric_summary_text, uses_project_rubric
 from service_accounts.authentication import ServiceAccountAuthentication
 from service_accounts.permissions import HasServiceAccountScope
+from service_accounts.scopes import AI_REVIEW_PROPOSE_SCOPE, AI_REVIEW_READ_SCOPE
 from stewards.models import ReviewTemplate
 
 from .serializers import (
@@ -399,8 +400,8 @@ class AIReviewViewSet(
     authentication_classes = [ServiceAccountAuthentication]
     permission_classes = [HasServiceAccountScope]
     required_scopes = {
-        'propose': 'ai_review:propose',
-        '*': 'ai_review:read',
+        'propose': AI_REVIEW_PROPOSE_SCOPE,
+        '*': AI_REVIEW_READ_SCOPE,
     }
     pagination_class = AIReviewPagination
     filter_backends = [filters.OrderingFilter]

@@ -210,7 +210,7 @@ class ServiceAccountAdminTokenIssueTests(TestCase):
         response = self.client.post(
             self.issue_url,
             data={
-                'scopes': 'testing:read, testing:write testing:read',
+                'scopes': 'ai_review:read, ai_review:propose ai_review:read',
                 'expires_at_0': expires_at.strftime('%Y-%m-%d'),
                 'expires_at_1': expires_at.strftime('%H:%M:%S'),
             },
@@ -221,9 +221,26 @@ class ServiceAccountAdminTokenIssueTests(TestCase):
         plaintext = response.context['plaintext']
         self.assertTrue(plaintext.startswith(f'sa_{token.identifier}_'))
         self.assertContains(response, plaintext)
-        self.assertEqual(token.scopes, ['testing:read', 'testing:write'])
-        self.assertNotIn(plaintext, token.digest)
+        self.assertEqual(token.scopes, ['ai_review:read', 'ai_review:propose'])
+        self.assertEqual(
+            token.digest,
+            hashlib.sha256(plaintext.encode('utf-8')).hexdigest(),
+        )
         self.assertGreater(token.expires_at, timezone.now())
+
+    def test_admin_rejects_unknown_scope(self):
+        response = self.client.post(
+            self.issue_url,
+            data={
+                'scopes': 'ai_review:raed',
+                'expires_at_0': '',
+                'expires_at_1': '',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Unknown scope(s): ai_review:raed.')
+        self.assertFalse(ServiceAccountToken.objects.exists())
 
     def test_admin_rejects_empty_scopes(self):
         response = self.client.post(
