@@ -4,9 +4,13 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
-- The AI review agent now authenticates with individually issued, scoped, revocable service account tokens instead of a shared API key, so its access can be limited to reading or proposing and rotated or cut off without a deploy (72a16129)
+- Leaderboards load much faster and builder ranks are contiguous with no gaps; builders whose contributions were added directly by stewards now appear on the board, and every pre-existing builder received the star-the-boilerplate task and its points (11d6b38b)
+
+- Deleting a contribution now updates the owner's leaderboard totals and builder eligibility immediately instead of waiting for the next recalculation (9115c006)
 
 - The Grafana validator roster now says whether each validator wallet is linked to a portal account and carries the raw on-chain identity values (moniker, logo, description presence), so dashboards can show link status and setup completeness (e72de98)
+
+- The AI review agent now authenticates with individually issued, scoped, revocable service account tokens instead of a shared API key, so its access can be limited to reading or proposing and rotated or cut off without a deploy. Post-deploy, issue a new token with `python manage.py issue_service_account_token` and update the agent credentials because the old shared key stops working immediately (72a16129)
 
 - The Grafana validator roster now lists graduated validators that are missing from a testnet, so the Wall of Shame can show every expected validator on both Asimov and Bradbury (99cb19e)
 

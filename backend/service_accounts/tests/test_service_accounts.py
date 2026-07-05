@@ -9,7 +9,10 @@ contributions/tests/test_ai_review_auth.py.
 
 import hashlib
 from datetime import timedelta
+from io import StringIO
 
+from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.response import Response
@@ -50,14 +53,18 @@ class ServiceAccountTokenModelTests(TestCase):
         token, plaintext = ServiceAccountToken.issue(account, ['testing:read'])
 
         self.assertTrue(plaintext.startswith('sa_'))
+        self.assertTrue(plaintext.startswith(f'sa_{token.identifier}_'))
         self.assertEqual(
             token.digest, hashlib.sha256(plaintext.encode()).hexdigest(),
         )
         self.assertNotEqual(token.digest, plaintext)
-        self.assertEqual(token.identifier, token.digest[:8])
+        self.assertEqual(
+            ServiceAccountToken.identifier_from_plaintext(plaintext),
+            token.identifier,
+        )
         # The plaintext appears in no stored field
         token.refresh_from_db()
-        for field in ('digest', 'scopes'):
+        for field in ('identifier', 'digest', 'scopes'):
             self.assertNotIn(plaintext, str(getattr(token, field)))
 
     def test_principal_is_not_anonymous_and_not_a_user(self):
@@ -82,6 +89,13 @@ class ServiceAccountAuthenticationTests(TestCase):
     def test_tampered_token_rejected(self):
         _, _, plaintext = _issue()
         self.assertEqual(_get(f'Bearer {plaintext}x').status_code, 401)
+
+    def test_tampered_secret_with_known_identifier_rejected(self):
+        _, token, _ = _issue()
+        self.assertEqual(
+            _get(f'Bearer sa_{token.identifier}_wrongsecret').status_code,
+            401,
+        )
 
     def test_expired_token_rejected(self):
         account = ServiceAccount.objects.create(name='expired-agent')
@@ -128,3 +142,37 @@ class ServiceAccountAuthenticationTests(TestCase):
         token.refresh_from_db()
         self.assertEqual(token.last_used_at, first_used)
         self.assertEqual(token.updated_at, first_updated)
+
+
+class IssueServiceAccountTokenCommandTests(TestCase):
+    """Management command validation and output contract."""
+
+    def test_rejects_non_positive_expires_days(self):
+        with self.assertRaisesMessage(
+            CommandError, '--expires-days must be a positive integer.',
+        ):
+            call_command(
+                'issue_service_account_token',
+                'agent',
+                scopes=['testing:read'],
+                expires_days=0,
+            )
+
+        self.assertFalse(ServiceAccount.objects.exists())
+        self.assertFalse(ServiceAccountToken.objects.exists())
+
+    def test_positive_expires_days_sets_expiry(self):
+        output = StringIO()
+        before = timezone.now()
+
+        call_command(
+            'issue_service_account_token',
+            'agent',
+            scopes=['testing:read'],
+            expires_days=1,
+            stdout=output,
+        )
+
+        token = ServiceAccountToken.objects.get()
+        self.assertGreater(token.expires_at, before)
+        self.assertIn(f'Token id: {token.identifier}', output.getvalue())

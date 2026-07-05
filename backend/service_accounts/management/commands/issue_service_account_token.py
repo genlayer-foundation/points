@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from service_accounts.models import ServiceAccount, ServiceAccountToken
@@ -37,13 +37,17 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        expires_at = None
+        expires_days = options['expires_days']
+        if expires_days is not None:
+            if expires_days <= 0:
+                raise CommandError('--expires-days must be a positive integer.')
+            expires_at = timezone.now() + timedelta(days=expires_days)
+
         account, created = ServiceAccount.objects.get_or_create(
             name=options['account'],
             defaults={'description': options['description']},
         )
-        expires_at = None
-        if options['expires_days']:
-            expires_at = timezone.now() + timedelta(days=options['expires_days'])
 
         token, plaintext = ServiceAccountToken.issue(
             account, options['scopes'], expires_at=expires_at,

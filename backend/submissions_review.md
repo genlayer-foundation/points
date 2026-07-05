@@ -80,7 +80,7 @@ After each batch run, the command checks for users meeting the threshold:
 
 ## Tier 2: External AI Agent
 
-The external AI agent accesses submissions via the `/api/v1/ai-review/` API endpoints, authenticated with a service account bearer token (`Authorization: Bearer sa_<secret>`, scopes `ai_review:read` / `ai_review:propose`). See `contributions/ai_review/` and `service_accounts/` for implementation and `.claude/skills/ai-review.md` for the agent workflow.
+The external AI agent accesses submissions via the `/api/v1/ai-review/` API endpoints, authenticated with a service account bearer token (`Authorization: Bearer sa_<id>_<secret>`, scopes `ai_review:read` / `ai_review:propose`). See `contributions/ai_review/` and `service_accounts/` for implementation and `.claude/skills/ai-review.md` for the agent workflow.
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
@@ -126,7 +126,7 @@ python manage.py review_submissions --submission-id <uuid>
 ## Authentication
 
 The external AI agent authenticates with a service account token
-(`Authorization: Bearer sa_<secret>`, issued via
+(`Authorization: Bearer sa_<id>_<secret>`, issued via
 `python manage.py issue_service_account_token`, see `service_accounts/`).
 No environment variables are involved; tokens live in the database and are
 revoked via Django admin.

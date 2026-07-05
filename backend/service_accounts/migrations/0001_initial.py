@@ -32,6 +32,7 @@ class Migration(migrations.Migration):
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
+                ('identifier', models.CharField(max_length=16, unique=True)),
                 ('digest', models.CharField(max_length=64, unique=True)),
                 ('scopes', models.JSONField(default=list)),
                 ('expires_at', models.DateTimeField(blank=True, null=True)),

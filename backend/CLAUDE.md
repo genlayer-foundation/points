@@ -99,12 +99,13 @@ backend/
   - `/api/v1/ai-review/proposed/` - List pending submissions with active proposals awaiting steward review; use `proposed_by=ai` for AI-created proposals only
   - `/api/v1/ai-review/reviewed/` - List reviewed submissions that had AI proposals for calibration
   - `/api/v1/ai-review/templates/` - List review templates available to the AI review agent
-  - **Auth**: service account bearer tokens (`Authorization: Bearer sa_<secret>`) with scopes `ai_review:read` (all GETs) and `ai_review:propose` (propose). Proposals are attributed to the hidden AI steward user (`contributions/ai_attribution.py:get_ai_steward()`, `genlayer-steward@genlayer.foundation`); the authenticating account's name is recorded in the proposal note's `data.service_account` for audit. The old `X-AI-Review-Key` shared key has been removed; tokens are the only way in.
+  - **Auth**: service account bearer tokens (`Authorization: Bearer sa_<id>_<secret>`) with scopes `ai_review:read` (all GETs) and `ai_review:propose` (propose). Proposals are attributed to the hidden AI steward user (`contributions/ai_attribution.py:get_ai_steward()`, `genlayer-steward@genlayer.foundation`); the authenticating account's name is recorded in the proposal note's `data.service_account` for audit. The old `X-AI-Review-Key` shared key has been removed; tokens are the only way in.
 
 ### Service Accounts
+
 - **App**: `service_accounts/` provides machine identities for server-to-server API access. No HTTP API of its own.
-- **Models**: `ServiceAccount` (name, description, is_active; acts as the DRF request principal; it is NOT a User and can never become a session) and `ServiceAccountToken` (unique SHA-256 `digest` of the plaintext, which is never stored and is looked up directly by digest; `scopes` list; `expires_at`/`revoked_at`/`last_used_at`, with `last_used_at` writes throttled to once per minute).
-- **Auth class**: `service_accounts.authentication.ServiceAccountAuthentication` parses `Bearer sa_<secret>`, constant-time digest compare, rejects expired/revoked/inactive with a generic 401. Non-`sa_` credentials pass through to other authenticators.
+- **Models**: `ServiceAccount` (name, description, is_active; acts as the DRF request principal; it is NOT a User and can never become a session) and `ServiceAccountToken` (unique non-secret `identifier`; unique SHA-256 `digest` of the plaintext, which is never stored; `scopes` list; `expires_at`/`revoked_at`/`last_used_at`, with `last_used_at` writes throttled to once per minute).
+- **Auth class**: `service_accounts.authentication.ServiceAccountAuthentication` parses `Bearer sa_<id>_<secret>`, looks up the token by non-secret id, compares digests in constant time, rejects expired/revoked/inactive with a generic 401. Non-`sa_` credentials pass through to other authenticators.
 - **Permission**: `service_accounts.permissions.HasServiceAccountScope`; views declare `required_scopes = {'<action>': '<scope>', '*': '<default>'}`.
 - **Issue a token**: `python manage.py issue_service_account_token <account> --scopes <scope>... [--expires-days N]`; plaintext printed exactly once. Rotate = issue new + revoke old (admin action on Service account tokens); kill switch = deactivate the account.
 - **Tests**: `service_accounts/tests/`; test helper `service_accounts.testing.service_account_auth_headers()` returns client auth kwargs.
@@ -559,7 +560,7 @@ python manage.py collectstatic
 
 Server-to-server callers (currently only the AI review agent) do not use
 sessions: they authenticate per request with a service account bearer token
-(`Authorization: Bearer sa_<secret>`), verified by
+(`Authorization: Bearer sa_<id>_<secret>`), verified by
 `service_accounts.authentication.ServiceAccountAuthentication` and scoped by
 `HasServiceAccountScope`. See the "Service Accounts" section above.
 
