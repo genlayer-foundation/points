@@ -126,7 +126,7 @@ python manage.py review_submissions --submission-id <uuid>
 ## Authentication
 
 The external AI agent authenticates with a service account token
-(`Authorization: Bearer sa_<id>_<secret>`, issued via
+(`Authorization: Bearer sa_<id>_<secret>`, issued from Django admin or via
 `python manage.py issue_service_account_token`, see `service_accounts/`).
 No environment variables are involved; tokens live in the database and are
 revoked via Django admin.
