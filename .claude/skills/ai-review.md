@@ -25,8 +25,8 @@ description: >
 Set:
 
 - `TOKEN`: a service account token (`sa_<id>_<secret>`) with the
-  `ai_review:read` and `ai_review:propose` scopes, issued with
-  `python manage.py issue_service_account_token`
+  `ai_review:read` and `ai_review:propose` scopes, issued from Django admin
+  or with `python manage.py issue_service_account_token`
 - `BASE_URL`: backend base URL, usually `http://localhost:8000`
 
 Every request needs:

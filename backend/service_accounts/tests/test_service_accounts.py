@@ -11,9 +11,11 @@ import hashlib
 from datetime import timedelta
 from io import StringIO
 
+from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
 from rest_framework.response import Response
 from rest_framework.test import APIRequestFactory
@@ -176,3 +178,54 @@ class IssueServiceAccountTokenCommandTests(TestCase):
         token = ServiceAccountToken.objects.get()
         self.assertGreater(token.expires_at, before)
         self.assertIn(f'Token id: {token.identifier}', output.getvalue())
+
+
+class ServiceAccountAdminTokenIssueTests(TestCase):
+    """Admin token issuance keeps generated secrets out of editable fields."""
+
+    def setUp(self):
+        admin_user = get_user_model().objects.create_superuser(
+            email='admin@test.com',
+            password='password',
+        )
+        self.client.force_login(admin_user)
+        self.account = ServiceAccount.objects.create(name='admin-agent')
+        self.issue_url = reverse(
+            'admin:service_accounts_serviceaccount_issue_token',
+            args=[self.account.pk],
+        )
+
+    def test_admin_can_issue_token_for_service_account(self):
+        expires_at = timezone.now() + timedelta(days=2)
+
+        response = self.client.post(
+            self.issue_url,
+            data={
+                'scopes': 'testing:read, testing:write testing:read',
+                'expires_at_0': expires_at.strftime('%Y-%m-%d'),
+                'expires_at_1': expires_at.strftime('%H:%M:%S'),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        token = ServiceAccountToken.objects.get(service_account=self.account)
+        plaintext = response.context['plaintext']
+        self.assertTrue(plaintext.startswith(f'sa_{token.identifier}_'))
+        self.assertContains(response, plaintext)
+        self.assertEqual(token.scopes, ['testing:read', 'testing:write'])
+        self.assertNotIn(plaintext, token.digest)
+        self.assertGreater(token.expires_at, timezone.now())
+
+    def test_admin_rejects_empty_scopes(self):
+        response = self.client.post(
+            self.issue_url,
+            data={
+                'scopes': ' , ',
+                'expires_at_0': '',
+                'expires_at_1': '',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Enter at least one scope.')
+        self.assertFalse(ServiceAccountToken.objects.exists())

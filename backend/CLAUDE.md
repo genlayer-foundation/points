@@ -107,7 +107,7 @@ backend/
 - **Models**: `ServiceAccount` (name, description, is_active; acts as the DRF request principal; it is NOT a User and can never become a session) and `ServiceAccountToken` (unique non-secret `identifier`; unique SHA-256 `digest` of the plaintext, which is never stored; `scopes` list; `expires_at`/`revoked_at`/`last_used_at`, with `last_used_at` writes throttled to once per minute).
 - **Auth class**: `service_accounts.authentication.ServiceAccountAuthentication` parses `Bearer sa_<id>_<secret>`, looks up the token by non-secret id, compares digests in constant time, rejects expired/revoked/inactive with a generic 401. Non-`sa_` credentials pass through to other authenticators.
 - **Permission**: `service_accounts.permissions.HasServiceAccountScope`; views declare `required_scopes = {'<action>': '<scope>', '*': '<default>'}`.
-- **Issue a token**: `python manage.py issue_service_account_token <account> --scopes <scope>... [--expires-days N]`; plaintext printed exactly once. Rotate = issue new + revoke old (admin action on Service account tokens); kill switch = deactivate the account.
+- **Issue a token**: Django admin Service account change page -> "Issue token", or `python manage.py issue_service_account_token <account> --scopes <scope>... [--expires-days N]`; plaintext is shown exactly once. Rotate = issue new + revoke old (admin action on Service account tokens); kill switch = deactivate the account.
 - **Tests**: `service_accounts/tests/`; test helper `service_accounts.testing.service_account_auth_headers()` returns client auth kwargs.
 
 ### Node Upgrade (Sub-app)
