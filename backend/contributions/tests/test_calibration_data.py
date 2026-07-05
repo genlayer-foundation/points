@@ -19,6 +19,7 @@ from contributions.models import (
     SubmittedContribution,
 )
 from leaderboard.models import GlobalLeaderboardMultiplier
+from service_accounts.testing import service_account_auth_headers
 from stewards.models import ReviewTemplate, Steward, StewardPermission
 from users.models import User
 
@@ -310,12 +311,13 @@ class TestAIReviewNotes(APITestCase):
         self.assertIn('Tier 1', note.data['reasoning'])
 
 
-@override_settings(ALLOWED_HOSTS=['*'], AI_REVIEW_API_KEY='test-ai-review-key')
+@override_settings(ALLOWED_HOSTS=['*'])
 class TestAIReviewAPI(APITestCase):
     """Test that the AI review API stores calibration data correctly."""
 
     def setUp(self):
         self.fixtures = _create_test_fixtures()
+        self.ai_auth = service_account_auth_headers(('ai_review:read', 'ai_review:propose'), name='test-ai-agent')
 
     def test_ai_review_detail_returns_internal_notes_for_pending_submission(self):
         submission = self.fixtures['submission']
@@ -328,7 +330,7 @@ class TestAIReviewAPI(APITestCase):
 
         response = self.client.get(
             f'/api/v1/ai-review/{submission.id}/',
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
 
         self.assertEqual(response.status_code, 200)
@@ -350,7 +352,7 @@ class TestAIReviewAPI(APITestCase):
 
         response = self.client.get(
             '/api/v1/ai-review/',
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
 
         self.assertEqual(response.status_code, 200)
@@ -368,7 +370,7 @@ class TestAIReviewAPI(APITestCase):
 
         default_response = self.client.get(
             '/api/v1/ai-review/',
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
         self.assertEqual(default_response.status_code, 200)
         default_ids = {str(item['id']) for item in default_response.data['results']}
@@ -380,7 +382,7 @@ class TestAIReviewAPI(APITestCase):
                 'has_proposal': 'true',
                 'proposed_by': self.fixtures['steward_user'].id,
             },
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
 
         self.assertEqual(filtered_response.status_code, 200)
@@ -422,7 +424,7 @@ class TestAIReviewAPI(APITestCase):
         include_response = self.client.get(
             '/api/v1/ai-review/',
             data={'assigned_to': f'unassigned,{self.fixtures["steward_user"].id}'},
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
         self.assertEqual(include_response.status_code, 200)
         include_ids = {str(item['id']) for item in include_response.data['results']}
@@ -433,7 +435,7 @@ class TestAIReviewAPI(APITestCase):
         exclude_response = self.client.get(
             '/api/v1/ai-review/',
             data={'exclude_assigned_to': f'unassigned,{self.fixtures["steward_user"].id}'},
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
         self.assertEqual(exclude_response.status_code, 200)
         exclude_ids = {str(item['id']) for item in exclude_response.data['results']}
@@ -449,7 +451,7 @@ class TestAIReviewAPI(APITestCase):
         include_assigned = self.client.get(
             '/api/v1/ai-review/',
             data={'assigned_to': 'abc'},
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
         self.assertEqual(include_assigned.status_code, 200)
         self.assertEqual(include_assigned.data['results'], [])
@@ -457,7 +459,7 @@ class TestAIReviewAPI(APITestCase):
         exclude_assigned = self.client.get(
             '/api/v1/ai-review/',
             data={'exclude_assigned_to': 'abc'},
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
         self.assertEqual(exclude_assigned.status_code, 200)
         self.assertIn(
@@ -472,7 +474,7 @@ class TestAIReviewAPI(APITestCase):
         include_proposed = self.client.get(
             '/api/v1/ai-review/proposed/',
             data={'proposed_by': 'abc'},
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
         self.assertEqual(include_proposed.status_code, 200)
         self.assertEqual(include_proposed.data['results'], [])
@@ -480,7 +482,7 @@ class TestAIReviewAPI(APITestCase):
         exclude_proposed = self.client.get(
             '/api/v1/ai-review/proposed/',
             data={'exclude_proposed_by': 'abc'},
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
         self.assertEqual(exclude_proposed.status_code, 200)
         self.assertIn(
@@ -501,7 +503,7 @@ class TestAIReviewAPI(APITestCase):
                 'reasoning': 'The evidence provided does not support the claim.',
             },
             content_type='application/json',
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
 
         self.assertEqual(response.status_code, 200)
@@ -534,7 +536,7 @@ class TestAIReviewAPI(APITestCase):
         filtered_response = self.client.get(
             '/api/v1/ai-review/',
             data={'gate_reviewed': 'false'},
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
         self.assertEqual(filtered_response.status_code, 200)
         filtered_ids = {str(item['id']) for item in filtered_response.data['results']}
@@ -550,7 +552,7 @@ class TestAIReviewAPI(APITestCase):
                 'gate_reviewed': True,
             },
             content_type='application/json',
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
 
         self.assertEqual(response.status_code, 200)
@@ -582,7 +584,7 @@ class TestAIReviewAPI(APITestCase):
         response = self.client.get(
             '/api/v1/ai-review/proposed/',
             data={'proposed_confidence': 'low'},
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
 
         self.assertEqual(response.status_code, 200)
@@ -603,7 +605,7 @@ class TestAIReviewAPI(APITestCase):
         ai_only_response = self.client.get(
             '/api/v1/ai-review/proposed/',
             data={'proposed_confidence': 'low', 'proposed_by': 'ai'},
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
 
         self.assertEqual(ai_only_response.status_code, 200)
@@ -625,7 +627,7 @@ class TestAIReviewAPI(APITestCase):
                 'confidence': 'medium',
             },
             content_type='application/json',
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
 
         self.assertEqual(response.status_code, 403)
@@ -795,18 +797,19 @@ class TestCalibrationComparison(APITestCase):
         self.assertEqual(calibration_pairs[0]['ai_confidence'], 'medium')
 
 
-@override_settings(ALLOWED_HOSTS=['*'], AI_REVIEW_API_KEY='test-ai-review-key')
+@override_settings(ALLOWED_HOSTS=['*'])
 class TestAIReviewedEndpoint(APITestCase):
     """Test the external AI reviewed-submissions calibration endpoint."""
 
     def setUp(self):
         self.fixtures = _create_test_fixtures()
+        self.ai_auth = service_account_auth_headers(('ai_review:read', 'ai_review:propose'), name='test-ai-agent')
 
     def _get_reviewed(self, **params):
         return self.client.get(
             '/api/v1/ai-review/reviewed/',
             data=params,
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
 
     def test_reviewed_endpoint_returns_reviewed_submission_with_ai_proposal(self):

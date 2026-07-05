@@ -9,6 +9,7 @@ from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
+from contributions.ai_attribution import AI_STEWARD_EMAIL, get_ai_steward
 from contributions.models import (
     Evidence,
     ProjectMilestoneReview,
@@ -16,10 +17,10 @@ from contributions.models import (
     SubmittedContribution,
 )
 from contributions.rubric_review import rubric_summary_text, uses_project_rubric
+from service_accounts.authentication import ServiceAccountAuthentication
+from service_accounts.permissions import HasServiceAccountScope
 from stewards.models import ReviewTemplate
-from users.models import User
 
-from .permissions import IsAIReviewToken
 from .serializers import (
     AIReviewProposeSerializer,
     AIReviewReviewedSubmissionSerializer,
@@ -27,8 +28,6 @@ from .serializers import (
     AIReviewTemplateSerializer,
     LightAIReviewSubmissionSerializer,
 )
-
-AI_STEWARD_EMAIL = 'genlayer-steward@genlayer.foundation'
 
 
 class AIReviewPagination(PageNumberPagination):
@@ -163,20 +162,6 @@ class AIReviewFilterSet(FilterSet):
         parser_context = getattr(self.request, 'parser_context', {}) if self.request else {}
         view = parser_context.get('view')
         return getattr(view, 'action', None) == 'reviewed'
-
-    def _historical_proposal_note_exists(self, value):
-        notes = SubmissionNote.objects.filter(
-            submitted_contribution=OuterRef('pk'),
-            is_proposal=True,
-        )
-        if value == 'ai':
-            notes = notes.filter(user__email=AI_STEWARD_EMAIL)
-        else:
-            parsed_id = self._parse_id_filter_value(value)
-            if parsed_id is None:
-                return None
-            notes = notes.filter(user_id=parsed_id)
-        return Exists(notes)
 
     def _historical_proposal_note_exists_for_values(self, values):
         notes = SubmissionNote.objects.filter(
@@ -411,13 +396,18 @@ class AIReviewViewSet(
     review actions. All proposals require human steward approval.
     """
 
-    authentication_classes = []  # Pure token auth via permission class
-    permission_classes = [IsAIReviewToken]
+    authentication_classes = [ServiceAccountAuthentication]
+    permission_classes = [HasServiceAccountScope]
+    required_scopes = {
+        'propose': 'ai_review:propose',
+        '*': 'ai_review:read',
+    }
     pagination_class = AIReviewPagination
     filter_backends = [filters.OrderingFilter]
     filterset_class = AIReviewFilterSet
+    # No default `ordering` here: each action's queryset carries its own
+    # order_by, which OrderingFilter preserves unless ?ordering= overrides it.
     ordering_fields = ['created_at', 'contribution_date']
-    ordering = ['created_at']
     proposal_query_params = {
         'has_proposal',
         'proposed_by',
@@ -461,6 +451,7 @@ class AIReviewViewSet(
                 'project_milestone_review__proposer',
             )
             .prefetch_related(*prefetches)
+            .order_by('created_at')
         )
 
     def filter_queryset(self, queryset):
@@ -474,14 +465,7 @@ class AIReviewViewSet(
             queryset = filterset.qs
         return super().filter_queryset(queryset)
 
-    def _apply_search_ordering(self, request, queryset):
-        ordering = request.query_params.get('ordering')
-        allowed = {'created_at', '-created_at', 'contribution_date', '-contribution_date'}
-        if ordering in allowed:
-            return queryset.order_by(ordering)
-        return queryset
-
-    def _validate_and_apply_proposal(self, submission, data, ai_user, is_update=False):
+    def _validate_and_apply_proposal(self, submission, data, ai_user, service_account_name, is_update=False):
         """Validate proposal data and apply it to the submission."""
         # Validate points within contribution type range for accept
         if data['proposed_action'] == 'accept' and data.get('proposed_points') is not None:
@@ -562,6 +546,8 @@ class AIReviewViewSet(
                 'confidence': confidence,
                 'reasoning': reasoning,
                 'rubric_review_id': rubric_record.id if rubric_record else None,
+                # Audit trail: which service account authenticated the proposal
+                'service_account': service_account_name,
             },
         )
 
@@ -569,13 +555,6 @@ class AIReviewViewSet(
             AIReviewSubmissionSerializer(submission).data,
             status=status.HTTP_200_OK,
         )
-
-    def _get_ai_user(self):
-        """Get the AI steward user or return an error response."""
-        try:
-            return User.objects.get(email=AI_STEWARD_EMAIL)
-        except User.DoesNotExist:
-            return None
 
     @action(detail=True, methods=['post', 'put'], url_path='propose')
     def propose(self, request, pk=None):
@@ -598,12 +577,7 @@ class AIReviewViewSet(
         )
 
         is_update = request.method == 'PUT'
-        ai_user = self._get_ai_user()
-        if ai_user is None:
-            return Response(
-                {'error': 'AI steward user not found. Run migrations.'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+        ai_user = get_ai_steward()
 
         if is_update and submission.proposed_action is None:
             return Response(
@@ -630,7 +604,10 @@ class AIReviewViewSet(
         serializer.is_valid(raise_exception=True)
 
         return self._validate_and_apply_proposal(
-            submission, serializer.validated_data, ai_user, is_update=is_update,
+            submission, serializer.validated_data, ai_user,
+            # HasServiceAccountScope guarantees a token principal here
+            service_account_name=request.auth.service_account.name,
+            is_update=is_update,
         )
 
     @action(detail=False, methods=['get'], url_path='proposed')
@@ -666,15 +643,7 @@ class AIReviewViewSet(
             .order_by('-proposed_at')
         )
 
-        # Apply the same filterset as the main list endpoint
-        filterset = self.filterset_class(
-            data=request.query_params,
-            queryset=queryset,
-            request=request,
-        )
-        if filterset.is_valid():
-            queryset = filterset.qs
-        queryset = self._apply_search_ordering(request, queryset)
+        queryset = self.filter_queryset(queryset)
 
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -716,14 +685,7 @@ class AIReviewViewSet(
             .order_by('-reviewed_at')
         )
 
-        filterset = self.filterset_class(
-            data=request.query_params,
-            queryset=queryset,
-            request=request,
-        )
-        if filterset.is_valid():
-            queryset = filterset.qs
-        queryset = self._apply_search_ordering(request, queryset)
+        queryset = self.filter_queryset(queryset)
 
         page = self.paginate_queryset(queryset)
         if page is not None:

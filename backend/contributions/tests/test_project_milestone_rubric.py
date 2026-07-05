@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from django.test import override_settings
 from django.utils import timezone
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient, APITestCase
 
 from contributions.models import (
     Category,
@@ -13,6 +13,7 @@ from contributions.models import (
     SubmittedContribution,
 )
 from leaderboard.models import GlobalLeaderboardMultiplier
+from service_accounts.testing import service_account_auth_headers
 from stewards.models import ReviewTemplate, Steward, StewardPermission
 from users.models import User
 
@@ -212,7 +213,6 @@ class ProjectMilestoneRubricHumanProposalTests(APITestCase):
         self.assertIsNotNone(note)
         self.assertNotIn('points**', note.message)
 
-    @override_settings(AI_REVIEW_API_KEY='test-ai-review-key')
     def test_ai_review_proposed_endpoint_includes_human_builder_project_proposals(self):
         submission = self.create_submission()
         submission.assigned_to = self.steward_user
@@ -233,13 +233,17 @@ class ProjectMilestoneRubricHumanProposalTests(APITestCase):
         )
         self.assertEqual(propose_response.status_code, 200)
 
-        response = self.client.get(
+        # self.client is force-authenticated, which overrides Bearer headers, so
+        # use a fresh client to authenticate as the AI service account.
+        ai_client = APIClient()
+        ai_auth = service_account_auth_headers(('ai_review:read', 'ai_review:propose'), name='test-ai-agent')
+        response = ai_client.get(
             '/api/v1/ai-review/proposed/',
             data={
                 'assigned_to': self.steward_user.id,
                 'proposed_by': self.steward_user.id,
             },
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **ai_auth,
         )
 
         self.assertEqual(response.status_code, 200)
@@ -261,9 +265,9 @@ class ProjectMilestoneRubricHumanProposalTests(APITestCase):
         )
         self.assertEqual(list_payload['rubric_review']['proposer_name'], 'Reviewer')
 
-        detail_response = self.client.get(
+        detail_response = ai_client.get(
             f'/api/v1/ai-review/{submission.id}/',
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **ai_auth,
         )
         self.assertEqual(detail_response.status_code, 200)
         self.assertEqual(detail_response.data['review_flow'], ContributionType.REVIEW_FLOW_BUILDER_PROJECT)
@@ -691,7 +695,7 @@ class ProjectMilestoneRubricHumanProposalTests(APITestCase):
         self.assertFalse(ProjectMilestoneReview.objects.filter(submitted_contribution=submission).exists())
 
 
-@override_settings(ALLOWED_HOSTS=['*'], AI_REVIEW_API_KEY='test-ai-review-key')
+@override_settings(ALLOWED_HOSTS=['*'])
 class ProjectMilestoneRubricAIProposalTests(APITestCase):
     def setUp(self):
         self.category, _ = Category.objects.get_or_create(
@@ -731,6 +735,7 @@ class ProjectMilestoneRubricAIProposalTests(APITestCase):
         if not self.ai_user.name:
             self.ai_user.name = 'GenLayer Steward'
             self.ai_user.save(update_fields=['name'])
+        self.ai_auth = service_account_auth_headers(('ai_review:read', 'ai_review:propose'), name='test-ai-agent')
 
     def create_submission(self, contribution_type=None):
         submission = SubmittedContribution.objects.create(
@@ -755,7 +760,7 @@ class ProjectMilestoneRubricAIProposalTests(APITestCase):
 
         response = self.client.get(
             '/api/v1/ai-review/templates/',
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
 
         self.assertEqual(response.status_code, 200)
@@ -780,7 +785,7 @@ class ProjectMilestoneRubricAIProposalTests(APITestCase):
                 'rubric_review': payload,
             },
             content_type='application/json',
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
 
         self.assertEqual(response.status_code, 200)
@@ -805,7 +810,7 @@ class ProjectMilestoneRubricAIProposalTests(APITestCase):
 
         detail_response = self.client.get(
             f'/api/v1/ai-review/{submission.id}/',
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
         self.assertEqual(detail_response.status_code, 200)
         self.assertEqual(detail_response.data['rubric_review']['sections'], review.sections)
@@ -832,7 +837,7 @@ class ProjectMilestoneRubricAIProposalTests(APITestCase):
                 'rubric_review': gate_payload(),
             },
             content_type='application/json',
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
 
         response = self.client.put(
@@ -844,7 +849,7 @@ class ProjectMilestoneRubricAIProposalTests(APITestCase):
                 'rubric_review': rubric_payload(overall_reason='Updated rubric after the repo was reviewed again.'),
             },
             content_type='application/json',
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
 
         self.assertEqual(response.status_code, 200)
@@ -873,7 +878,7 @@ class ProjectMilestoneRubricAIProposalTests(APITestCase):
                 'rubric_review': gate_payload(),
             },
             content_type='application/json',
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
 
         self.assertEqual(response.status_code, 200)
@@ -909,7 +914,7 @@ class ProjectMilestoneRubricAIProposalTests(APITestCase):
                 'rubric_review': rubric_payload(),
             },
             content_type='application/json',
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
 
         self.assertEqual(response.status_code, 400)
@@ -927,7 +932,7 @@ class ProjectMilestoneRubricAIProposalTests(APITestCase):
                 'rubric_review': gate_payload(),
             },
             content_type='application/json',
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
 
         self.assertEqual(response.status_code, 400)
@@ -946,7 +951,7 @@ class ProjectMilestoneRubricAIProposalTests(APITestCase):
                 'rubric_review': {'unexpected': 'payload'},
             },
             content_type='application/json',
-            HTTP_X_AI_REVIEW_KEY='test-ai-review-key',
+            **self.ai_auth,
         )
 
         self.assertEqual(response.status_code, 400)
