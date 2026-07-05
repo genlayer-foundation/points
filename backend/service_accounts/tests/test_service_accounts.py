@@ -195,6 +195,15 @@ class ServiceAccountAdminTokenIssueTests(TestCase):
             args=[self.account.pk],
         )
 
+    def test_add_page_does_not_render_issue_token_link_for_unsaved_account(self):
+        response = self.client.get(
+            reverse('admin:service_accounts_serviceaccount_add')
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Save this service account before issuing tokens.')
+        self.assertNotContains(response, '/None/issue-token/')
+
     def test_admin_can_issue_token_for_service_account(self):
         expires_at = timezone.now() + timedelta(days=2)
 

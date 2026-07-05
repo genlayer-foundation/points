@@ -67,7 +67,7 @@ class ServiceAccountAdmin(admin.ModelAdmin):
 
     @admin.display(description='Issue token')
     def issue_token_link(self, obj):
-        if obj is None:
+        if obj is None or obj.pk is None:
             return 'Save this service account before issuing tokens.'
         url = reverse(
             'admin:service_accounts_serviceaccount_issue_token',
