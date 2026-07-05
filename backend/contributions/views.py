@@ -46,6 +46,7 @@ from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          FeaturedContentSerializer, AlertSerializer,
                          ContributionDiscordXPStateSerializer)
 from .permissions import IsSteward, steward_has_permission, steward_permitted_type_ids
+from .proposal_filters import ProposalReviewStatusFilterMixin
 from .project_milestones import (
     accepted_project_contributions_for_user,
     is_milestone_contribution_type,
@@ -1204,7 +1205,7 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         )
 
 
-class StewardSubmissionFilterSet(FilterSet):
+class StewardSubmissionFilterSet(ProposalReviewStatusFilterMixin, FilterSet):
     """Custom filterset for steward submission filtering."""
     username_search = CharFilter(method='filter_username')
     exclude_username = CharFilter(method='filter_exclude_username')
@@ -1490,40 +1491,11 @@ class StewardSubmissionFilterSet(FilterSet):
             ).filter(user_accepted_count__gte=value)
         return queryset
 
-    def filter_has_proposal(self, queryset, name, value):
-        """Filter submissions that have/don't have a proposal ready for final review."""
-        if value is True:
-            queryset = queryset.filter(proposed_action__isnull=False)
-            if not self.data.get('proposal_review_status'):
-                queryset = queryset.filter(
-                    Q(proposal_review_status=SubmittedContribution.PROPOSAL_STATUS_PENDING_REVIEW)
-                    | Q(proposal_review_status__isnull=True)
-                )
-            return queryset
-        elif value is False:
-            return queryset.filter(proposed_action__isnull=True)
-        return queryset
-
     def filter_proposed_action(self, queryset, name, value):
         """Filter by proposed action type (accept, reject, more_info)."""
         if value:
             return queryset.filter(proposed_action=value.lower())
         return queryset
-
-    def filter_proposal_review_status(self, queryset, name, value):
-        """Filter by active proposal review status."""
-        status_map = {
-            'pending': SubmittedContribution.PROPOSAL_STATUS_PENDING_REVIEW,
-            'pending_review': SubmittedContribution.PROPOSAL_STATUS_PENDING_REVIEW,
-            'questioned': SubmittedContribution.PROPOSAL_STATUS_QUESTIONED,
-        }
-        status_value = status_map.get(str(value).lower())
-        if status_value:
-            return queryset.filter(
-                proposed_action__isnull=False,
-                proposal_review_status=status_value,
-            )
-        return queryset.none()
 
     def filter_proposed_confidence(self, queryset, name, value):
         """Filter by proposal confidence level (high, medium, low)."""
@@ -3207,9 +3179,9 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        if submission.state != 'pending':
+        if submission.state not in ('pending', 'more_info_needed'):
             return Response(
-                {'detail': 'Only pending submissions can have proposals questioned.'},
+                {'detail': 'Only pending submissions or submissions awaiting more information can have proposals questioned.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         if not submission.proposed_action:

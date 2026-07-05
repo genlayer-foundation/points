@@ -16,6 +16,7 @@ from contributions.models import (
     SubmissionNote,
     SubmittedContribution,
 )
+from contributions.proposal_filters import ProposalReviewStatusFilterMixin
 from contributions.rubric_review import rubric_summary_text, uses_project_rubric
 from service_accounts.authentication import ServiceAccountAuthentication
 from service_accounts.permissions import HasServiceAccountScope
@@ -38,7 +39,7 @@ class AIReviewPagination(PageNumberPagination):
 
 # ─── FilterSet ────────────────────────────────────────────────────────────────
 
-class AIReviewFilterSet(FilterSet):
+class AIReviewFilterSet(ProposalReviewStatusFilterMixin, FilterSet):
     """Filterset for AI review agent submission queries."""
 
     contribution_type = NumberFilter(field_name='contribution_type_id')
@@ -327,19 +328,6 @@ class AIReviewFilterSet(FilterSet):
             ).filter(user_accepted_count__gte=value)
         return queryset
 
-    def filter_has_proposal(self, queryset, name, value):
-        if value is True:
-            queryset = queryset.filter(proposed_action__isnull=False)
-            if not self.data.get('proposal_review_status'):
-                queryset = queryset.filter(
-                    Q(proposal_review_status=SubmittedContribution.PROPOSAL_STATUS_PENDING_REVIEW)
-                    | Q(proposal_review_status__isnull=True)
-                )
-            return queryset
-        elif value is False:
-            return queryset.filter(proposed_action__isnull=True)
-        return queryset
-
     def filter_exclude_state(self, queryset, name, value):
         if value:
             return queryset.exclude(state=value)
@@ -349,20 +337,6 @@ class AIReviewFilterSet(FilterSet):
         if value:
             return queryset.filter(proposed_action=value.lower())
         return queryset
-
-    def filter_proposal_review_status(self, queryset, name, value):
-        status_map = {
-            'pending': SubmittedContribution.PROPOSAL_STATUS_PENDING_REVIEW,
-            'pending_review': SubmittedContribution.PROPOSAL_STATUS_PENDING_REVIEW,
-            'questioned': SubmittedContribution.PROPOSAL_STATUS_QUESTIONED,
-        }
-        status_value = status_map.get(str(value).lower())
-        if status_value:
-            return queryset.filter(
-                proposed_action__isnull=False,
-                proposal_review_status=status_value,
-            )
-        return queryset.none()
 
     def filter_proposed_confidence(self, queryset, name, value):
         if value:

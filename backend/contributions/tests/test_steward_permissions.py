@@ -498,6 +498,45 @@ class StewardPermissionTest(TestCase):
         self.assertEqual(notification.actor, self.steward_user)
         self.assertIn(str(self.submission.id), notification.link_url)
 
+    def test_review_steward_can_question_more_info_needed_proposal(self):
+        proposer_user = User.objects.create_user(
+            email='proposal-more-info@test.com',
+            address='0x4444444444444444444444444444444444444445',
+            password='testpass123',
+        )
+        proposer = Steward.objects.create(user=proposer_user)
+        StewardPermission.objects.create(
+            steward=proposer,
+            contribution_type=self.contribution_type,
+            action='propose',
+        )
+        self.submission.state = 'more_info_needed'
+        self.submission.proposed_action = 'reject'
+        self.submission.proposed_staff_reply = 'Initial rejection reason'
+        self.submission.proposed_by = proposer_user
+        self.submission.proposed_at = timezone.now()
+        self.submission.proposal_review_status = SubmittedContribution.PROPOSAL_STATUS_PENDING_REVIEW
+        self.submission.save()
+
+        self.client.force_authenticate(user=self.steward_user)
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/question-proposal/',
+            {'message': 'Please re-check the resubmitted details.'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.submission.refresh_from_db()
+        self.assertEqual(self.submission.state, 'more_info_needed')
+        self.assertEqual(
+            self.submission.proposal_review_status,
+            SubmittedContribution.PROPOSAL_STATUS_QUESTIONED,
+        )
+        self.assertEqual(
+            self.submission.proposal_review_feedback,
+            'Please re-check the resubmitted details.',
+        )
+
     def test_question_proposal_rejects_blank_self_and_missing_review_permission(self):
         self.submission.proposed_action = 'reject'
         self.submission.proposed_by = self.steward_user

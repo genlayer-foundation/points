@@ -94,6 +94,9 @@
     submission.has_proposal &&
     (submission.proposal_review_status === 'pending_review' || !submission.proposal_review_status)
   );
+  let isOpenReviewState = $derived(
+    submission.state === 'pending' || submission.state === 'more_info_needed'
+  );
   let isCurrentProposalOwner = $derived(Boolean(
     currentUserId &&
     submission.proposed_by &&
@@ -178,7 +181,7 @@
   let canQuestionProposal = $derived(Boolean(
     showReviewForm &&
     onQuestionProposal &&
-    submission.state === 'pending' &&
+    isOpenReviewState &&
     isProposalPendingReview &&
     currentUserId &&
     !isCurrentProposalOwner &&

@@ -705,6 +705,48 @@ describe('SubmissionCard', () => {
     });
   });
 
+  it('lets final reviewers question proposals on more-info submissions', async () => {
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          state: 'more_info_needed',
+          state_display: 'More Information Needed',
+          has_proposal: true,
+          proposed_action: 'reject',
+          proposed_staff_reply: 'Rejecting too quickly.',
+          proposed_by: 21,
+          proposed_by_details: { name: 'Proposal Reviewer' },
+          proposal_review_status: 'pending_review',
+          more_info_requests: []
+        }),
+        showReviewForm: true,
+        onReview: vi.fn(),
+        onPropose: vi.fn(),
+        onQuestionProposal: vi.fn().mockResolvedValue(),
+        permissions: {
+          7: ['accept', 'reject']
+        },
+        contributionTypes: [
+          {
+            id: 7,
+            name: 'Builder Project',
+            category: 'builder',
+            min_points: 0,
+            max_points: 100,
+            review_flow: 'builder_project'
+          }
+        ],
+        multipliers: { 7: 1 },
+        templates: [],
+        notes: [],
+        currentUserId: 22,
+        enableRubricReview: true
+      }
+    });
+
+    expect(screen.getByRole('button', { name: 'Question proposal' })).toBeTruthy();
+  });
+
   it('shows questioned proposal feedback and hides final review actions from other stewards', async () => {
     render(SubmissionCard, {
       props: {
