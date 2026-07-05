@@ -341,6 +341,8 @@ backend/
 - **Database**: SQLite by default, configured in settings.py
 - **Run migrations**: `python manage.py migrate`
 - **Create migrations**: `python manage.py makemigrations`
+- **Deploy-safe migrations**: `python manage.py migrate_with_lock` (`utils/management/commands/`) wraps migrate in a PostgreSQL advisory lock so concurrent App Runner instances don't race; `startup.sh` uses it and honors `RUN_MIGRATIONS_ON_STARTUP` (default true). No-ops to plain migrate on non-Postgres.
+- **Pagination cap**: `utils/pagination.py` `SafePageNumberPagination.max_page_size = 50`; the frontend fetches larger catalogs via paginated fetch-all helpers (`getAllContributionTypes` / `getAllMissions` / `partnersAPI.listAll` in `frontend/src/lib/api.js`), never with oversized `page_size`. Leaderboard rank updates (`leaderboard/models.py`) take a per-type `pg_advisory_xact_lock` and callers iterate types sorted to keep lock order deadlock-free.
 
 ### Database Migration from Production
 - **Script**: `backend/scripts/migrate-prod-to-dev.sh`

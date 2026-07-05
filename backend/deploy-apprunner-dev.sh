@@ -10,9 +10,11 @@ ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 ECR_REPO="$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$SERVICE_NAME"
 SSM_PREFIX="/tally-backend"
 SSM_ENV="dev"  # Use dev environment
+APP_RUNNER_RUN_MIGRATIONS_ON_STARTUP=${APP_RUNNER_RUN_MIGRATIONS_ON_STARTUP:-true}
 
 echo "Deploying to AWS App Runner: $SERVICE_NAME (DEV environment)"
 echo "Using SSM parameters from: $SSM_PREFIX/$SSM_ENV/"
+echo "App Runner RUN_MIGRATIONS_ON_STARTUP: $APP_RUNNER_RUN_MIGRATIONS_ON_STARTUP"
 echo ""
 
 # Build and push container image
@@ -50,6 +52,7 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
         "RuntimeEnvironmentVariables": {
           "PYTHONPATH": "/app",
           "DJANGO_SETTINGS_MODULE": "tally.settings",
+          "RUN_MIGRATIONS_ON_STARTUP": "$APP_RUNNER_RUN_MIGRATIONS_ON_STARTUP",
           "RECAPTCHA_ALLOW_TEST_KEYS": "true"
         },
         "RuntimeEnvironmentSecrets": {
@@ -241,6 +244,7 @@ EOF
         "RuntimeEnvironmentVariables": {
           "PYTHONPATH": "/app",
           "DJANGO_SETTINGS_MODULE": "tally.settings",
+          "RUN_MIGRATIONS_ON_STARTUP": "$APP_RUNNER_RUN_MIGRATIONS_ON_STARTUP",
           "RECAPTCHA_ALLOW_TEST_KEYS": "true"
         },
         "RuntimeEnvironmentSecrets": {

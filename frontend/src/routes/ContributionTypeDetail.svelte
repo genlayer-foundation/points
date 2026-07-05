@@ -105,7 +105,7 @@
       const [typeRes, statsRes, missionsRes, highlightsRes, contributionsRes] = await Promise.all([
         contributionsAPI.getContributionType(params.id),
         contributionsAPI.getContributionTypeStatistics(),
-        contributionsAPI.getMissions({ contribution_type: params.id }),
+        contributionsAPI.getAllMissions({ contribution_type: params.id }),
         contributionsAPI.getContributionTypeHighlights(params.id),
         contributionsAPI.getContributions({
           contribution_type: params.id,
@@ -118,7 +118,7 @@
       contributionType = typeRes.data;
       const allStats = statsRes.data || [];
       statistics = allStats.find((stat) => String(stat.id) === String(params.id)) || {};
-      missions = missionsRes.data?.results || missionsRes.data || [];
+      missions = missionsRes.data || [];
       highlights = visibleContributions(highlightsRes.data || []);
       contributions = visibleContributions(contributionsRes.data?.results || []);
     } catch (err) {

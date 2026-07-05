@@ -2,6 +2,104 @@ import axios from 'axios';
 import { API_BASE_URL } from './config.js';
 import { attachCsrfToken } from './csrf.js';
 
+const INVALID_QUERY_VALUES = new Set(['undefined', 'null']);
+const METRICS_CACHE_TTL_MS = 30 * 1000;
+const SMALL_CATALOG_PAGE_SIZE = 50;
+const SMALL_CATALOG_MAX_PAGES = 20;
+const metricsRequestCache = new Map();
+
+function isInvalidQueryValue(value) {
+  return value === undefined || value === null || INVALID_QUERY_VALUES.has(value);
+}
+
+function sanitizeQueryValue(value) {
+  if (Array.isArray(value)) {
+    return value.filter(item => !isInvalidQueryValue(item));
+  }
+  return value;
+}
+
+function sanitizeRequestParams(params) {
+  if (!params) return params;
+
+  if (typeof URLSearchParams !== 'undefined' && params instanceof URLSearchParams) {
+    const nextParams = new URLSearchParams();
+    params.forEach((value, key) => {
+      if (!isInvalidQueryValue(value)) {
+        nextParams.append(key, value);
+      }
+    });
+    return nextParams;
+  }
+
+  return Object.fromEntries(
+    Object.entries(params)
+      .filter(([, value]) => !isInvalidQueryValue(value))
+      .map(([key, value]) => [key, sanitizeQueryValue(value)])
+  );
+}
+
+function getCachedMetricsRequest(key, requestFn) {
+  const cached = metricsRequestCache.get(key);
+  const now = Date.now();
+
+  if (cached?.response && now - cached.timestamp < METRICS_CACHE_TTL_MS) {
+    return Promise.resolve(cached.response);
+  }
+
+  if (cached?.promise) {
+    return cached.promise;
+  }
+
+  const promise = requestFn()
+    .then((response) => {
+      metricsRequestCache.set(key, {
+        response,
+        timestamp: Date.now(),
+      });
+      return response;
+    })
+    .catch((error) => {
+      metricsRequestCache.delete(key);
+      throw error;
+    });
+
+  metricsRequestCache.set(key, { promise, timestamp: now });
+  return promise;
+}
+
+async function fetchSmallCatalogPages(endpoint, params = {}) {
+  const results = [];
+  const baseParams = {
+    ...params,
+    page_size: SMALL_CATALOG_PAGE_SIZE,
+  };
+
+  delete baseParams.page;
+
+  for (let page = 1; page <= SMALL_CATALOG_MAX_PAGES; page += 1) {
+    const response = await api.get(endpoint, {
+      params: {
+        ...baseParams,
+        page,
+      },
+    });
+    const data = response.data;
+
+    if (Array.isArray(data)) {
+      return data;
+    }
+
+    results.push(...(data?.results || []));
+
+    if (!data?.next) {
+      return results;
+    }
+  }
+
+  throw new Error(`Small catalog ${endpoint} exceeded ${SMALL_CATALOG_MAX_PAGES} pages`);
+}
+
 // Create axios instance with base configuration
 const api = axios.create({
   baseURL: `${API_BASE_URL}/api/v1`,
@@ -17,6 +115,7 @@ api.interceptors.request.use(
   async (config) => {
     // Ensure withCredentials is always true
     config.withCredentials = true;
+    config.params = sanitizeRequestParams(config.params);
     
     // Don't override Content-Type for FormData
     if (config.data instanceof FormData) {
@@ -72,13 +171,15 @@ export const contributionsAPI = {
   getContribution: (id) => api.get(`/contributions/${id}/`),
   getContributionsByUser: (address) => api.get(`/contributions/?user_address=${address}`),
   getContributionTypes: (params) => {
-    // Set a high page_size to get all contribution types in one request
+    // Contribution type catalogs are small; keep the request bounded.
     const enhancedParams = {
-      page_size: 100,
+      page_size: 50,
       ...params
     };
     return api.get('/contribution-types/', { params: enhancedParams });
   },
+  getAllContributionTypes: (params = {}) =>
+    fetchSmallCatalogPages('/contribution-types/', params).then(data => ({ data })),
   getContributionType: (id) => api.get(`/contribution-types/${id}/`),
   getContributionTypeMultipliers: (typeId) => api.get(`/contribution-type-multipliers/?contribution_type=${typeId}`),
   getContributionTypeStatistics: (params) => api.get('/contribution-types/statistics/', { params }),
@@ -90,6 +191,8 @@ export const contributionsAPI = {
     data: { count: res.data.contribution_count }
   })),
   getMissions: (params) => api.get('/missions/', { params }),
+  getAllMissions: (params = {}) =>
+    fetchSmallCatalogPages('/missions/', params).then(data => ({ data })),
   getMission: (id) => api.get(`/missions/${id}/`),
   /** @param {string | number} id */
   getMissionStats: (id) => api.get(`/missions/${id}/stats/`),
@@ -170,34 +273,16 @@ export const statsAPI = {
   }
 };
 
-let overviewMetricsResponse = null;
-let overviewMetricsFetchedAt = 0;
-let overviewMetricsRequest = null;
-const OVERVIEW_METRICS_CACHE_MS = 30000;
-
 // Metrics API
 export const metricsAPI = {
-  getOverview: () => {
-    const now = Date.now();
-    if (overviewMetricsResponse && now - overviewMetricsFetchedAt < OVERVIEW_METRICS_CACHE_MS) {
-      return Promise.resolve(overviewMetricsResponse);
-    }
-    if (overviewMetricsRequest) return overviewMetricsRequest;
-
-    overviewMetricsRequest = (async () => {
-      try {
-        const response = await api.get('/metrics/overview/');
-        overviewMetricsResponse = response;
-        overviewMetricsFetchedAt = Date.now();
-        return response;
-      } finally {
-        overviewMetricsRequest = null;
-      }
-    })();
-
-    return overviewMetricsRequest;
-  },
-  getNetworkActivity: () => api.get('/metrics/overview/network-activity/'),
+  getOverview: () => getCachedMetricsRequest(
+    'overview',
+    () => api.get('/metrics/overview/')
+  ),
+  getNetworkActivity: () => getCachedMetricsRequest(
+    'network-activity',
+    () => api.get('/metrics/overview/network-activity/')
+  ),
 };
 
 // Validators API
@@ -414,6 +499,8 @@ export const alertsAPI = {
 // Ecosystem Partners API
 export const partnersAPI = {
   list: (params) => api.get('/partners/', { params }),
+  listAll: (params = {}) =>
+    fetchSmallCatalogPages('/partners/', params).then(data => ({ data })),
   get: (slug) => api.get(`/partners/${slug}/`),
 };
 

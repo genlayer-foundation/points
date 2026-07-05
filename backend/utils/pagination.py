@@ -16,7 +16,7 @@ class SafePageNumberPagination(PageNumberPagination):
     # Enable client to control page size using 'page_size' query parameter
     page_size_query_param = 'page_size'
     # Set maximum page size to prevent abuse
-    max_page_size = 100
+    max_page_size = 50
 
     def paginate_queryset(self, queryset, request, view=None):
         """

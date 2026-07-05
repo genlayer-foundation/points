@@ -167,8 +167,8 @@
 
   async function loadMissions() {
     try {
-      const response = await contributionsAPI.getMissions({ include_inactive: true, page_size: 100 });
-      missions = response.data.results || response.data || [];
+      const response = await contributionsAPI.getAllMissions({ include_inactive: true });
+      missions = response.data || [];
     } catch (err) {
       // Error loading missions silently handled
     }
@@ -204,9 +204,8 @@
 
   async function loadContributionTypes() {
     try {
-      // Fetch all contribution types by setting a high page_size
-      const response = await contributionsAPI.getContributionTypes({ page_size: 100 });
-      contributionTypes = response.data.results || response.data;
+      const response = await contributionsAPI.getAllContributionTypes();
+      contributionTypes = response.data || [];
 
       // Load active multipliers
       try {

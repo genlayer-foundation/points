@@ -8,31 +8,43 @@ function createUserStore() {
     loading: false,
     error: null
   });
+  let loadUserPromise = null;
 
   return {
     subscribe,
     
     // Load user data from API
     async loadUser() {
-      update(state => ({ ...state, loading: true, error: null }));
-      try {
-        const userData = await getCurrentUser();
-        update(state => ({ 
-          ...state, 
-          user: userData, 
-          loading: false,
-          error: null 
-        }));
-        return userData;
-      } catch (err) {
-        update(state => ({
-          ...state,
-          user: null,
-          loading: false,
-          error: err.message || 'Failed to load user data'
-        }));
-        throw err;
+      if (loadUserPromise) {
+        return loadUserPromise;
       }
+
+      update(state => ({ ...state, loading: true, error: null }));
+
+      loadUserPromise = (async () => {
+        try {
+          const userData = await getCurrentUser();
+          update(state => ({
+            ...state,
+            user: userData,
+            loading: false,
+            error: null
+          }));
+          return userData;
+        } catch (err) {
+          update(state => ({
+            ...state,
+            user: null,
+            loading: false,
+            error: err.message || 'Failed to load user data'
+          }));
+          throw err;
+        } finally {
+          loadUserPromise = null;
+        }
+      })();
+
+      return loadUserPromise;
     },
     
     // Update user data (partial update)

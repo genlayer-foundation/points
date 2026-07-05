@@ -416,6 +416,7 @@ export async function signInWithEthereum(provider = null, walletName = 'wallet',
 
 // Track verification promise to prevent duplicate calls
 let verificationInProgress = null;
+let refreshSessionPromise = null;
 
 /**
  * Verify authentication status - only once per session
@@ -509,14 +510,24 @@ export async function logout() {
  * @returns {Promise<boolean>} Success status
  */
 export async function refreshSession() {
-  try {
-    await authAxios.post(API_ENDPOINTS.REFRESH);
-    return true;
-  } catch (error) {
-    // If refresh fails, verify auth state again
-    await verifyAuth();
-    return false;
+  if (refreshSessionPromise) {
+    return refreshSessionPromise;
   }
+
+  refreshSessionPromise = (async () => {
+    try {
+      await authAxios.post(API_ENDPOINTS.REFRESH);
+      return true;
+    } catch (error) {
+      // If refresh fails, verify auth state again
+      await verifyAuth();
+      return false;
+    } finally {
+      refreshSessionPromise = null;
+    }
+  })();
+
+  return refreshSessionPromise;
 }
 
 export async function startPendingSignupEmail(data) {
@@ -719,7 +730,7 @@ if (typeof window !== 'undefined') {
   // Set up periodic session refresh to keep user logged in
   setInterval(async () => {
     const state = authState.get();
-    if (state.isAuthenticated) {
+    if (state.isAuthenticated && document.hidden !== true) {
       try {
         await refreshSession();
       } catch (error) {

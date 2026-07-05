@@ -332,10 +332,17 @@ class MissionVisibilityTest(TestCase):
         return {item['id'] for item in results}
 
     def test_anonymous_list_hides_unstarted_missions(self):
-        ids = self._listed_ids({'include_inactive': '1', 'page_size': 100})
+        ids = self._listed_ids({'include_inactive': '1', 'page_size': 50})
         self.assertIn(self.active_mission.id, ids)
         self.assertIn(self.expired_mission.id, ids)  # historical filters need these
         self.assertNotIn(self.unstarted_mission.id, ids)
+
+    def test_invalid_contribution_type_filter_returns_400(self):
+        response = self.client.get('/api/v1/missions/', {
+            'contribution_type': 'undefined',
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_anonymous_cannot_retrieve_unstarted_mission(self):
         response = self.client.get(f'/api/v1/missions/{self.unstarted_mission.id}/')
@@ -353,7 +360,7 @@ class MissionVisibilityTest(TestCase):
 
     def test_steward_sees_unstarted_missions(self):
         self.client.force_authenticate(user=self.steward_user)
-        ids = self._listed_ids({'include_inactive': '1', 'page_size': 100})
+        ids = self._listed_ids({'include_inactive': '1', 'page_size': 50})
         self.assertIn(self.unstarted_mission.id, ids)
 
         response = self.client.get(f'/api/v1/missions/{self.unstarted_mission.id}/')

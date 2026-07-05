@@ -588,7 +588,7 @@ class Mee6SyncTest(TestCase):
 
         run = Mee6SyncRun.objects.create(
             guild_id='guild-1',
-            page_size=1000,
+            page_size=50,
             status=Mee6SyncRun.STATUS_SUCCESS,
             completed_at=timezone.now(),
         )

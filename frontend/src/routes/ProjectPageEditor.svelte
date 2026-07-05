@@ -207,7 +207,7 @@
         participantsWithAddress.map((user) =>
           contributionsAPI.getContributions({
             user_address: getParticipantAddress(user),
-            page_size: 100,
+            page_size: 50,
             ordering: '-frozen_global_points',
             exclude_onboarding: 'true',
           })

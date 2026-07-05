@@ -62,8 +62,8 @@
 
   async function loadContributionTypes() {
     try {
-      const response = await contributionsAPI.getContributionTypes({ page_size: 100, category: 'community' });
-      contributionTypes = response.data.results || response.data || [];
+      const response = await contributionsAPI.getAllContributionTypes({ category: 'community' });
+      contributionTypes = response.data || [];
     } catch (err) {
       contributionTypes = [];
     }

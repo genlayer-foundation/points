@@ -3516,8 +3516,8 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.exclude(start_date__gt=timezone.now())
 
         # Filter by contribution type if specified
-        contribution_type = self.request.query_params.get('contribution_type', None)
-        if contribution_type:
+        contribution_type = self._get_valid_contribution_type_param()
+        if contribution_type is not None:
             queryset = queryset.filter(contribution_type_id=contribution_type)
 
         # Filter by category if specified
@@ -3526,6 +3526,17 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(contribution_type__category__slug=category)
 
         return queryset
+
+    def _get_valid_contribution_type_param(self):
+        raw_value = self.request.query_params.get('contribution_type')
+        if raw_value in (None, ''):
+            return None
+        try:
+            return int(raw_value)
+        except (TypeError, ValueError):
+            raise serializers.ValidationError({
+                'contribution_type': 'Must be a valid contribution type id.'
+            })
 
     def _is_privileged_user(self):
         """Stewards and staff may see unstarted (unannounced) missions."""

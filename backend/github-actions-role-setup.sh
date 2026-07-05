@@ -49,12 +49,19 @@ cat > github-actions-trust-policy.json << EOF
 }
 EOF
 
-# Create IAM role
-echo "Creating GitHub Actions IAM role..."
-aws iam create-role \
-    --role-name GitHubActions-TallyBackendDeploy \
-    --assume-role-policy-document file://github-actions-trust-policy.json \
-    --description "Role for GitHub Actions to deploy Tally backend to App Runner"
+# Create or update IAM role
+if aws iam get-role --role-name GitHubActions-TallyBackendDeploy >/dev/null 2>&1; then
+    echo "GitHub Actions IAM role already exists; updating trust policy..."
+    aws iam update-assume-role-policy \
+        --role-name GitHubActions-TallyBackendDeploy \
+        --policy-document file://github-actions-trust-policy.json
+else
+    echo "Creating GitHub Actions IAM role..."
+    aws iam create-role \
+        --role-name GitHubActions-TallyBackendDeploy \
+        --assume-role-policy-document file://github-actions-trust-policy.json \
+        --description "Role for GitHub Actions to deploy Tally backend to App Runner"
+fi
 
 # Create policy for App Runner deployment.
 #
