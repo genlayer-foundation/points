@@ -4,6 +4,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- The platform stays stable under heavy traffic and rolling deploys: database migrations and leaderboard rank updates no longer race across server instances, oversized API page requests are capped, and the portal stops sending duplicate or malformed requests (e3e48c46)
+
 - Graduated validators now keep their validator profile section instead of being sent back through the validator application journey (10a6fa0a)
 
 - Leaderboards load much faster and builder ranks are contiguous with no gaps; builders whose contributions were added directly by stewards now appear on the board, and every pre-existing builder received the star-the-boilerplate task and its points (11d6b38b)
