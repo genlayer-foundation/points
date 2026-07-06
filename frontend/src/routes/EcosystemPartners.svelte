@@ -133,7 +133,7 @@
     }
 
     const [partnersRes, validatorsRes, buildsRes] = await Promise.allSettled([
-      partnersAPI.list({ page_size: 200 }),
+      partnersAPI.listAll(),
       validatorsAPI.getAllValidators(),
       projectsAPI.list(),
     ]);

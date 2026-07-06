@@ -110,8 +110,8 @@
   onMount(async () => {
     try {
       loadingTypes = true;
-      const typesResponse = await contributionsAPI.getContributionTypes();
-      const allTypes = typesResponse.data.results || typesResponse.data;
+      const typesResponse = await contributionsAPI.getAllContributionTypes();
+      const allTypes = typesResponse.data || [];
 
       types = allTypes;
 

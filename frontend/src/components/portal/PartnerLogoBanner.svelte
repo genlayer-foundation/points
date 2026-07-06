@@ -7,8 +7,8 @@
 
   onMount(async () => {
     try {
-      const response = await partnersAPI.list({ ordering: 'display_order', page_size: 100, show_in_overview: true });
-      const data = response.data?.results || response.data || [];
+      const response = await partnersAPI.listAll({ ordering: 'display_order', show_in_overview: true });
+      const data = response.data || [];
       partners = data
         .map((partner) => ({
           ...partner,

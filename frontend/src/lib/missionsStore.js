@@ -56,8 +56,8 @@ export async function getMissions(params = {}) {
   // Create new request and store the promise
   const requestPromise = (async () => {
     try {
-      const response = await contributionsAPI.getMissions(params);
-      const missions = response.data.results || response.data || [];
+      const response = await contributionsAPI.getAllMissions(params);
+      const missions = response.data || [];
 
       // Store in cache
       cache.set(cacheKey, {

@@ -453,7 +453,7 @@ const routes = {
   - `statsAPI` - Dashboard statistics
   - `journeyAPI` - Onboarding journeys (startBuilderJourney, startValidatorJourney, completeBuilderJourney, linkXAccount, linkDiscordAccount)
   - `creatorAPI` - Community/creator membership (joinAsCreator)
-  - `partnersAPI` - Ecosystem partners directory (`list`, `get(slug)`)
+  - `partnersAPI` - Ecosystem partners directory (`listAll`, `get(slug)`)
   - `genTvAPI` - Gen TV streams (`list`, `get(slug)`)
   - `poapsAPI` - POAP list/detail/claims, user POAPs, secret claims, mint-link claims, and recovery wallet verification
   - `validatorsAPI.getWallOfShame(params)` - Public Wall of Shame list for active validators with Grafana metrics/logs status badges (renders in `routes/WallOfShame.svelte`)
@@ -535,7 +535,7 @@ Investor-oriented home page (`routes/Overview.svelte`), top to bottom: hero → 
 - **`NetworkActivity.svelte`** - two-column section: LEFT `PortalStats`, RIGHT the network-activity panel (headline KPIs — decisions, chain TXs, DeFiLlama rank — + `DecisionsChart`). Fetches `metricsAPI.getNetworkActivity()`. (The old "Securing the network" validators panel was removed.)
 - **`PortalStats.svelte`** - "Portal contributors" panel: Builders / Validators / Community members / Contributions in a column, hexagon `CategoryIcon` style. Reads the **public** `metricsAPI.getOverview()` (`metrics.{builders,validators,community_members,contributions}.value`) — NOT `statsAPI.getDashboardStats()`, which is auth-only and would render blank for public visitors.
 - **`DecisionsChart.svelte`** - chart.js (already a dep) smooth multi-line area chart: decisions/day for Studio + asimov + bradbury over 7 days. IMPORTANT: chart.js mutates the arrays it receives, so de-proxy Svelte `$props` arrays before passing them to `new Chart` (else `state_descriptors_fixed`); the canvas is always mounted so `bind:this` is set before data arrives.
-- **`PartnerLogoBanner.svelte`** - logos-only infinite marquee in TWO rows (even indices one row, odd the other, opposite directions, each tripled for a seamless loop). Fetches `partnersAPI.list({ show_in_overview: true, page_size: 100 })` so admins curate which partners appear (Partner.show_in_overview). Logos are flattened to grey silhouettes on a light band.
+- **`PartnerLogoBanner.svelte`** - logos-only infinite marquee in TWO rows (even indices one row, odd the other, opposite directions, each tripled for a seamless loop). Fetches `partnersAPI.listAll({ show_in_overview: true })` so admins curate which partners appear (Partner.show_in_overview). Logos are flattened to grey silhouettes on a light band.
 - `metricsAPI` (`lib/api.js`): `getOverview()` (public; includes builders/validators/community_members/contributions counts + social + top_validators) and `getNetworkActivity()` (DB-snapshot-backed chart payload).
 
 #### Ecosystem Partners Components (`src/components/portal/partners/`)

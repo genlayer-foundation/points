@@ -241,7 +241,7 @@ class SubmissionLimitTest(TestCase):
         self._create_submission(state='pending', mission=other_mission, user=self.other_user)
 
         with CaptureQueriesContext(connection) as queries:
-            response = self.client.get('/api/v1/missions/?include_inactive=true&page_size=100')
+            response = self.client.get('/api/v1/missions/?include_inactive=true&page_size=50')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertLessEqual(len(queries), 4)

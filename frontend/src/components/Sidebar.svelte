@@ -28,11 +28,10 @@
   async function loadStewardNavigationPermissions() {
     try {
       await stewardPermissions.load();
-      const response = await contributionsAPI.getContributionTypes({
-        page_size: 100,
+      const response = await contributionsAPI.getAllContributionTypes({
         category: 'community',
       });
-      communityContributionTypes = response.data.results || response.data || [];
+      communityContributionTypes = response.data || [];
     } catch (err) {
       communityContributionTypes = [];
     }
