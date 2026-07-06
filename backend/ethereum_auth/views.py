@@ -13,6 +13,7 @@ from rest_framework.decorators import api_view, authentication_classes, permissi
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 
+from users.utils import truncate_address
 from utils.throttling import (
     ExistingEmailConfirmRateThrottle,
     ExistingEmailResendRateThrottle,
@@ -271,7 +272,8 @@ def login(request):
             'referred_by': {
                 'id': user.referred_by.id,
                 'name': user.referred_by.name or 'Anonymous',
-                'address': user.referred_by.address,
+                # The referrer is another user; their full address stays private.
+                'address': truncate_address(user.referred_by.address),
                 'referral_code': user.referred_by.referral_code
             } if user.referred_by else None
         })

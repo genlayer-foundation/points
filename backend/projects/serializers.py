@@ -58,7 +58,8 @@ class ProjectListSerializer(serializers.ModelSerializer):
         return obj.user.name if obj.user else ''
 
     def get_user_address(self, obj):
-        return obj.user.address if obj.user else ''
+        from users.utils import truncate_address
+        return truncate_address(obj.user.address) if obj.user else ''
 
     def get_user_profile_image_url(self, obj):
         if obj.user_profile_image_url:

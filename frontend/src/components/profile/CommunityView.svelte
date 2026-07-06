@@ -210,7 +210,7 @@
     <!-- Content Sections -->
     <div class="space-y-12 w-full mt-4">
         {#if showPoaps}
-            <ProfilePoaps userId={participant?.address} />
+            <ProfilePoaps userId={participant?.id ?? participant?.address} />
         {/if}
 
         {#if showCommunityActivity}
@@ -240,7 +240,7 @@
                     </button>
                 </div>
                 <ProfileHighlights
-                    userId={participant?.address}
+                    userId={participant?.id ?? participant?.address}
                     limit={3}
                     category="community"
                     {isOwnProfile}
@@ -255,7 +255,7 @@
                     Recent Contributions
                 </h3>
                 <ProfileRecentContributions
-                    userId={participant?.address}
+                    userId={participant?.id ?? participant?.address}
                     limit={5}
                     category="community"
                     showViewAll={true}

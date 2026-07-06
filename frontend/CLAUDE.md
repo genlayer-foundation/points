@@ -431,8 +431,25 @@ const routes = {
 - **`/community/poaps/:slug`** - POAP detail page with lazy collector loading.
 - **`/claim/poap/:token`** - Mint-link claim route.
 
+#### Wallet Address Privacy (frontend rules)
+- The API returns **truncated** addresses (`0x1234...abcd`) for all OTHER users; a full
+  address exists client-side only for the logged-in user's own wallet (`authState.address`,
+  `/users/me/`). Existing `slice(0,6)+'...'+slice(-4)` display helpers are idempotent on
+  truncated values, so displays keep working.
+- **Link profiles by user id**: `/participant/${user.id ?? user.address}`. The route
+  accepts an id or a full address (old links and paste-to-verify still resolve).
+- No copy buttons or explorer links for other users' ACCOUNT addresses (ProfileHeader copy
+  is own-profile only). Validator node wallet addresses and on-chain `operator_address`
+  stay full — copy/explorer affordances on those are fine (Validators, WallOfShame).
+- Identity comparisons: compare user ids (or own full `authState.address` vs own profile,
+  which stays full for the owner) — never compare a full address against an API payload
+  address. Helpers in `src/lib/address.js` (`truncateAddress`, `isFullAddress`,
+  `participantPath`).
+- Participant search matches addresses only on an exact pasted full address; partial
+  address queries return nothing by design (anti-oracle). Name search is unchanged.
+
 #### Profile System
-- **`/participant/:address`** - Public participant profile (anyone can view)
+- **`/participant/:address`** - Public participant profile (anyone can view; the param accepts a user id or a full wallet address)
   - Component: `Profile.svelte`
   - Shows participant stats, contributions, validator status
   - Shows "Edit Profile" button if viewing own profile

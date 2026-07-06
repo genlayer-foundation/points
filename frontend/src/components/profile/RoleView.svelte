@@ -291,7 +291,7 @@
                 </button>
             </div>
             <ProfileHighlights
-                userId={participant?.address}
+                userId={participant?.id ?? participant?.address}
                 limit={3}
                 category={iconCategory}
                 {isOwnProfile}
@@ -306,7 +306,7 @@
                 Recent Contributions
             </h3>
             <ProfileRecentContributions
-                userId={participant?.address}
+                userId={participant?.id ?? participant?.address}
                 limit={5}
                 category={iconCategory}
                 showViewAll={true}

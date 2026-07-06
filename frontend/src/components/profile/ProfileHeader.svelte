@@ -212,7 +212,9 @@
                   participant.address.substring(participant.address.length - 4)
                 : "0x000...0000"}
             </p>
-            {#if participant?.address}
+            {#if isOwnProfile && participant?.address}
+              <!-- Copy is own-profile only: the API returns truncated
+                   addresses for other users, so there is nothing to copy. -->
               <button
                 onclick={() => {
                   navigator.clipboard.writeText(participant.address);

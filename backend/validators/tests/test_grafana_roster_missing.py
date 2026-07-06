@@ -10,6 +10,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from users.models import User
+from users.utils import truncate_address
 from validators.models import Validator, ValidatorWallet
 
 
@@ -38,14 +39,18 @@ class GrafanaRosterMissingValidatorTests(TestCase):
     def _missing_accounts(self, rows):
         return {row['account'] for row in rows if row['status'] == 'missing'}
 
+    def _truncated(self, user):
+        return truncate_address(user.address.lower())
+
     def test_graduated_without_wallet_gets_missing_row(self):
         rows = self._rows('bradbury')
         missing = [row for row in rows if row['status'] == 'missing']
         self.assertEqual(len(missing), 1)
         row = missing[0]
-        account = self.alice.address.lower()
-        self.assertEqual(row['account'], account)
-        self.assertEqual(row['node'], account)
+        # Account addresses are truncated on public surfaces; the join key is
+        # a synthetic user-<id> value that matches no metric series.
+        self.assertEqual(row['account'], truncate_address(self.alice.address.lower()))
+        self.assertEqual(row['node'], f'user-{self.alice.id}')
         self.assertEqual(row['name'], 'Alice')
         self.assertEqual(row['account_name'], 'Alice')
         self.assertIsNone(row['operator'])
@@ -60,11 +65,11 @@ class GrafanaRosterMissingValidatorTests(TestCase):
             status='active',
         )
         self.assertNotIn(
-            self.alice.address.lower(),
+            self._truncated(self.alice),
             self._missing_accounts(self._rows('asimov')),
         )
         self.assertIn(
-            self.alice.address.lower(),
+            self._truncated(self.alice),
             self._missing_accounts(self._rows('bradbury')),
         )
 
@@ -79,7 +84,7 @@ class GrafanaRosterMissingValidatorTests(TestCase):
             status='inactive',
         )
         self.assertNotIn(
-            self.alice.address.lower(),
+            self._truncated(self.alice),
             self._missing_accounts(self._rows('asimov')),
         )
 
@@ -94,7 +99,7 @@ class GrafanaRosterMissingValidatorTests(TestCase):
             status='active',
         )
         self.assertIn(
-            self.alice.address.lower(),
+            self._truncated(self.alice),
             self._missing_accounts(self._rows('asimov')),
         )
 
@@ -108,7 +113,7 @@ class GrafanaRosterMissingValidatorTests(TestCase):
         )
         Validator.objects.create(user=bob)
         self.assertNotIn(
-            bob.address.lower(),
+            self._truncated(bob),
             self._missing_accounts(self._rows('asimov')),
         )
 
@@ -117,6 +122,6 @@ class GrafanaRosterMissingValidatorTests(TestCase):
         networks = {
             row['network'] for row in rows
             if row['status'] == 'missing'
-            and row['account'] == self.alice.address.lower()
+            and row['account'] == self._truncated(self.alice)
         }
         self.assertEqual(networks, {'asimov-phase5', 'bradbury-phase1'})

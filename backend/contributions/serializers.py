@@ -964,8 +964,9 @@ class SubmittedContributionSerializer(MoreInfoRequestsMixin, serializers.ModelSe
 
 class ContributionHighlightSerializer(serializers.ModelSerializer):
     contribution_details = serializers.SerializerMethodField()
+    user_id = serializers.IntegerField(source='contribution.user.id', read_only=True)
     user_name = serializers.CharField(source='contribution.user.name', read_only=True)
-    user_address = serializers.CharField(source='contribution.user.address', read_only=True)
+    user_address = serializers.SerializerMethodField()
     user_profile_image_url = serializers.URLField(source='contribution.user.profile_image_url', read_only=True)
     # Role status fields for Avatar color determination
     user_validator = serializers.SerializerMethodField()
@@ -987,13 +988,17 @@ class ContributionHighlightSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContributionHighlight
         fields = ['id', 'title', 'description', 'contribution', 'contribution_details',
-                  'user_name', 'user_address', 'user_profile_image_url',
+                  'user_id', 'user_name', 'user_address', 'user_profile_image_url',
                   'user_validator', 'user_builder', 'user_steward',
                   'user_has_validator_waitlist', 'user_has_builder_welcome',
                   'contribution_type_name', 'contribution_type_id', 'contribution_type_slug',
                   'contribution_type_category', 'contribution_points', 'contribution_date',
                   'contribution_title', 'mission_name', 'mission_id', 'created_at']
         read_only_fields = ['id', 'created_at']
+
+    def get_user_address(self, obj):
+        from users.utils import truncate_address
+        return truncate_address(obj.contribution.user.address)
 
     def get_contribution_details(self, obj):
         """
@@ -1685,7 +1690,7 @@ class StartupRequestDetailSerializer(serializers.ModelSerializer):
 
 class FeaturedContentSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source='user.name', read_only=True)
-    user_address = serializers.CharField(source='user.address', read_only=True)
+    user_address = serializers.SerializerMethodField()
     user_profile_image_url = serializers.SerializerMethodField()
     featured_profile_image_url = serializers.CharField(
         source='user_profile_image_url',
@@ -1702,6 +1707,10 @@ class FeaturedContentSerializer(serializers.ModelSerializer):
                   'user', 'user_name', 'user_address', 'user_profile_image_url',
                   'featured_profile_image_url',
                   'contribution', 'status', 'order', 'created_at']
+
+    def get_user_address(self, obj):
+        from users.utils import truncate_address
+        return truncate_address(obj.user.address) if obj.user else None
 
     def get_user_profile_image_url(self, obj):
         """Return the FeaturedContent's user_profile_image_url if set, otherwise fall back to user's profile_image_url."""

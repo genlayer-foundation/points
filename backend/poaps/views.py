@@ -391,8 +391,9 @@ class UserPoapMixin:
     def poaps(self, request, address=None):
         from django.shortcuts import get_object_or_404
         from users.models import User
+        from users.utils import user_lookup_kwargs
 
-        user = get_object_or_404(User, address__iexact=address)
+        user = get_object_or_404(User, **user_lookup_kwargs(address))
         queryset = (
             PoapClaim.objects
             .filter(user=user)

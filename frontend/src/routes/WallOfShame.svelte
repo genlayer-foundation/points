@@ -373,8 +373,8 @@
                           <div class="min-w-0">
                             {#if validator.operator_user}
                               <a
-                                href={`/participant/${validator.operator_user.address}`}
-                                onclick={(e) => { e.preventDefault(); push(`/participant/${validator.operator_user.address}`); }}
+                                href={`/participant/${validator.operator_user.id ?? validator.operator_user.address}`}
+                                onclick={(e) => { e.preventDefault(); push(`/participant/${validator.operator_user.id ?? validator.operator_user.address}`); }}
                                 class="block break-words text-[16px] font-semibold leading-6 text-[#111827] transition-colors hover:text-black"
                               >
                                 {operatorDisplayName(validator)}
