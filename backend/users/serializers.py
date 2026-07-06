@@ -65,7 +65,7 @@ class PublicUserListSerializer(serializers.ModelSerializer):
 
     def get_validator(self, obj):
         try:
-            validator = get_validator_profile(obj)
+            validator = get_validator_profile(obj, trust_cached_missing=True)
             return LightValidatorSerializer(validator).data if validator else None
         except Exception:
             return None

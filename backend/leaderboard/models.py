@@ -852,8 +852,18 @@ def recalculate_all_leaderboards():
                     except User.DoesNotExist:
                         pass
 
-            for user_id in graduated_validator_user_ids:
-                Validator.objects.get_or_create(user_id=user_id)
+            if graduated_validator_user_ids:
+                existing_validator_user_ids = set(
+                    Validator.objects.filter(user_id__in=graduated_validator_user_ids)
+                    .values_list('user_id', flat=True)
+                )
+                missing_validator_user_ids = (
+                    graduated_validator_user_ids - existing_validator_user_ids
+                )
+                Validator.objects.bulk_create(
+                    [Validator(user_id=user_id) for user_id in missing_validator_user_ids],
+                    ignore_conflicts=True,
+                )
 
             # Load all contribution data (including newly created)
             contributions = list(Contribution.objects.select_related(

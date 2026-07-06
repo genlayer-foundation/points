@@ -2,22 +2,9 @@ from django.db import migrations
 
 
 def backfill_graduated_validator_profiles(apps, schema_editor):
-    Contribution = apps.get_model('contributions', 'Contribution')
-    Validator = apps.get_model('validators', 'Validator')
+    from leaderboard.models import recalculate_all_leaderboards
 
-    graduated_user_ids = list(
-        Contribution.objects.filter(
-            contribution_type__slug='validator',
-        ).values_list('user_id', flat=True).distinct()
-    )
-
-    for user_id in graduated_user_ids:
-        Validator.objects.get_or_create(user_id=user_id)
-
-    if graduated_user_ids:
-        from leaderboard.models import recalculate_all_leaderboards
-
-        recalculate_all_leaderboards()
+    recalculate_all_leaderboards()
 
 
 def noop_reverse(apps, schema_editor):
