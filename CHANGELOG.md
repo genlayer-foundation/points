@@ -6,6 +6,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 - Wallet addresses are now private: the portal only ever shows and serves the shortened form (0x1234...abcd) of other participants' addresses, with no way to copy or retrieve the complete address, while you keep full access to your own. Profiles are linked by account id (old address links still work), and searching by address now requires pasting the complete address, so ownership can still be verified without exposing anyone's wallet (287dfa61)
 
+- The Submit Contribution type and mission dropdown on mobile now overlaps the page content below it instead of being cut off at the bottom of the page container (73d4e752)
+
 - The Submit Contribution type and mission dropdown now opens fully visible on mobile instead of being clipped by the form, and no longer hides behind the Linked Project panel when changing a milestone type (8f2a1dc3)
 
 - The mobile sidebar only shows the Submit Contribution shortcut to signed-in users (246306a0)
