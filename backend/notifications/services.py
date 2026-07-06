@@ -107,9 +107,15 @@ def notify(
         if not created:
             # Same event delivered twice: refresh the copy, keep read state.
             _apply_values(notification, values)
-        return notification
+    else:
+        notification = Notification.objects.create(recipient=recipient, **values)
 
-    return Notification.objects.create(recipient=recipient, **values)
+    if 'telegram' in event.channels:
+        # Idempotent (deduped per connection) and best-effort: a Telegram
+        # failure never breaks portal notification creation.
+        from . import telegram
+        telegram.enqueue_personal(notification)
+    return notification
 
 
 def broadcast(
@@ -162,9 +168,15 @@ def broadcast(
                 Notification.objects.filter(pk=notification.pk).update(created_at=timezone.now())
                 notification.receipts.all().delete()
             notification.refresh_from_db(fields=['created_at'])
-        return notification
+    else:
+        notification = Notification.objects.create(recipient=None, **values)
 
-    return Notification.objects.create(recipient=None, **values)
+    if 'telegram' in event.channels:
+        # Deduped per (notification, connection): a re-broadcast only reaches
+        # users who linked Telegram after the original send.
+        from . import telegram
+        telegram.enqueue_broadcast(notification)
+    return notification
 
 
 def recall_broadcast(event_slug, source):
@@ -183,22 +195,29 @@ def recall_broadcast(event_slug, source):
     return count
 
 
+def users_for_audience(audience):
+    """Active users belonging to a broadcast audience, as a User queryset.
+
+    The queryset twin of estimate_broadcast_reach (which is defined on top of
+    this so the two can never drift); external delivery channels use it to
+    fan a broadcast out into per-user sends.
+    """
+    User = get_user_model()
+    active_users = User.objects.filter(is_active=True)
+    if audience == Notification.AUDIENCE_VALIDATORS:
+        return active_users.filter(validator__isnull=False)
+    if audience == Notification.AUDIENCE_STEWARDS:
+        return active_users.filter(steward__isnull=False)
+    if audience == Notification.AUDIENCE_BUILDERS:
+        return active_users.filter(builder__isnull=False)
+    if audience == Notification.AUDIENCE_COMMUNITY:
+        return active_users.filter(creator__isnull=False)
+    return active_users
+
+
 def estimate_broadcast_reach(audience):
     """Approximate audience size, used for admin feedback messages."""
-    User = get_user_model()
-    if audience == Notification.AUDIENCE_VALIDATORS:
-        from validators.models import Validator
-        return Validator.objects.filter(user__is_active=True).count()
-    if audience == Notification.AUDIENCE_STEWARDS:
-        from stewards.models import Steward
-        return Steward.objects.filter(user__is_active=True).count()
-    if audience == Notification.AUDIENCE_BUILDERS:
-        from builders.models import Builder
-        return Builder.objects.filter(user__is_active=True).count()
-    if audience == Notification.AUDIENCE_COMMUNITY:
-        from creators.models import Creator
-        return Creator.objects.filter(user__is_active=True).count()
-    return User.objects.filter(is_active=True).count()
+    return users_for_audience(audience).count()
 
 
 # ---------------------------------------------------------------------------

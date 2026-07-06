@@ -316,8 +316,16 @@ REVIEWER_REWARD_BASE_POINTS = int(os.environ.get('REVIEWER_REWARD_BASE_POINTS', 
 REVIEWER_REWARD_PENALTY_PER_SCORE_POINT = int(
     os.environ.get('REVIEWER_REWARD_PENALTY_PER_SCORE_POINT', '2') or '2'
 )
-# Telegram members: a bot reads the live count when both are set, else fall back to a curated number.
+# Telegram bot (portal notifications + commands). The same token also feeds the
+# overview member-count metric below when TELEGRAM_CHAT_ID is set (the bot must
+# be a member of that group/channel).
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+# Bot username without @, used to build t.me deep links for account linking.
+TELEGRAM_BOT_USERNAME = os.environ.get('TELEGRAM_BOT_USERNAME', '')
+# Secret echoed back by Telegram in X-Telegram-Bot-Api-Secret-Token on webhook
+# calls. Required for the webhook to accept updates.
+TELEGRAM_WEBHOOK_SECRET = os.environ.get('TELEGRAM_WEBHOOK_SECRET', '')
+# Telegram members: a bot reads the live count when both are set, else fall back to a curated number.
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')
 TELEGRAM_MEMBERS = os.environ.get('TELEGRAM_MEMBERS', '')
 # GenLayer Studio executive metrics dashboard (decisions/chain-tx time series for the overview chart).

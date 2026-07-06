@@ -312,6 +312,13 @@ export const socialAPI = {
   checkDiscordGuild: () => api.get('/users/discord/check-guild/'),
 };
 
+// Telegram bot linking (deep-link flow, no OAuth). The connection is
+// private: the API only ever returns it for the user's own profile.
+export const telegramAPI = {
+  getLinkToken: () => api.post('/users/telegram/link-token/'),
+  disconnect: () => api.post('/users/telegram/disconnect/'),
+};
+
 // Social tasks API
 export const socialTasksAPI = {
   list: (params = {}) => api.get('/social-tasks/', { params }),

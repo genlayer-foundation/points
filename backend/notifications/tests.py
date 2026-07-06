@@ -1308,3 +1308,296 @@ class EmailVerificationReminderTests(TestCase):
         services.clear_email_verification_reminder(self.unverified)
 
         self.assertEqual(Notification.objects.filter(recipient=self.unverified).count(), 0)
+
+
+class TelegramEnqueueTests(TestCase):
+    """notify()/broadcast() enqueue Telegram outbox rows for telegram-channel events."""
+
+    def setUp(self):
+        from social_connections.models import TelegramConnection
+        self.linked = make_user('linked@test.com', '0x1111111111111111111111111111111111111111')
+        self.unlinked = make_user('unlinked@test.com', '0x2222222222222222222222222222222222222222')
+        self.connection = TelegramConnection.objects.create(
+            user=self.linked,
+            platform_user_id='111',
+            platform_username='linked',
+            linked_at=timezone.now(),
+        )
+
+    def outbox(self):
+        from social_connections.models import TelegramMessage
+        return TelegramMessage.objects.filter(
+            direction=TelegramMessage.DIRECTION_OUT,
+            status=TelegramMessage.STATUS_PENDING,
+        )
+
+    def test_personal_telegram_event_enqueues_for_linked_recipient(self):
+        services.notify(
+            'submission.accepted',
+            recipient=self.linked,
+            title='Submission accepted <script>',
+            body='Nice work',
+            link_url='/my-submissions',
+        )
+        row = self.outbox().get()
+        self.assertEqual(row.connection, self.connection)
+        self.assertIn('<b>Submission accepted &lt;script&gt;</b>', row.text)
+        self.assertIn('/my-submissions', row.text)
+        self.assertIn('http', row.text)  # link absolutized with FRONTEND_URL
+
+    def test_portal_only_event_enqueues_nothing(self):
+        services.notify(
+            'referral.joined',
+            recipient=self.linked,
+            title='Referral joined',
+        )
+        self.assertEqual(self.outbox().count(), 0)
+
+    def test_unlinked_muted_and_blocked_recipients_skip(self):
+        services.notify('submission.accepted', recipient=self.unlinked, title='A')
+        self.assertEqual(self.outbox().count(), 0)
+
+        self.connection.notifications_enabled = False
+        self.connection.save(update_fields=['notifications_enabled'])
+        services.notify('submission.accepted', recipient=self.linked, title='B')
+        self.assertEqual(self.outbox().count(), 0)
+
+        self.connection.notifications_enabled = True
+        self.connection.blocked_at = timezone.now()
+        self.connection.save(update_fields=['notifications_enabled', 'blocked_at'])
+        services.notify('submission.accepted', recipient=self.linked, title='C')
+        self.assertEqual(self.outbox().count(), 0)
+
+    def test_deduped_notify_enqueues_once(self):
+        for _ in range(2):
+            services.notify(
+                'submission.accepted',
+                recipient=self.linked,
+                title='Same event',
+                dedupe_key='same-key',
+            )
+        self.assertEqual(self.outbox().count(), 1)
+
+    def test_broadcast_respects_audience(self):
+        Validator.objects.create(user=self.linked)
+        other_linked = make_user('other@test.com', '0x3333333333333333333333333333333333333333')
+        from social_connections.models import TelegramConnection
+        TelegramConnection.objects.create(
+            user=other_linked,
+            platform_user_id='222',
+            platform_username='other',
+            linked_at=timezone.now(),
+        )
+
+        services.broadcast(
+            'node_version.published',
+            title='New node version',
+        )
+        rows = self.outbox()
+        self.assertEqual(rows.count(), 1)
+        self.assertEqual(rows.get().connection, self.connection)
+
+    def test_rebroadcast_only_reaches_newly_linked_users(self):
+        from contributions.models import Category, ContributionType, Mission
+        from social_connections.models import TelegramConnection, TelegramMessage
+        category = Category.objects.create(name='T', slug='t', description='t')
+        contribution_type = ContributionType.objects.create(
+            name='Type', slug='type', description='d', category=category,
+            min_points=1, max_points=10,
+        )
+        mission = Mission.objects.create(
+            name='Mission', description='d', contribution_type=contribution_type,
+        )
+
+        services.broadcast_mission(mission)
+        self.assertEqual(self.outbox().count(), 1)
+
+        late_linker = make_user('late@test.com', '0x4444444444444444444444444444444444444444')
+        TelegramConnection.objects.create(
+            user=late_linker,
+            platform_user_id='333',
+            platform_username='late',
+            linked_at=timezone.now(),
+        )
+        services.broadcast_mission(mission)
+
+        all_out = TelegramMessage.objects.filter(direction=TelegramMessage.DIRECTION_OUT)
+        self.assertEqual(all_out.count(), 2)
+        self.assertEqual(all_out.filter(connection__user=self.linked).count(), 1)
+        self.assertEqual(all_out.filter(connection__user=late_linker).count(), 1)
+
+    def test_users_for_audience_matches_estimate(self):
+        Validator.objects.create(user=self.linked)
+        for audience in (
+            Notification.AUDIENCE_ALL,
+            Notification.AUDIENCE_VALIDATORS,
+            Notification.AUDIENCE_STEWARDS,
+        ):
+            self.assertEqual(
+                services.users_for_audience(audience).count(),
+                services.estimate_broadcast_reach(audience),
+            )
+        self.assertIn(self.linked, services.users_for_audience(Notification.AUDIENCE_VALIDATORS))
+        self.assertNotIn(self.unlinked, services.users_for_audience(Notification.AUDIENCE_VALIDATORS))
+
+
+class TelegramCampaignTests(TestCase):
+    def setUp(self):
+        from social_connections.models import TelegramConnection
+        self.linked = make_user('linked@test.com', '0x1111111111111111111111111111111111111111')
+        self.unlinked = make_user('unlinked@test.com', '0x2222222222222222222222222222222222222222')
+        self.connection = TelegramConnection.objects.create(
+            user=self.linked,
+            platform_user_id='111',
+            platform_username='linked',
+            linked_at=timezone.now(),
+        )
+
+    def outbox(self):
+        from social_connections.models import TelegramMessage
+        return TelegramMessage.objects.filter(direction=TelegramMessage.DIRECTION_OUT)
+
+    def make_campaign(self, channels):
+        return CustomNotification.objects.create(
+            title='Announcement',
+            body='Body',
+            target_mode=CustomNotification.TARGET_EVERYONE,
+            channels=channels,
+        )
+
+    def test_telegram_channel_enqueues_for_linked_recipients_only(self):
+        campaign = self.make_campaign(['portal', 'telegram'])
+        campaigns.send_campaign(campaign)
+
+        rows = self.outbox()
+        self.assertEqual(rows.count(), 1)
+        self.assertEqual(rows.get().connection, self.connection)
+
+    def test_portal_only_campaign_enqueues_nothing(self):
+        campaign = self.make_campaign(['portal'])
+        campaigns.send_campaign(campaign)
+        self.assertEqual(self.outbox().count(), 0)
+
+    def test_resend_does_not_duplicate_telegram_sends(self):
+        campaign = self.make_campaign(['portal', 'telegram'])
+        campaigns.send_campaign(campaign)
+        campaigns.send_campaign(campaign)
+        self.assertEqual(self.outbox().count(), 1)
+
+    def test_recall_cancels_pending_and_keeps_sent(self):
+        from social_connections.models import TelegramMessage
+        campaign = self.make_campaign(['portal', 'telegram'])
+        campaigns.send_campaign(campaign)
+
+        # Simulate one already-delivered message plus the pending one.
+        sent_row = TelegramMessage.objects.create(
+            direction=TelegramMessage.DIRECTION_OUT,
+            connection=self.connection,
+            chat_id='111',
+            text='delivered',
+            status=TelegramMessage.STATUS_SENT,
+            sent_at=timezone.now(),
+        )
+
+        deleted, cancelled = campaigns.recall_campaign(campaign)
+
+        # TARGET_EVERYONE includes users seeded by data migrations, so assert
+        # presence rather than an exact portal-row count.
+        self.assertGreaterEqual(deleted, 1)
+        self.assertEqual(cancelled, 1)
+        self.assertFalse(
+            TelegramMessage.objects.filter(status=TelegramMessage.STATUS_PENDING).exists()
+        )
+        self.assertTrue(TelegramMessage.objects.filter(pk=sent_row.pk).exists())
+
+
+class TelegramDeliverEndpointTests(TestCase):
+    URL = '/api/v1/notifications/telegram/deliver/'
+
+    def setUp(self):
+        from social_connections.models import TelegramConnection
+        self.client = APIClient()
+        self.user = make_user('linked@test.com', '0x1111111111111111111111111111111111111111')
+        self.connection = TelegramConnection.objects.create(
+            user=self.user,
+            platform_user_id='111',
+            platform_username='linked',
+            linked_at=timezone.now(),
+        )
+
+    def enqueue(self):
+        return services.notify(
+            'submission.accepted',
+            recipient=self.user,
+            title='Accepted',
+        )
+
+    def drain(self, send_result=(True, None, '')):
+        from unittest.mock import patch
+        from django.test import override_settings
+        with override_settings(CRON_SYNC_TOKEN='cron-token'), \
+                patch('notifications.telegram.send_telegram_message', return_value=send_result) as send_mock, \
+                patch('notifications.telegram.time.sleep'):
+            response = self.client.post(self.URL, HTTP_X_CRON_TOKEN='cron-token')
+        return response, send_mock
+
+    def test_requires_cron_token(self):
+        from django.test import override_settings
+        with override_settings(CRON_SYNC_TOKEN='cron-token'):
+            self.assertEqual(self.client.post(self.URL).status_code, 403)
+            self.assertEqual(
+                self.client.post(self.URL, HTTP_X_CRON_TOKEN='wrong').status_code, 403
+            )
+
+    def test_drains_pending_messages(self):
+        from social_connections.models import TelegramMessage
+        self.enqueue()
+        response, send_mock = self.drain()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['sent'], 1)
+        self.assertEqual(response.data['remaining'], 0)
+        send_mock.assert_called_once()
+        # Sends to the connection's live chat id.
+        self.assertEqual(send_mock.call_args[0][0], '111')
+        row = TelegramMessage.objects.get(direction=TelegramMessage.DIRECTION_OUT)
+        self.assertEqual(row.status, TelegramMessage.STATUS_SENT)
+        self.assertIsNotNone(row.sent_at)
+
+    def test_transient_failure_retries_then_fails(self):
+        from social_connections.models import TelegramMessage
+        self.enqueue()
+
+        for expected_attempts in (1, 2):
+            response, _ = self.drain(send_result=(False, None, 'boom'))
+            row = TelegramMessage.objects.get(direction=TelegramMessage.DIRECTION_OUT)
+            self.assertEqual(row.status, TelegramMessage.STATUS_PENDING)
+            self.assertEqual(row.attempts, expected_attempts)
+
+        response, _ = self.drain(send_result=(False, None, 'boom'))
+        row = TelegramMessage.objects.get(direction=TelegramMessage.DIRECTION_OUT)
+        self.assertEqual(row.status, TelegramMessage.STATUS_FAILED)
+        self.assertEqual(response.data['failed'], 1)
+
+    def test_deleted_connection_fails_with_connection_gone(self):
+        from social_connections.models import TelegramMessage
+        self.enqueue()
+        self.connection.delete()
+
+        response, send_mock = self.drain()
+
+        send_mock.assert_not_called()
+        row = TelegramMessage.objects.get(direction=TelegramMessage.DIRECTION_OUT)
+        self.assertEqual(row.status, TelegramMessage.STATUS_FAILED)
+        self.assertEqual(row.error, 'connection_gone')
+
+    def test_rate_limit_stops_run_and_unclaims(self):
+        from social_connections.models import TelegramMessage
+        self.enqueue()
+        response, _ = self.drain(send_result=(False, 30, 'rate_limited'))
+
+        self.assertEqual(response.status_code, 200)
+        row = TelegramMessage.objects.get(direction=TelegramMessage.DIRECTION_OUT)
+        self.assertEqual(row.status, TelegramMessage.STATUS_PENDING)
+        self.assertEqual(row.attempts, 0)
+        self.assertEqual(response.data['remaining'], 1)

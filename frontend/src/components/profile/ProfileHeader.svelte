@@ -5,6 +5,7 @@
   import EmailVerificationModal from "../EmailVerificationModal.svelte";
   import CategoryIcon from "../portal/CategoryIcon.svelte";
   import SocialLink from "../SocialLink.svelte";
+  import TelegramLink from "../TelegramLink.svelte";
   import { hasStartedJourney } from "../../lib/roleState.js";
 
   let {
@@ -302,6 +303,12 @@
             initiateUrl="/api/auth/discord/"
             onLinked={onParticipantUpdated}
             compact={true}
+          />
+          <!-- Private: only rendered on the owner's view; the API never
+               returns telegram_connection for other viewers. -->
+          <TelegramLink
+            connection={participant?.telegram_connection}
+            onLinked={onParticipantUpdated}
           />
         {:else}
           <!-- Other user's profile: show read-only linked accounts -->

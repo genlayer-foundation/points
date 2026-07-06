@@ -1029,11 +1029,12 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         # Address matching is exact-full-address only: responses carry
         # truncated addresses, so a substring match would let anyone
         # reconstruct a hidden address one character at a time.
+        # telegram_handle is deliberately NOT searchable: Telegram links are
+        # private, and matching on them would leak their existence.
         search_query = (
             Q(name__icontains=query) |
             Q(twitter_handle__icontains=query) |
             Q(discord_handle__icontains=query) |
-            Q(telegram_handle__icontains=query) |
             Q(githubconnection__platform_username__icontains=query)
         )
         if is_full_address(query):

@@ -23,7 +23,6 @@
   let email = $state("");
   let description = $state("");
   let website = $state("");
-  let telegramHandle = $state("");
   let linkedinHandle = $state("");
   let profileImageUrl = $state("");
   let bannerImageUrl = $state("");
@@ -81,7 +80,6 @@
       (name !== (user.name || "") ||
         description !== (user.description || "") ||
         website !== (user.website || "") ||
-        telegramHandle !== (user.telegram_handle || "") ||
         linkedinHandle !== (user.linkedin_handle || "")),
   );
 
@@ -113,7 +111,6 @@
       email = rawEmail.endsWith("@ethereum.address") ? "" : rawEmail;
       description = userData.description || "";
       website = userData.website || "";
-      telegramHandle = userData.telegram_handle || "";
       linkedinHandle = userData.linkedin_handle || "";
       profileImageUrl = userData.profile_image_url || "";
       bannerImageUrl = userData.banner_image_url || "";
@@ -191,7 +188,6 @@
         name: name.trim(),
         description: description.trim(),
         website: website.trim(),
-        telegram_handle: telegramHandle.trim(),
         linkedin_handle: linkedinHandle.trim(),
       };
 
@@ -769,28 +765,6 @@
                     placeholder="yourwebsite.com"
                     disabled={isSaving}
                   />
-                </div>
-
-                <div>
-                  <label
-                    for="telegram"
-                    class="block text-sm font-medium text-gray-600 mb-1.5"
-                    >Telegram</label
-                  >
-                  <div class="relative">
-                    <span
-                      class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium"
-                      >@</span
-                    >
-                    <input
-                      id="telegram"
-                      type="text"
-                      bind:value={telegramHandle}
-                      class="w-full pl-9 pr-4 py-3 bg-[#FCFCFC] border border-[#EAEAEA] rounded-[8px] focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-colors"
-                      placeholder="username"
-                      disabled={isSaving}
-                    />
-                  </div>
                 </div>
 
                 <div>

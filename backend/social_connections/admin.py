@@ -7,6 +7,8 @@ from .models import (
     DiscordRoleSyncLock,
     GitHubConnection,
     PendingOAuthState,
+    TelegramConnection,
+    TelegramMessage,
     TwitterConnection,
     UsedOAuthCode,
 )
@@ -79,6 +81,28 @@ class DiscordConnectionAdmin(admin.ModelAdmin):
                        'roles_sync_error', 'roles_manual_synced_at', 'guild_joined_at',
                        'guild_nick', 'avatar_hash', 'created_at', 'updated_at')
     filter_horizontal = ('current_roles',)
+
+
+@admin.register(TelegramConnection)
+class TelegramConnectionAdmin(admin.ModelAdmin):
+    list_display = ('user', 'platform_username', 'platform_user_id', 'notifications_enabled', 'blocked_at', 'linked_at')
+    list_filter = ('notifications_enabled',)
+    search_fields = ('user__email', 'platform_username')
+    readonly_fields = ('platform_user_id', 'access_token', 'refresh_token', 'linked_at', 'blocked_at', 'created_at', 'updated_at')
+
+
+@admin.register(TelegramMessage)
+class TelegramMessageAdmin(admin.ModelAdmin):
+    list_display = ('direction', 'connection', 'chat_id', 'status', 'attempts', 'created_at', 'sent_at')
+    list_filter = ('direction', 'status')
+    search_fields = ('chat_id', 'connection__user__email', 'text')
+    readonly_fields = (
+        'direction', 'connection', 'chat_id', 'text', 'status', 'attempts',
+        'notification', 'error', 'sent_at', 'created_at', 'updated_at',
+    )
+
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(DiscordRole)
