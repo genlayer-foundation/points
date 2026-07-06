@@ -1431,7 +1431,7 @@
 
         {#if showTypeDropdown}
           <div
-            class="type-dropdown-menu absolute z-10 top-[48px] left-0 right-0 bg-white border border-[#f5f5f5] rounded-[8px] shadow-lg max-h-[300px] overflow-y-auto"
+            class="type-dropdown-menu absolute z-[60] top-[48px] left-0 right-0 bg-white border border-[#f5f5f5] rounded-[8px] shadow-lg max-h-[300px] overflow-y-auto"
           >
             {#if loadingTypes}
               <div class="p-4 text-center text-sm text-gray-500">
@@ -2203,7 +2203,12 @@
     .submit-form-shell {
       max-width: 100% !important;
       min-width: 0;
-      overflow-x: hidden;
+      /* clip, not hidden: overflow-x hidden forces computed overflow-y to
+         auto, turning the shell into a scroll container that swallows the
+         type dropdown (it opens below the shell's bottom edge when no type
+         is selected yet). clip cuts horizontal bleed without capturing
+         vertical overflow. */
+      overflow-x: clip;
     }
 
     .submit-page-title {
