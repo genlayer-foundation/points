@@ -236,8 +236,8 @@
                         clickable={true}
                       />
                       <a
-                        href={`/participant/${wallet.operator_user.address}`}
-                        onclick={(e) => { e.preventDefault(); push(`/participant/${wallet.operator_user.address}`); }}
+                        href={`/participant/${wallet.operator_user.id ?? wallet.operator_user.address}`}
+                        onclick={(e) => { e.preventDefault(); push(`/participant/${wallet.operator_user.id ?? wallet.operator_user.address}`); }}
                         class="text-primary-600 hover:text-primary-800"
                       >
                         {wallet.operator_user.name || truncateAddress(wallet.operator_user.address)}

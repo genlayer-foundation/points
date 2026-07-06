@@ -163,12 +163,17 @@ class WorkingGroupParticipantSerializer(serializers.ModelSerializer):
     """
     id = serializers.IntegerField(source='user.id', read_only=True)
     name = serializers.CharField(source='user.name', read_only=True)
-    address = serializers.CharField(source='user.address', read_only=True)
+    address = serializers.SerializerMethodField()
     profile_image_url = serializers.URLField(source='user.profile_image_url', read_only=True)
 
     class Meta:
         model = WorkingGroupParticipant
         fields = ['id', 'name', 'address', 'profile_image_url']
+
+    def get_address(self, obj):
+        # Working group list/detail are public: truncated form only.
+        from users.utils import truncate_address
+        return truncate_address(obj.user.address)
 
 
 class WorkingGroupListSerializer(serializers.ModelSerializer):

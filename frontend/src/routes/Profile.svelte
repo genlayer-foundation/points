@@ -12,6 +12,7 @@
   import { authState } from "../lib/auth";
   import { userStore } from "../lib/userStore.js";
   import { getValidatorBalance } from "../lib/blockchain";
+  import { isFullAddress } from "../lib/address.js";
   import { showSuccess, showWarning } from "../lib/toastStore";
   import { parseMarkdown } from "../lib/markdownLoader.js";
   import { getTopRole } from "../lib/profileRole.js";
@@ -257,7 +258,9 @@
   }
 
   async function refreshBalance() {
-    if (!participant?.address) return;
+    // RPC balance lookups need a full address; the API only provides one
+    // for the profile owner. Visitors don't get the balance card data.
+    if (!isFullAddress(participant?.address)) return;
     isRefreshingBalance = true;
     try {
       const result = await getValidatorBalance(participant.address);
@@ -270,11 +273,13 @@
   }
 
   async function fetchValidatorWallets() {
-    if (loadingValidatorWallets || !participant?.address) return;
+    if (loadingValidatorWallets || !participant) return;
     loadingValidatorWallets = true;
     try {
+      // The endpoint accepts a user id or a full address; visitors only
+      // have the id (other users' addresses arrive truncated).
       const response = await validatorsAPI.getValidatorWalletsByUserAddress(
-        participant.address,
+        participant.id ?? participant.address,
       );
       validatorWallets = response.data?.wallets || [];
     } catch (err) {
@@ -285,7 +290,7 @@
   }
 
   async function refreshBuilderStats() {
-    const address = participant?.address;
+    const address = participant?.id ?? participant?.address;
     if (!address) return;
     try {
       const [statsRes, leaderboardRes] = await Promise.all([
@@ -300,13 +305,17 @@
   }
 
 
-  async function fetchPoapCount(participantAddress: string) {
-    const isCurrentRequest = () =>
-      participant?.address?.toLowerCase() === participantAddress.toLowerCase();
+  async function fetchPoapCount(participantKey: string) {
+    const requestKey = String(participantKey).toLowerCase();
+    const isCurrentRequest = () => {
+      const currentKey = String(participant?.id ?? participant?.address ?? "").toLowerCase();
+      return currentKey === requestKey ||
+        participant?.address?.toLowerCase() === requestKey;
+    };
     poapCountLoaded = false;
     poapCount = 0;
     try {
-      const response = await poapsAPI.getUserPoaps(participantAddress, {
+      const response = await poapsAPI.getUserPoaps(participantKey, {
         page: 1,
         page_size: 1,
       });
@@ -350,8 +359,12 @@
       participant = res.data;
       loading = false;
 
-      if (participant.address) {
-        fetchPoapCount(participant.address);
+      if (participant.id || participant.address) {
+        fetchPoapCount(participant.id ?? participant.address);
+      }
+      if (isFullAddress(participant.address)) {
+        // Full address only exists for the profile owner; on-chain balance
+        // lookups are skipped for visitors.
         loadingBalance = true;
         getValidatorBalance(participant.address)
           .then((result) => {

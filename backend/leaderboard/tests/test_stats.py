@@ -18,6 +18,7 @@ from poaps.models import PoapClaim, PoapDrop
 from social_connections.models import DiscordConnection
 from social_tasks.models import SocialTask, SocialTaskCompletion
 from users.models import User
+from users.utils import truncate_address
 from validators.models import Validator
 
 
@@ -166,10 +167,12 @@ class LeaderboardStatsTest(TestCase):
             row['user_details']['address']
             for row in response.data
         ]
+        # Public payloads carry truncated addresses (users.utils).
+        from users.utils import truncate_address
         for user in included_users:
-            self.assertIn(user.address, listed_addresses)
+            self.assertIn(truncate_address(user.address), listed_addresses)
         for user in excluded_users:
-            self.assertNotIn(user.address, listed_addresses)
+            self.assertNotIn(truncate_address(user.address), listed_addresses)
 
     def _create_current_mee6_xp(self, user, discord_id, xp):
         now = timezone.now()
@@ -762,9 +765,9 @@ class LeaderboardStatsTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['count'], 2)
-        self.assertEqual(response.data['results'][0]['user_address'], mee6_user.address)
+        self.assertEqual(response.data['results'][0]['user_address'], truncate_address(mee6_user.address))
         self.assertEqual(response.data['results'][0]['total_points'], 5000)
-        self.assertEqual(response.data['results'][1]['user_address'], portal_user.address)
+        self.assertEqual(response.data['results'][1]['user_address'], truncate_address(portal_user.address))
         self.assertEqual(response.data['results'][1]['total_points'], 3000)
 
     def test_mission_backed_non_submittable_community_contribution_is_reflected(self):
@@ -879,7 +882,7 @@ class LeaderboardStatsTest(TestCase):
         response = self.client.get('/api/v1/leaderboard/trending/', {'limit': 1})
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data[0]['user_address'], contributor.address)
+        self.assertEqual(response.data[0]['user_address'], truncate_address(contributor.address))
         self.assertTrue(response.data[0]['builder'])
         self.assertEqual(response.data[0]['top_category'], 'community')
         self.assertEqual(response.data[0]['top_category_points'], 55)
@@ -923,7 +926,7 @@ class LeaderboardStatsTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['user_address'], builder_contributor.address)
+        self.assertEqual(response.data[0]['user_address'], truncate_address(builder_contributor.address))
         self.assertEqual(response.data[0]['top_category'], 'builder')
         self.assertEqual(response.data[0]['total_points'], 30)
         self.assertEqual(response.data[0]['category_points'], {'builder': 30})

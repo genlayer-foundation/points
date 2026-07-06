@@ -13,6 +13,7 @@ from .models import (
 )
 from .serializers import GlobalLeaderboardMultiplierSerializer, LeaderboardEntrySerializer
 from contributions.models import Contribution
+from users.utils import is_full_address, truncate_address, user_lookup_kwargs
 
 ONBOARDING_CONTRIBUTION_TYPE_SLUGS = [
     'builder-welcome',
@@ -68,10 +69,23 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = LeaderboardEntrySerializer
     permission_classes = [permissions.AllowAny]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['user__name', 'user__address']
+    # Address search is handled by the exact-match ?user_address= filter only.
+    # No substring matching on addresses: responses carry truncated addresses,
+    # so icontains would be an oracle to reconstruct them char by char.
+    search_fields = ['user__name']
     ordering_fields = ['rank', 'total_points', 'updated_at']
     ordering = ['rank']
     pagination_class = None  # Disable pagination to return all entries
+
+    def get_throttles(self):
+        # Bound anonymous scraping; authenticated browsing is unaffected.
+        request = getattr(self, 'request', None)
+        user = getattr(request, 'user', None)
+        if user is not None and user.is_authenticated:
+            self.throttle_scope = None
+        else:
+            self.throttle_scope = 'public_leaderboard'
+        return super().get_throttles()
 
     def _can_view_user_stats(self, user):
         request_user = self.request.user
@@ -111,10 +125,10 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             )
         )
 
-        # Filter by user address if provided
+        # Filter by user address (or user id) if provided
         user_address = self.request.query_params.get('user_address')
         if user_address:
-            queryset = queryset.filter(user__address__iexact=user_address)
+            queryset = queryset.filter(**user_lookup_kwargs(user_address, user_field='user'))
             # When filtering by user, don't apply type filter unless explicitly provided
             leaderboard_type = self.request.query_params.get('type')
             if leaderboard_type:
@@ -630,9 +644,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         Get statistics for a specific user by wallet address.
         """
         from users.models import User
-        
+
         try:
-            user = User.objects.get(address__iexact=address)
+            user = User.objects.get(**user_lookup_kwargs(address))
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=404)
         if not self._can_view_user_stats(user):
@@ -772,10 +786,10 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
 
         search = request.query_params.get('search', '').strip().lower()
         if search:
-            entries = entries.filter(
-                Q(name__icontains=search) |
-                Q(address__icontains=search)
+            address_q = (
+                Q(address__iexact=search) if is_full_address(search) else Q()
             )
+            entries = entries.filter(Q(name__icontains=search) | address_q)
 
         count = entries.count()
         user_address = request.query_params.get('user_address')
@@ -804,7 +818,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             return {
                 **user_data,
                 'user_details': user_data,
-                'user_address': user.address,
+                'user_address': truncate_address(user.address),
                 'user_name': user.name,
                 'community_points': total_points,
                 'total_points': total_points,
@@ -820,7 +834,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             }
 
         if user_address:
-            user_entry = ranking_entries.filter(address__iexact=user_address).first()
+            user_entry = ranking_entries.filter(
+                **user_lookup_kwargs(user_address)
+            ).first()
             if user_entry:
                 user_total_points = user_entry.total_points or 0
                 user_rank = community_rank(user_entry)
@@ -892,9 +908,11 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
 
         search = request.query_params.get('search', '').strip()
         if search:
+            address_q = (
+                Q(user__address__iexact=search) if is_full_address(search) else Q()
+            )
             referral_qs = referral_qs.filter(
-                Q(user__name__icontains=search) |
-                Q(user__address__icontains=search)
+                Q(user__name__icontains=search) | address_q
             )
 
         totals = referral_qs.aggregate(
@@ -908,7 +926,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         user_total_points = None
         if user_address:
             try:
-                user_rp = referral_qs.get(user__address__iexact=user_address)
+                user_rp = referral_qs.get(**user_lookup_kwargs(user_address, user_field='user'))
                 user_total_points = user_rp.builder_points + user_rp.validator_points
                 user_rank = referral_qs.filter(total_points__gt=user_total_points).count() + 1
             except ReferralPoints.DoesNotExist:
@@ -1065,8 +1083,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             if top_category_points is None:
                 top_category_points = entry.get('total_recent_points') or 0
             results.append({
+                'user_id': user.id,
                 'user_name': user.name or '',
-                'user_address': user.address or '',
+                'user_address': truncate_address(user.address) or '',
                 'profile_image_url': user.profile_image_url or '',
                 'total_points': top_category_points,
                 'trending_points': top_category_points,

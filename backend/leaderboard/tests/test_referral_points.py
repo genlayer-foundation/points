@@ -293,11 +293,13 @@ class ReferralBreakdownHelperTest(TestCase):
 
     def test_lists_all_referred_users(self):
         """Breakdown includes all referred users regardless of contributions."""
+        from users.utils import truncate_address
         result = get_referral_breakdown(self.referrer)
         self.assertEqual(result['total_referrals'], 2)
+        # Referred users are other participants: addresses are truncated.
         addresses = {r['address'] for r in result['referrals']}
-        self.assertIn(self.referred_user_a.address, addresses)
-        self.assertIn(self.referred_user_b.address, addresses)
+        self.assertIn(truncate_address(self.referred_user_a.address), addresses)
+        self.assertIn(truncate_address(self.referred_user_b.address), addresses)
 
     def test_excludes_validator_waitlist_from_per_user_breakdown(self):
         """Per-user validator points exclude validator-waitlist contributions."""

@@ -374,7 +374,7 @@
                     </div>
                   {/if}
                   <div class="min-w-0">
-                    <button class="truncate text-[14px] font-medium text-black hover:underline" onclick={() => push(`/participant/${claim.user_details.address}`)}>
+                    <button class="truncate text-[14px] font-medium text-black hover:underline" onclick={() => push(`/participant/${claim.user_details.id ?? claim.user_details.address}`)}>
                       {claim.user_details.name || `${claim.user_details.address.slice(0, 6)}...${claim.user_details.address.slice(-4)}`}
                     </button>
                   </div>

@@ -64,6 +64,7 @@
 
       if (response.data) {
         topWaitlistUsers = response.data.map(entry => ({
+          id: entry.user_details?.id,
           address: entry.user_details?.address || '',
           isWaitlisted: true,
           user: entry.user_details || {},
@@ -90,6 +91,7 @@
 
       if (response.data?.results) {
         newestWaitlistUsers = response.data.results.map(contrib => ({
+          id: contrib.user_details?.id,
           address: contrib.user_details?.address || '',
           user: contrib.user_details || {},
           joinedWaitlist: contrib.contribution_date
@@ -262,7 +264,7 @@
                 <div class="min-w-0">
                   <button
                     class="text-sm font-medium text-gray-900 hover:text-primary-600 transition-colors truncate"
-                    onclick={() => push(`/participant/${user.address}`)}
+                    onclick={() => push(`/participant/${user.id ?? user.address}`)}
                   >
                     {user.user?.name || truncateAddress(user.address)}
                   </button>
@@ -303,7 +305,7 @@
                 </div>
               </div>
               <button
-                onclick={() => push(`/participant/${user.address}`)}
+                onclick={() => push(`/participant/${user.id ?? user.address}`)}
                 class="text-xs text-primary-600 hover:text-primary-700 font-medium flex-shrink-0"
               >
                 View →
@@ -348,7 +350,7 @@
                 <div class="min-w-0">
                   <button
                     class="text-sm font-medium text-gray-900 hover:text-primary-600 transition-colors truncate"
-                    onclick={() => push(`/participant/${graduate.user.address}`)}
+                    onclick={() => push(`/participant/${graduate.user.id ?? graduate.user.address}`)}
                   >
                     {graduate.user.name || truncateAddress(graduate.user.address)}
                   </button>
@@ -453,7 +455,7 @@
                 <div class="min-w-0">
                   <button
                     class="text-sm font-medium text-gray-900 hover:text-primary-600 transition-colors truncate"
-                    onclick={() => push(`/participant/${user.address}`)}
+                    onclick={() => push(`/participant/${user.id ?? user.address}`)}
                   >
                     {user.user?.name || truncateAddress(user.address)}
                   </button>

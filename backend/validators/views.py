@@ -28,6 +28,7 @@ from .version_status import compute_version_status
 from . import streaks as streaks_lib
 from users.models import User
 from users.serializers import ValidatorSerializer, UserSerializer
+from users.utils import truncate_address
 from contributions.models import Contribution, ContributionType
 
 logger = logging.getLogger(__name__)
@@ -178,7 +179,8 @@ class ValidatorViewSet(viewsets.ModelViewSet):
             else:
                 # Fallback to simple data if user not found
                 result.append({
-                    'address': validator['user__address'],
+                    'id': validator['user'],
+                    'address': truncate_address(validator['user__address']),
                     'name': validator['user__name'],
                     'validator': True,
                     'first_uptime_date': validator['first_uptime_date']
@@ -478,11 +480,14 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
         login address differs from their operator address on the blockchain.
         Falls back to operator_address matching if no FK link exists.
         """
+        from users.utils import user_lookup_kwargs
+
         wallets = ValidatorWallet.objects.none()
 
-        # First, try to find wallets via the operator FK relationship
+        # First, try to find wallets via the operator FK relationship.
+        # Accepts a user id or a full account address.
         try:
-            user = User.objects.get(address__iexact=user_address)
+            user = User.objects.get(**user_lookup_kwargs(user_address))
             if hasattr(user, 'validator'):
                 wallets = ValidatorWallet.objects.filter(
                     operator=user.validator
@@ -703,7 +708,8 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
             return {
                 'id': user.id,
                 'name': user.name,
-                'address': user.address,
+                # Portal account address: public form is truncated (users.utils).
+                'address': truncate_address(user.address),
                 'profile_image_url': user.profile_image_url,
                 'visible': user.visible,
             }
@@ -1003,8 +1009,9 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
         wallet linked on this network — either they never registered there or
         their wallet isn't linked to their portal account (the network factory's
         `getWalletsForOperator` is the definitive check); both cases are
-        outreach-worthy. `node` carries the account address purely as a unique
-        join key — by construction it matches no wallet or metric series.
+        outreach-worthy. `node` carries a synthetic `user-<id>` key purely as a
+        unique join key — by construction it matches no wallet or metric series
+        (account addresses are not exposed in full on public surfaces).
         """
         linked_user_ids = (
             ValidatorWallet.objects
@@ -1022,12 +1029,12 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
         explorer_url = grafana_explorer_url(network)
         rows = []
         for validator in graduated:
-            account = (validator.user.address or '').lower()
+            account = truncate_address((validator.user.address or '').lower())
             if not account:
                 continue
             rows.append({
                 'network': label,
-                'node': account,
+                'node': f'user-{validator.user_id}',
                 'name': validator.user.name or account,
                 'status': 'missing',
                 'operator': None,

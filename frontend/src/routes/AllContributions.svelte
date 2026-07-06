@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { push, location, loc } from 'svelte-spa-router';
   import { contributionsAPI, usersAPI } from '../lib/api';
+  import { truncateAddress } from '../lib/address.js';
   import { getMissions } from '../lib/missionsStore.js';
   import HighlightCard from '../components/portal/HighlightCard.svelte';
   import HighlightsSlider from '../components/portal/HighlightsSlider.svelte';
@@ -348,7 +349,13 @@
       if (typeId && String(h.contribution_type_id) !== String(typeId)) return false;
       if (missionId && String(h.mission_id ?? h.mission?.id ?? '') !== String(missionId)) return false;
       if (!q) return true;
-      if (isAddress) return (h.user_address || '').toLowerCase() === q;
+      if (isAddress) {
+        // Payload addresses are truncated: match on the resolved participant's
+        // id when we have it, else compare truncated forms of the pasted address.
+        const pid = participantDetails?.id;
+        if (pid != null && h.user_id != null) return String(h.user_id) === String(pid);
+        return (h.user_address || '').toLowerCase() === truncateAddress(q);
+      }
       const name = (h.user_name || '').toLowerCase();
       const addr = (h.user_address || '').toLowerCase();
       return name.includes(q) || addr.includes(q);

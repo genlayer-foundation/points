@@ -71,6 +71,8 @@
 
   // Map newest members data to UserCardScroller entry format
   let newestAsEntries = $derived(newestMembers.map(m => ({
+    // user_id is the profile link key: API addresses are truncated.
+    user_id: m.user_details?.id ?? m.user_id ?? m.id,
     user_name: m.name || m.user_name || m.user_details?.name,
     user_address: m.address || m.user_address || m.user_details?.address,
     profile_image_url: m.profile_image_url || m.user_details?.profile_image_url,

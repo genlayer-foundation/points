@@ -313,7 +313,7 @@
           {#each getParticipants() as user}
             <button
               type="button"
-              onclick={() => user.address && push(`/participant/${user.address}`)}
+              onclick={() => { const key = user.id ?? user.address; if (key) push(`/participant/${key}`); }}
               class="group flex min-h-[68px] w-full items-center gap-3 rounded-[8px] border border-[#edf0f5] bg-[#fbfcfe] px-3 text-left transition hover:-translate-y-0.5 hover:border-[#f1bd82] hover:bg-white hover:shadow-[0_10px_24px_rgba(31,42,68,0.08)]"
             >
               <Avatar user={user} size="lg" showBorder={true} clickable={false} />

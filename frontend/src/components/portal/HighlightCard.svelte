@@ -40,6 +40,7 @@
   let category = $derived(highlight?.contribution_type_category || 'validator');
   let colors = $derived(getCategoryColors(category));
   let user = $derived({
+    id: highlight?.user_id,
     name: highlight?.user_name,
     address: highlight?.user_address,
     profile_image_url: highlight?.user_profile_image_url,
@@ -81,7 +82,7 @@
       <Avatar {user} size="xs" clickable={true} />
       <button
         class="text-sm font-medium text-black truncate hover:underline"
-        onclick={(e) => { e.stopPropagation(); push(`/participant/${user.address || ''}`); }}
+        onclick={(e) => { e.stopPropagation(); push(`/participant/${user.id ?? user.address ?? ''}`); }}
       >
         {user.name || (user.address ? `${user.address.slice(0, 6)}...${user.address.slice(-4)}` : 'Anonymous')}
       </button>

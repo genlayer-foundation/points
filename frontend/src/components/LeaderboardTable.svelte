@@ -93,7 +93,7 @@
                   {/if}
                   <div class="min-w-0">
                     <button
-                      onclick={() => push(`/participant/${entry.user_details?.address || ''}`)}
+                      onclick={() => push(`/participant/${entry.user_details?.id ?? entry.user_details?.address ?? ''}`)}
                       class="block max-w-full truncate text-left text-[14px] font-semibold text-[#111827] transition-colors hover:text-black"
                     >
                       {entry.user_details?.name || 'N/A'}

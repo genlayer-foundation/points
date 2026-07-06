@@ -935,8 +935,11 @@ def get_top_validators(limit=3):
         })
         user = wallet.operator.user if wallet.operator and wallet.operator.user and wallet.operator.user.visible else None
         if user:
+            from users.utils import truncate_address
             entry['name'] = user.name or wallet.moniker or 'Validator'
-            entry['address'] = user.address or wallet.operator_address
+            # Portal account address is truncated publicly; the on-chain
+            # operator_address fallback stays full (public chain data).
+            entry['address'] = truncate_address(user.address) or wallet.operator_address
             entry['profile_image_url'] = user.profile_image_url or ''
         if wallet.logo_uri and not entry['logo_uri']:
             entry['logo_uri'] = wallet.logo_uri

@@ -338,17 +338,19 @@ class EmailSecurityTests(TestCase):
         verified_user_data = None
         
         for user_data in response.data['results']:
-            if user_data['address'] == self.unverified_user.address:
+            if user_data['id'] == self.unverified_user.id:
                 unverified_user_data = user_data
-            elif user_data['address'] == self.verified_user.address:
+            elif user_data['id'] == self.verified_user.id:
                 verified_user_data = user_data
-        
+
         # Check list entries expose only the minimal public directory shape
+        # (addresses are truncated on public surfaces; id is the link key)
         self.assertIsNotNone(unverified_user_data)
         self.assertIsNotNone(verified_user_data)
         self.assertEqual(
             set(unverified_user_data.keys()),
             {
+                'id',
                 'name',
                 'address',
                 'profile_image_url',
@@ -358,6 +360,11 @@ class EmailSecurityTests(TestCase):
                 'steward',
                 'creator',
             },
+        )
+        from users.utils import truncate_address
+        self.assertEqual(
+            unverified_user_data['address'],
+            truncate_address(self.unverified_user.address),
         )
         for user_data in [unverified_user_data, verified_user_data]:
             self.assertNotIn('email', user_data)

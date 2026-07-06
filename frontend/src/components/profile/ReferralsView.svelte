@@ -344,7 +344,7 @@
                         {#each topReferrals as referral}
                             <button
                                 onclick={() =>
-                                    push(`/participant/${referral.address}`)}
+                                    push(`/participant/${referral.id ?? referral.address}`)}
                                 class="flex items-center justify-between rounded-[10px] bg-white hover:bg-[#f8f8f8] px-3 py-[10px] transition-colors w-full"
                             >
                                 <div class="flex items-center gap-[10px] min-w-0">

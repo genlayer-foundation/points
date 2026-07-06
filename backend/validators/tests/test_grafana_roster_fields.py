@@ -103,8 +103,10 @@ class GrafanaRosterRawFieldTests(TestCase):
     def test_missing_rows_carry_null_facts(self):
         # Graduated validator with no wallet on the network: the synthetic
         # 'missing' row has no wallet to describe — facts are null, not False.
+        # Its node key is the synthetic user-<id> (account addresses are not
+        # exposed in full on public surfaces).
         rows = self._rows_by_node()
-        row = rows[self.user.address.lower()]
+        row = rows[f'user-{self.user.id}']
         self.assertEqual(row['status'], 'missing')
         self.assertIsNone(row['linked'])
         self.assertIsNone(row['moniker'])

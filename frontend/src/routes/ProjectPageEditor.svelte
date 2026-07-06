@@ -185,7 +185,10 @@
   }
 
   async function loadParticipantContributions() {
-    const participantsWithAddress = selectedParticipants.filter(getParticipantAddress);
+    // Prefer user ids: API addresses are truncated and can't be used as
+    // lookups; the contributions user_address filter accepts either.
+    const getParticipantKey = (user) => getParticipantId(user) ?? (getParticipantAddress(user) || null);
+    const participantsWithAddress = selectedParticipants.filter((user) => getParticipantKey(user) != null);
     selectedContributions = selectedContributions.filter((contribution) => {
       const user = getContributionUser(contribution);
       return hasMatchingParticipant(selectedParticipants, user);
@@ -206,7 +209,7 @@
       const responses = await Promise.all(
         participantsWithAddress.map((user) =>
           contributionsAPI.getContributions({
-            user_address: getParticipantAddress(user),
+            user_address: getParticipantKey(user),
             page_size: 50,
             ordering: '-frozen_global_points',
             exclude_onboarding: 'true',
