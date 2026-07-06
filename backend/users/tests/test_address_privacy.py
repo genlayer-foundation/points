@@ -114,6 +114,38 @@ class AddressPrivacyAPITests(TestCase):
             entry['user_details']['address'], truncate_address(ALICE_ADDRESS)
         )
 
+    def test_public_steward_list_has_no_full_addresses(self):
+        from stewards.models import Steward
+        Steward.objects.create(user=self.alice)
+        response = self.client.get('/api/v1/stewards/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self._full_addresses_in(response), [])
+        row = response.data[0]
+        self.assertEqual(row['user_id'], self.alice.id)
+        self.assertEqual(row['address'], truncate_address(ALICE_ADDRESS))
+        self.assertEqual(row['user_details']['id'], self.alice.id)
+
+    def test_public_working_group_has_no_full_addresses(self):
+        from stewards.models import WorkingGroup, WorkingGroupParticipant
+        group = WorkingGroup.objects.create(name='Docs')
+        WorkingGroupParticipant.objects.create(working_group=group, user=self.alice)
+        response = self.client.get(f'/api/v1/stewards/working-groups/{group.id}/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self._full_addresses_in(response), [])
+        participant = response.data['participants'][0]
+        self.assertEqual(participant['id'], self.alice.id)
+        self.assertEqual(participant['address'], truncate_address(ALICE_ADDRESS))
+
+    def test_referral_breakdown_truncates_referred_addresses(self):
+        from leaderboard.models import get_referral_breakdown
+        self.bob.referred_by = self.alice
+        self.bob.save(update_fields=['referred_by'])
+        breakdown = get_referral_breakdown(self.alice)
+        self.assertEqual(len(breakdown['referrals']), 1)
+        row = breakdown['referrals'][0]
+        self.assertEqual(row['id'], self.bob.id)
+        self.assertEqual(row['address'], truncate_address(BOB_ADDRESS))
+
     def test_leaderboard_user_address_param_accepts_id_and_address(self):
         by_address = self.client.get(
             '/api/v1/leaderboard/', {'user_address': ALICE_ADDRESS}
