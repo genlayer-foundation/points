@@ -381,6 +381,19 @@ def validate_multiplier_at_creation(sender, instance, **kwargs):
             instance.frozen_global_points = instance.points
 
 
+@receiver(post_save, sender=Contribution)
+def ensure_validator_profile_for_graduation_contribution(sender, instance, **kwargs):
+    if kwargs.get('raw', False):
+        return
+
+    if getattr(instance.contribution_type, 'slug', None) != 'validator':
+        return
+
+    from validators.models import ensure_validator_profile
+
+    ensure_validator_profile(instance.user)
+
+
 def is_community_contribution(contribution):
     """Return whether a contribution belongs to the community category."""
     contribution_type = getattr(contribution, 'contribution_type', None)

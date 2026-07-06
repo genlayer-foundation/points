@@ -111,6 +111,45 @@ class Validator(NodeVersionMixin, BaseModel):
         return f"{self.user.email} - Asimov: {asimov}, Bradbury: {bradbury}"
 
 
+def get_validator_profile(user):
+    """Return a user's Validator profile, falling back to the database.
+
+    Reverse OneToOne lookups can be stale on long-lived User instances after an
+    admin action creates the Validator row. Querying by id keeps graduation
+    checks authoritative even when the relation cache says "missing".
+    """
+    user_id = getattr(user, 'id', None)
+    if not user_id:
+        return None
+
+    cached = getattr(user, '_state', None)
+    if cached is not None and 'validator' in user._state.fields_cache:
+        validator = user._state.fields_cache.get('validator')
+        if validator is not None:
+            return validator
+
+    return Validator.objects.filter(user_id=user_id).first()
+
+
+def user_has_validator_profile(user):
+    return get_validator_profile(user) is not None
+
+
+def ensure_validator_profile(user):
+    user_id = getattr(user, 'id', None)
+    if not user_id:
+        return None
+
+    validator, _ = Validator.objects.get_or_create(user_id=user_id)
+
+    try:
+        user._state.fields_cache['validator'] = validator
+    except Exception:
+        pass
+
+    return validator
+
+
 class ValidatorWalletStatusSnapshot(BaseModel):
     """
     Daily snapshot of a validator wallet's status.

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import BanAppeal, User
-from validators.models import Validator, ValidatorWallet
+from validators.models import Validator, ValidatorWallet, get_validator_profile
 from builders.models import Builder
 from stewards.models import Steward
 from creators.models import Creator
@@ -65,7 +65,8 @@ class PublicUserListSerializer(serializers.ModelSerializer):
 
     def get_validator(self, obj):
         try:
-            return LightValidatorSerializer(obj.validator).data
+            validator = get_validator_profile(obj)
+            return LightValidatorSerializer(validator).data if validator else None
         except Exception:
             return None
 
@@ -545,14 +546,15 @@ class UserSerializer(serializers.ModelSerializer):
         """
         Get validator info using lightweight or full serializer based on context.
         """
-        if not hasattr(obj, 'validator'):
+        validator = get_validator_profile(obj)
+        if validator is None:
             return None
 
         # Use lightweight serializer for nested/list views
         use_light = self.context.get('use_light_serializers', False)
         if use_light:
-            return LightValidatorSerializer(obj.validator).data
-        return ValidatorSerializer(obj.validator, context=self.context).data
+            return LightValidatorSerializer(validator).data
+        return ValidatorSerializer(validator, context=self.context).data
 
     def get_builder(self, obj):
         """
