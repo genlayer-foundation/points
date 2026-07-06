@@ -91,6 +91,12 @@
     }));
   }
 
+  function closeMobileSidebar() {
+    if (window.innerWidth < 768) {
+      isOpen = false;
+    }
+  }
+
   function navigate(path, requiresAuth = false, options = {}) {
     if (options.track !== false) {
       trackSidebarNav(path, {
@@ -101,18 +107,17 @@
     if (requiresAuth && !$authState.isAuthenticated) {
       setConnectWalletIntent({
         surface: 'sidebar',
-        cta_id: 'protected_nav',
+        cta_id: options.ctaId || 'protected_nav',
         target_route: path,
       });
       sessionStorage.setItem('redirectAfterLogin', path);
       const authButton = document.querySelector('[data-auth-button]');
       if (authButton) authButton.click();
+      closeMobileSidebar();
       return;
     }
     push(path);
-    if (window.innerWidth < 768) {
-      isOpen = false;
-    }
+    closeMobileSidebar();
   }
 
   function handleSubmitContribution() {
@@ -120,21 +125,10 @@
       surface: 'sidebar',
     }));
 
-    if ($authState.isAuthenticated) {
-      push('/submit-contribution');
-    } else {
-      setConnectWalletIntent({
-        surface: 'sidebar',
-        cta_id: 'submit_contribution',
-      });
-      sessionStorage.setItem('redirectAfterLogin', '/submit-contribution');
-      const authButton = document.querySelector('[data-auth-button]');
-      if (authButton) authButton.click();
-    }
-
-    if (window.innerWidth < 768) {
-      isOpen = false;
-    }
+    navigate('/submit-contribution', true, {
+      ctaId: 'submit_contribution',
+      track: false,
+    });
   }
 
   // A signed-in user who has not earned this category's role: the role's

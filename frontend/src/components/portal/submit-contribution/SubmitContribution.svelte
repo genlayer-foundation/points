@@ -85,6 +85,7 @@
   let projectsError = $state(false);
   let selectedProject = $state("");
   let showProjectDropdown = $state(false);
+  let focusedProjectIndex = $state(-1);
   let showTypeDropdown = $state(false);
   let searchQuery = $state("");
 
@@ -419,6 +420,9 @@
       ? `${selectedProjectData.title} (next v${selectedProjectData.next_milestone_version || 1})`
       : "Select accepted project..."
   );
+  let selectedProjectIndex = $derived(
+    acceptedProjects.findIndex((project) => String(project.id) === String(selectedProject))
+  );
 
   function spotsLeftLabel(count) {
     return `${count} ${Number(count) === 1 ? "spot" : "spots"} left`;
@@ -624,12 +628,97 @@
     }, 200);
   }
 
-  function selectProject(project) {
-    selectedProject = String(project.id);
+  let projectDropdownButtonRef = $state(null);
+  let projectDropdownRef = $state(null);
+  let projectOptionRefs = $state([]);
+
+  function focusProjectOption(index, { defer = false } = {}) {
+    if (acceptedProjects.length === 0) return;
+    const nextIndex = (index + acceptedProjects.length) % acceptedProjects.length;
+    focusedProjectIndex = nextIndex;
+
+    const focusOption = () => {
+      projectOptionRefs[nextIndex]?.focus();
+    };
+
+    if (defer) {
+      requestAnimationFrame(focusOption);
+    } else {
+      focusOption();
+    }
+  }
+
+  function openProjectDropdown(index = selectedProjectIndex >= 0 ? selectedProjectIndex : 0) {
+    projectOptionRefs = [];
+    showProjectDropdown = true;
+    focusProjectOption(index, { defer: true });
+  }
+
+  function closeProjectDropdown({ focusTrigger = false } = {}) {
     showProjectDropdown = false;
+    focusedProjectIndex = -1;
+    if (focusTrigger) {
+      requestAnimationFrame(() => {
+        projectDropdownButtonRef?.focus();
+      });
+    }
+  }
+
+  function toggleProjectDropdown() {
+    if (showProjectDropdown) {
+      closeProjectDropdown();
+    } else {
+      openProjectDropdown();
+    }
+  }
+
+  function selectProject(project, options = {}) {
+    selectedProject = String(project.id);
+    closeProjectDropdown({ focusTrigger: options.focusTrigger ?? true });
     if (error === "Please select the accepted project this milestone belongs to.") {
       error = "";
     }
+  }
+
+  function handleProjectTriggerKeydown(event) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      openProjectDropdown(selectedProjectIndex >= 0 ? selectedProjectIndex : 0);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      openProjectDropdown(selectedProjectIndex >= 0 ? selectedProjectIndex : acceptedProjects.length - 1);
+    } else if (event.key === "Escape" && showProjectDropdown) {
+      event.preventDefault();
+      closeProjectDropdown();
+    }
+  }
+
+  function handleProjectOptionKeydown(event, index) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      focusProjectOption(index + 1);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      focusProjectOption(index - 1);
+    } else if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      selectProject(acceptedProjects[index]);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      closeProjectDropdown({ focusTrigger: true });
+    }
+  }
+
+  function handleProjectDropdownFocusOut() {
+    setTimeout(() => {
+      if (
+        showProjectDropdown &&
+        projectDropdownRef &&
+        !projectDropdownRef.contains(document.activeElement)
+      ) {
+        closeProjectDropdown();
+      }
+    }, 0);
   }
 
   // Evidence functions
@@ -1132,7 +1221,6 @@
 
   // Click outside listener for dropdown
   let dropdownRef = $state(null);
-  let projectDropdownRef = $state(null);
   function handleClickOutside(event) {
     if (
       showTypeDropdown &&
@@ -1146,7 +1234,7 @@
       projectDropdownRef &&
       !projectDropdownRef.contains(event.target)
     ) {
-      showProjectDropdown = false;
+      closeProjectDropdown();
     }
   }
 </script>
@@ -1564,13 +1652,20 @@
             </p>
           </div>
         {:else}
-          <div class="project-dropdown-wrapper relative w-full" bind:this={projectDropdownRef}>
+          <div
+            class="project-dropdown-wrapper relative w-full"
+            bind:this={projectDropdownRef}
+            onfocusout={handleProjectDropdownFocusOut}
+          >
             <button
               type="button"
               class="project-dropdown-trigger flex h-[44px] w-full items-center justify-between gap-3 rounded-[8px] border border-[#f5f5f5] bg-white px-[12px] text-left font-['Switzer'] text-[14px] text-black tracking-[0.28px] transition-colors hover:border-gray-300 focus:outline-none focus:border-black"
               aria-haspopup="listbox"
               aria-expanded={showProjectDropdown}
-              onclick={() => (showProjectDropdown = !showProjectDropdown)}
+              aria-controls="project-dropdown-menu"
+              bind:this={projectDropdownButtonRef}
+              onclick={toggleProjectDropdown}
+              onkeydown={handleProjectTriggerKeydown}
             >
               <span class="min-w-0 truncate {selectedProject ? 'text-black' : 'text-[#6b6b6b]'}">
                 {selectedProjectLabel}
@@ -1593,16 +1688,20 @@
 
             {#if showProjectDropdown}
               <div
+                id="project-dropdown-menu"
                 class="project-dropdown-menu absolute left-0 right-0 top-[48px] z-[60] max-h-[280px] overflow-y-auto rounded-[8px] border border-[#f0f0f0] bg-white shadow-[0_18px_48px_rgba(31,42,68,0.16)]"
                 role="listbox"
               >
-                {#each acceptedProjects as project}
+                {#each acceptedProjects as project, index}
                   <button
                     type="button"
                     class="project-dropdown-option flex w-full flex-col items-start border-b border-[#f5f5f5] p-[12px] text-left last:border-0 transition-colors hover:bg-gray-50 {String(project.id) === String(selectedProject) ? 'bg-[#f0f0ff]' : ''}"
                     role="option"
                     aria-selected={String(project.id) === String(selectedProject)}
+                    tabindex={focusedProjectIndex === index ? 0 : -1}
+                    bind:this={projectOptionRefs[index]}
                     onclick={() => selectProject(project)}
+                    onkeydown={(event) => handleProjectOptionKeydown(event, index)}
                   >
                     <span class="font-['Switzer'] text-[14px] font-medium text-black tracking-[0.2px]">
                       {project.title}
@@ -2167,10 +2266,6 @@
     .type-dropdown-menu {
       max-height: min(56vh, 320px);
       width: 100%;
-    }
-
-    .linked-project-panel {
-      z-index: 20;
     }
 
     .project-dropdown-menu {
