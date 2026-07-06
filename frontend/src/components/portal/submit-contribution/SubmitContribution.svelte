@@ -84,6 +84,8 @@
   let loadingProjects = $state(false);
   let projectsError = $state(false);
   let selectedProject = $state("");
+  let showProjectDropdown = $state(false);
+  let focusedProjectIndex = $state(-1);
   let showTypeDropdown = $state(false);
   let searchQuery = $state("");
 
@@ -413,6 +415,14 @@
   let selectedProjectData = $derived(
     acceptedProjects.find((project) => String(project.id) === String(selectedProject)) || null
   );
+  let selectedProjectLabel = $derived(
+    selectedProjectData
+      ? `${selectedProjectData.title} (next v${selectedProjectData.next_milestone_version || 1})`
+      : "Select accepted project..."
+  );
+  let selectedProjectIndex = $derived(
+    acceptedProjects.findIndex((project) => String(project.id) === String(selectedProject))
+  );
 
   function spotsLeftLabel(count) {
     return `${count} ${Number(count) === 1 ? "spot" : "spots"} left`;
@@ -537,6 +547,7 @@
   function selectCategory(cat) {
     selectedCategory = cat;
     showTypeDropdown = false;
+    showProjectDropdown = false;
   }
 
   function selectType(t) {
@@ -555,6 +566,7 @@
     selectedMission = null;
     selectedMissionData = null;
     selectedProject = "";
+    showProjectDropdown = false;
     formData.contribution_type = t.id;
     showTypeDropdown = false;
     searchQuery = t.name;
@@ -579,6 +591,7 @@
       selectedMission = item.data.id;
       selectedMissionData = item.data;
       selectedProject = "";
+      showProjectDropdown = false;
       formData.contribution_type = item.parentType.id;
       showTypeDropdown = false;
       searchQuery = item.data.name;
@@ -613,6 +626,99 @@
         }
       }
     }, 200);
+  }
+
+  let projectDropdownButtonRef = $state(null);
+  let projectDropdownRef = $state(null);
+  let projectOptionRefs = $state([]);
+
+  function focusProjectOption(index, { defer = false } = {}) {
+    if (acceptedProjects.length === 0) return;
+    const nextIndex = (index + acceptedProjects.length) % acceptedProjects.length;
+    focusedProjectIndex = nextIndex;
+
+    const focusOption = () => {
+      projectOptionRefs[nextIndex]?.focus();
+    };
+
+    if (defer) {
+      requestAnimationFrame(focusOption);
+    } else {
+      focusOption();
+    }
+  }
+
+  function openProjectDropdown(index = selectedProjectIndex >= 0 ? selectedProjectIndex : 0) {
+    projectOptionRefs = [];
+    showProjectDropdown = true;
+    focusProjectOption(index, { defer: true });
+  }
+
+  function closeProjectDropdown({ focusTrigger = false } = {}) {
+    showProjectDropdown = false;
+    focusedProjectIndex = -1;
+    if (focusTrigger) {
+      requestAnimationFrame(() => {
+        projectDropdownButtonRef?.focus();
+      });
+    }
+  }
+
+  function toggleProjectDropdown() {
+    if (showProjectDropdown) {
+      closeProjectDropdown();
+    } else {
+      openProjectDropdown();
+    }
+  }
+
+  function selectProject(project, options = {}) {
+    selectedProject = String(project.id);
+    closeProjectDropdown({ focusTrigger: options.focusTrigger ?? true });
+    if (error === "Please select the accepted project this milestone belongs to.") {
+      error = "";
+    }
+  }
+
+  function handleProjectTriggerKeydown(event) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      openProjectDropdown(selectedProjectIndex >= 0 ? selectedProjectIndex : 0);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      openProjectDropdown(selectedProjectIndex >= 0 ? selectedProjectIndex : acceptedProjects.length - 1);
+    } else if (event.key === "Escape" && showProjectDropdown) {
+      event.preventDefault();
+      closeProjectDropdown();
+    }
+  }
+
+  function handleProjectOptionKeydown(event, index) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      focusProjectOption(index + 1);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      focusProjectOption(index - 1);
+    } else if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      selectProject(acceptedProjects[index]);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      closeProjectDropdown({ focusTrigger: true });
+    }
+  }
+
+  function handleProjectDropdownFocusOut() {
+    setTimeout(() => {
+      if (
+        showProjectDropdown &&
+        projectDropdownRef &&
+        !projectDropdownRef.contains(document.activeElement)
+      ) {
+        closeProjectDropdown();
+      }
+    }, 0);
   }
 
   // Evidence functions
@@ -1114,7 +1220,7 @@
   }
 
   // Click outside listener for dropdown
-  let dropdownRef;
+  let dropdownRef = $state(null);
   function handleClickOutside(event) {
     if (
       showTypeDropdown &&
@@ -1122,6 +1228,13 @@
       !dropdownRef.contains(event.target)
     ) {
       showTypeDropdown = false;
+    }
+    if (
+      showProjectDropdown &&
+      projectDropdownRef &&
+      !projectDropdownRef.contains(event.target)
+    ) {
+      closeProjectDropdown();
     }
   }
 </script>
@@ -1493,7 +1606,7 @@
 
     {#if selectedType && isMilestoneType(selectedType)}
       <div
-        class="submit-panel flex flex-col gap-[12px] items-start p-[24px] rounded-[16px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.02)] bg-white border border-[#f5f5f5] w-full"
+        class="submit-panel linked-project-panel relative z-20 flex flex-col gap-[12px] items-start p-[24px] rounded-[16px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.02)] bg-white border border-[#f5f5f5] w-full overflow-visible"
       >
         <div class="flex items-start justify-between gap-3 w-full">
           <div>
@@ -1539,18 +1652,73 @@
             </p>
           </div>
         {:else}
-          <select
-            bind:value={selectedProject}
-            class="w-full h-[44px] rounded-[8px] border border-[#f5f5f5] bg-white px-[12px] font-['Switzer'] text-[14px] text-black tracking-[0.28px] focus:outline-none focus:border-black"
-            required={isMilestoneType(selectedType)}
+          <div
+            class="project-dropdown-wrapper relative w-full"
+            bind:this={projectDropdownRef}
+            onfocusout={handleProjectDropdownFocusOut}
           >
-            <option value="">Select accepted project...</option>
-            {#each acceptedProjects as project}
-              <option value={project.id}>
-                {project.title} (next v{project.next_milestone_version || 1})
-              </option>
-            {/each}
-          </select>
+            <button
+              type="button"
+              class="project-dropdown-trigger flex h-[44px] w-full items-center justify-between gap-3 rounded-[8px] border border-[#f5f5f5] bg-white px-[12px] text-left font-['Switzer'] text-[14px] text-black tracking-[0.28px] transition-colors hover:border-gray-300 focus:outline-none focus:border-black"
+              aria-haspopup="listbox"
+              aria-expanded={showProjectDropdown}
+              aria-controls="project-dropdown-menu"
+              bind:this={projectDropdownButtonRef}
+              onclick={toggleProjectDropdown}
+              onkeydown={handleProjectTriggerKeydown}
+            >
+              <span class="min-w-0 truncate {selectedProject ? 'text-black' : 'text-[#6b6b6b]'}">
+                {selectedProjectLabel}
+              </span>
+              <svg
+                class="h-4 w-4 flex-shrink-0 text-gray-500 transition-transform {showProjectDropdown ? 'rotate-180' : ''}"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </button>
+
+            {#if showProjectDropdown}
+              <div
+                id="project-dropdown-menu"
+                class="project-dropdown-menu absolute left-0 right-0 top-[48px] z-[60] max-h-[280px] overflow-y-auto rounded-[8px] border border-[#f0f0f0] bg-white shadow-[0_18px_48px_rgba(31,42,68,0.16)]"
+                role="listbox"
+              >
+                {#each acceptedProjects as project, index}
+                  <button
+                    type="button"
+                    class="project-dropdown-option flex w-full flex-col items-start border-b border-[#f5f5f5] p-[12px] text-left last:border-0 transition-colors hover:bg-gray-50 {String(project.id) === String(selectedProject) ? 'bg-[#f0f0ff]' : ''}"
+                    role="option"
+                    aria-selected={String(project.id) === String(selectedProject)}
+                    tabindex={focusedProjectIndex === index ? 0 : -1}
+                    bind:this={projectOptionRefs[index]}
+                    onclick={() => selectProject(project)}
+                    onkeydown={(event) => handleProjectOptionKeydown(event, index)}
+                  >
+                    <span class="font-['Switzer'] text-[14px] font-medium text-black tracking-[0.2px]">
+                      {project.title}
+                    </span>
+                    <span class="mt-1 font-['Switzer'] text-[12px] text-[#6b6b6b]">
+                      Next milestone v{project.next_milestone_version || 1}
+                    </span>
+                    {#if project.github_url}
+                      <span class="mt-0.5 max-w-full truncate font-['Switzer'] text-[11px] text-gray-400">
+                        {project.github_url.replace(/^https?:\/\//, "")}
+                      </span>
+                    {/if}
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
 
           {#if selectedProjectData}
             <div class="w-full rounded-[8px] border border-[#f0f0f0] bg-[#fafafa] p-[12px]">
@@ -2023,6 +2191,14 @@
 </div>
 
 <style>
+  .project-dropdown-wrapper {
+    isolation: isolate;
+  }
+
+  .project-dropdown-menu {
+    overscroll-behavior: contain;
+  }
+
   @media (max-width: 767px) {
     .submit-form-shell {
       max-width: 100% !important;
@@ -2074,6 +2250,7 @@
     }
 
     .type-selector-control,
+    .project-dropdown-trigger,
     .field-control {
       min-width: 0;
     }
@@ -2089,6 +2266,19 @@
     .type-dropdown-menu {
       max-height: min(56vh, 320px);
       width: 100%;
+    }
+
+    .project-dropdown-menu {
+      max-height: min(48vh, 280px);
+    }
+
+    .project-dropdown-option {
+      min-width: 0;
+    }
+
+    .project-dropdown-option span {
+      max-width: 100%;
+      overflow-wrap: anywhere;
     }
 
     .type-dropdown-item {
