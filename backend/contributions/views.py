@@ -41,10 +41,12 @@ from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          StewardAcceptedSubmissionUpdateSerializer,
                          StewardSubmissionTypeUpdateSerializer,
                          SubmissionNoteSerializer, SubmissionProposeSerializer,
+                         SubmissionQuestionProposalSerializer,
                          MissionSerializer, StartupRequestListSerializer, StartupRequestDetailSerializer,
                          FeaturedContentSerializer, AlertSerializer,
                          ContributionDiscordXPStateSerializer)
 from .permissions import IsSteward, steward_has_permission, steward_permitted_type_ids
+from .proposal_filters import ProposalReviewStatusFilterMixin
 from .project_milestones import (
     accepted_project_contributions_for_user,
     is_milestone_contribution_type,
@@ -52,6 +54,7 @@ from .project_milestones import (
     project_contribution_display_title,
     project_contribution_github_url,
 )
+from .ai_attribution import AI_STEWARD_EMAIL
 from .url_utils import normalize_url
 from leaderboard.models import GlobalLeaderboardMultiplier
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -59,7 +62,6 @@ from ethereum_auth.authentication import EthereumAuthentication
 from utils.dates import day_start
 import requests
 
-AI_STEWARD_EMAIL = 'genlayer-steward@genlayer.foundation'
 COMMUNITY_CATEGORY_SLUGS = ('community', 'creator')
 
 
@@ -1203,7 +1205,7 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         )
 
 
-class StewardSubmissionFilterSet(FilterSet):
+class StewardSubmissionFilterSet(ProposalReviewStatusFilterMixin, FilterSet):
     """Custom filterset for steward submission filtering."""
     username_search = CharFilter(method='filter_username')
     exclude_username = CharFilter(method='filter_exclude_username')
@@ -1222,6 +1224,7 @@ class StewardSubmissionFilterSet(FilterSet):
     min_accepted_contributions = NumberFilter(method='filter_min_accepted_contributions')
     has_proposal = BooleanFilter(method='filter_has_proposal')
     proposed_action = CharFilter(method='filter_proposed_action')
+    proposal_review_status = CharFilter(method='filter_proposal_review_status')
     proposed_confidence = CharFilter(method='filter_proposed_confidence')
     proposed_template = NumberFilter(method='filter_proposed_template')
     is_interesting = BooleanFilter(field_name='is_interesting')
@@ -1486,14 +1489,6 @@ class StewardSubmissionFilterSet(FilterSet):
             return queryset.annotate(
                 user_accepted_count=Coalesce(Subquery(accepted_count), 0)
             ).filter(user_accepted_count__gte=value)
-        return queryset
-
-    def filter_has_proposal(self, queryset, name, value):
-        """Filter submissions that have/don't have an active proposal."""
-        if value is True:
-            return queryset.filter(proposed_action__isnull=False)
-        elif value is False:
-            return queryset.filter(proposed_action__isnull=True)
         return queryset
 
     def filter_proposed_action(self, queryset, name, value):
@@ -2031,6 +2026,7 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             'proposed_contribution_type',
             'proposed_user',
             'proposed_template',
+            'proposal_questioned_by',
             'project_milestone_review',
             'project_milestone_review__proposer',
         ).prefetch_related(
@@ -2087,6 +2083,11 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
         if submission.state not in ['pending', 'more_info_needed']:
             return Response(
                 {'detail': 'Only pending submissions or submissions awaiting more information can be reviewed.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if submission.proposal_review_status == SubmittedContribution.PROPOSAL_STATUS_QUESTIONED:
+            return Response(
+                {'detail': 'This proposal has been questioned and must be revised before final review.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -2241,6 +2242,10 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
         submission.proposed_at = None
         submission.proposed_confidence = None
         submission.proposed_template = None
+        submission.proposal_review_status = None
+        submission.proposal_review_feedback = ''
+        submission.proposal_questioned_by = None
+        submission.proposal_questioned_at = None
 
         submission.save()
 
@@ -2890,6 +2895,10 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             submission.proposed_at = None
             submission.proposed_confidence = None
             submission.proposed_template = None
+            submission.proposal_review_status = None
+            submission.proposal_review_feedback = ''
+            submission.proposal_questioned_by = None
+            submission.proposal_questioned_at = None
 
             submission.save(update_fields=[
                 'contribution_type',
@@ -2908,6 +2917,10 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                 'proposed_at',
                 'proposed_confidence',
                 'proposed_template',
+                'proposal_review_status',
+                'proposal_review_feedback',
+                'proposal_questioned_by',
+                'proposal_questioned_at',
                 'updated_at',
             ])
             ProjectMilestoneReview.objects.filter(submitted_contribution=submission).delete()
@@ -3019,15 +3032,38 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(data)
 
     @action(detail=True, methods=['post'], url_path='propose')
+    @transaction.atomic
     def propose(self, request, pk=None):
         """Submit a proposal for a submission."""
-        submission = self.get_object()
+        submission = get_object_or_404(
+            self._visible_submission_queryset(
+                SubmittedContribution.objects.select_for_update(of=('self',))
+            ).select_related(
+                'contribution_type',
+                'proposed_by',
+            ),
+            pk=pk,
+        )
+
+        if submission.state not in ('pending', 'more_info_needed'):
+            return Response(
+                {'detail': 'Only pending submissions or submissions awaiting more information can receive proposals.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # Check propose permission
         if not steward_has_permission(request.user, submission.contribution_type_id, 'propose'):
             return Response(
                 {'detail': 'You do not have permission to propose on submissions of this contribution type.'},
                 status=status.HTTP_403_FORBIDDEN
+            )
+        if (
+            submission.proposal_review_status == SubmittedContribution.PROPOSAL_STATUS_QUESTIONED
+            and submission.proposed_by_id != request.user.id
+        ):
+            return Response(
+                {'detail': 'Only the original proposer can revise a questioned proposal.'},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         serializer = SubmissionProposeSerializer(
@@ -3054,6 +3090,10 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
         submission.proposed_by = request.user
         submission.proposed_at = timezone.now()
         submission.proposed_confidence = data.get('confidence')
+        submission.proposal_review_status = SubmittedContribution.PROPOSAL_STATUS_PENDING_REVIEW
+        submission.proposal_review_feedback = ''
+        submission.proposal_questioned_by = None
+        submission.proposal_questioned_at = None
 
         # Resolve template FK (PrimaryKeyRelatedField returns instance or None)
         template = data.get('template_id')
@@ -3115,6 +3155,100 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             status=status.HTTP_200_OK
         )
 
+    @action(detail=True, methods=['post'], url_path='question-proposal')
+    @transaction.atomic
+    def question_proposal(self, request, pk=None):
+        """Return an active proposal to its proposer with internal feedback."""
+        submission = get_object_or_404(
+            self._visible_submission_queryset(
+                SubmittedContribution.objects.select_for_update(of=('self',))
+            ).select_related(
+                'contribution_type',
+                'proposed_by',
+                'proposal_questioned_by',
+            ),
+            pk=pk,
+        )
+
+        if not any(
+            steward_has_permission(request.user, submission.contribution_type_id, action)
+            for action in ('accept', 'reject', 'request_more_info')
+        ):
+            return Response(
+                {'detail': 'You do not have permission to question proposals for this contribution type.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if submission.state not in ('pending', 'more_info_needed'):
+            return Response(
+                {'detail': 'Only pending submissions or submissions awaiting more information can have proposals questioned.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not submission.proposed_action:
+            return Response(
+                {'detail': 'This submission has no active proposal to question.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if submission.proposal_review_status not in (
+            SubmittedContribution.PROPOSAL_STATUS_PENDING_REVIEW,
+            None,
+        ):
+            return Response(
+                {'detail': 'Only proposals pending final review can be questioned.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not submission.proposed_by_id:
+            return Response(
+                {'detail': 'This proposal has no reviewer to notify.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if submission.proposed_by_id == request.user.id:
+            return Response(
+                {'detail': 'You cannot question your own proposal.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = SubmissionQuestionProposalSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        message = serializer.validated_data['message']
+
+        submission.proposal_review_status = SubmittedContribution.PROPOSAL_STATUS_QUESTIONED
+        submission.proposal_review_feedback = message
+        submission.proposal_questioned_by = request.user
+        submission.proposal_questioned_at = timezone.now()
+        submission.save(update_fields=[
+            'proposal_review_status',
+            'proposal_review_feedback',
+            'proposal_questioned_by',
+            'proposal_questioned_at',
+            'updated_at',
+        ])
+
+        reviewer_name = request.user.name or request.user.address[:10] + '...'
+        SubmissionNote.objects.create(
+            submitted_contribution=submission,
+            user=request.user,
+            message=(
+                f"Questioned proposal by {reviewer_name}\n\n"
+                f"> {message}"
+            ),
+            is_proposal=False,
+            data={
+                'action': 'question_proposal',
+                'proposal_action': submission.proposed_action,
+                'proposed_by': submission.proposed_by_id,
+                'feedback': message,
+            },
+        )
+
+        from notifications.services import notify_submission_proposal_questioned
+        notify_submission_proposal_questioned(submission, actor=request.user)
+
+        return Response(
+            self.get_serializer(submission).data,
+            status=status.HTTP_200_OK,
+        )
+
     def _validate_proposal_note_update(self, request, submission, note):
         if not note.is_proposal:
             return Response(
@@ -3125,6 +3259,11 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
         if submission.state != 'pending' or not submission.proposed_action:
             return Response(
                 {'detail': 'Proposal notes can only be edited while the proposal is pending.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if submission.proposal_review_status == SubmittedContribution.PROPOSAL_STATUS_QUESTIONED:
+            return Response(
+                {'detail': 'Revise the questioned proposal instead of editing its generated note.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

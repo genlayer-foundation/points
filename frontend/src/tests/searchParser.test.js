@@ -86,6 +86,15 @@ describe("steward search negation", () => {
     expect(paramsFor("proposed-by:none")).toEqual({ proposed_by: "none" });
   });
 
+  it("maps proposal status filters", () => {
+    expect(paramsFor("proposal-status:questioned")).toEqual({
+      proposal_review_status: "questioned",
+    });
+    expect(paramsFor("proposal-status:pending")).toEqual({
+      proposal_review_status: "pending_review",
+    });
+  });
+
   it("supports compound assigned exclusions with repeated or comma values", () => {
     expect(paramsFor("-assigned:unassigned -assigned:Joaquin", stewardOptions)).toEqual({
       exclude_assigned_to: "unassigned,11",

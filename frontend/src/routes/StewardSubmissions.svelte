@@ -639,6 +639,28 @@
     }
   }
 
+  async function handleQuestionProposal(submissionId, message) {
+    processingSubmissions.add(submissionId);
+    processingSubmissions = new Set(processingSubmissions);
+
+    try {
+      const response = await stewardAPI.questionProposal(submissionId, message);
+      const idx = submissions.findIndex(s => s.id === submissionId);
+      if (idx !== -1) {
+        submissions[idx] = response.data;
+        submissions = [...submissions];
+      }
+      await loadNotes(submissionId);
+      showSuccess('Proposal returned to reviewer');
+    } catch (err) {
+      showError('Failed to question proposal: ' + (err.response?.data?.detail || err.response?.data?.message?.[0] || err.message));
+      throw err;
+    } finally {
+      processingSubmissions.delete(submissionId);
+      processingSubmissions = new Set(processingSubmissions);
+    }
+  }
+
   function getSuccessMessage(action) {
     switch(action) {
       case 'accept': return 'Submission accepted successfully';
@@ -939,6 +961,7 @@
             showReviewForm={true}
             onReview={handleReview}
             onPropose={handlePropose}
+            onQuestionProposal={handleQuestionProposal}
             reviewData={reviewData[submission.id]}
             isProcessing={processingSubmissions.has(submission.id)}
             successMessage={''}
