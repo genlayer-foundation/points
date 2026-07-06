@@ -667,6 +667,8 @@ def get_referral_breakdown(user):
         ).values('user_id').annotate(total=Sum('frozen_global_points'))
     }
 
+    from users.utils import truncate_address
+
     referral_list = []
     for referred_user in referred_users_list:
         builder_contribution_points = builder_points_by_user.get(referred_user.id, 0)
@@ -676,7 +678,8 @@ def get_referral_breakdown(user):
         referral_list.append({
             'id': referred_user.id,
             'name': referred_user.name or 'Anonymous',
-            'address': referred_user.address,
+            # Referred users are other participants: truncated form only.
+            'address': truncate_address(referred_user.address),
             'profile_image_url': referred_user.profile_image_url,
             'total_points': total_points,
             'builder_contribution_points': builder_contribution_points,
