@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.conf import settings
-from .models import ValidatorWallet, Validator
+from .models import ValidatorOperatorWallet, ValidatorWallet, Validator
 
 
 def grafana_network_label(network):
@@ -55,6 +55,40 @@ class ValidatorWalletSerializer(serializers.ModelSerializer):
     def get_explorer_url(self, obj):
         network_config = settings.TESTNET_NETWORKS.get(obj.network, {})
         return network_config.get('explorer_url', '')
+
+
+class ValidatorOperatorWalletSerializer(serializers.ModelSerializer):
+    """
+    Serializer for operator wallets claimed by a portal validator profile.
+    """
+    wallet_count = serializers.SerializerMethodField()
+    active_wallet_count = serializers.SerializerMethodField()
+    networks = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ValidatorOperatorWallet
+        fields = [
+            'id',
+            'address',
+            'wallet_count',
+            'active_wallet_count',
+            'networks',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = fields
+
+    def _wallets(self, obj):
+        return ValidatorWallet.objects.filter(operator_address__iexact=obj.address)
+
+    def get_wallet_count(self, obj):
+        return self._wallets(obj).count()
+
+    def get_active_wallet_count(self, obj):
+        return self._wallets(obj).filter(status='active').count()
+
+    def get_networks(self, obj):
+        return sorted(set(self._wallets(obj).values_list('network', flat=True)))
 
 
 class GrafanaValidatorSerializer(serializers.ModelSerializer):

@@ -380,8 +380,7 @@ class GenLayerValidatorsService:
         Returns:
             Dictionary with sync statistics
         """
-        from .models import ValidatorWallet, Validator
-        from users.models import User
+        from .models import ValidatorWallet
 
         sync_start = time.time()
         stats = {
@@ -529,7 +528,7 @@ class GenLayerValidatorsService:
             quarantined_info: Quarantine info if validator is quarantined
             stats: Statistics dictionary to update
         """
-        from .models import ValidatorWallet, Validator
+        from .models import ValidatorOperatorWallet, ValidatorWallet
         from users.models import User
 
         address_lower = address.lower()
@@ -555,16 +554,36 @@ class GenLayerValidatorsService:
                 wallet.operator_address = new_operator_address
                 has_changes = True
 
-        # Try to link to existing Validator model if not already linked
-        # This handles the case where a user creates their profile after their wallet was synced
-        if wallet.operator_address and not wallet.operator:
-            try:
-                user = User.objects.get(address__iexact=wallet.operator_address)
-                if hasattr(user, 'validator'):
-                    wallet.operator = user.validator
-                    has_changes = True
-            except User.DoesNotExist:
-                pass
+        # Resolve portal attribution from claimed operator wallets. If the
+        # operator address is the user's portal login wallet, keep the legacy
+        # auto-link behavior by creating a first-party operator claim.
+        desired_operator = None
+        if wallet.operator_address:
+            operator_link = (
+                ValidatorOperatorWallet.objects
+                .select_related('validator')
+                .filter(address__iexact=wallet.operator_address)
+                .first()
+            )
+            if operator_link:
+                desired_operator = operator_link.validator
+            else:
+                try:
+                    user = User.objects.get(address__iexact=wallet.operator_address)
+                    if hasattr(user, 'validator'):
+                        operator_link, _ = ValidatorOperatorWallet.objects.get_or_create(
+                            address=wallet.operator_address.lower(),
+                            defaults={
+                                'validator': user.validator,
+                            },
+                        )
+                        desired_operator = operator_link.validator
+                except User.DoesNotExist:
+                    pass
+
+        if wallet.operator_id != (desired_operator.id if desired_operator else None):
+            wallet.operator = desired_operator
+            has_changes = True
 
         # Always fetch identity to capture updates
         t0 = time.time()

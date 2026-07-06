@@ -7,15 +7,15 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 
 from utils.throttling import WalletLinkRateThrottle
-from django.shortcuts import get_object_or_404
 from django.db.models import Min, Q, Count
 from django.db import IntegrityError, transaction
 from django.conf import settings
 from django.utils import timezone
 from django.core.cache import cache
-from .models import SyncLock, Validator, ValidatorWallet
+from .models import SyncLock, Validator, ValidatorOperatorWallet, ValidatorWallet
 from .serializers import (
     GrafanaValidatorSerializer,
+    ValidatorOperatorWalletSerializer,
     ValidatorWalletSerializer,
     WallOfShameSerializer,
     grafana_explorer_url,
@@ -203,8 +203,13 @@ class ValidatorViewSet(viewsets.ModelViewSet):
         ).order_by('-created_at')
 
         serializer = ValidatorWalletSerializer(wallets, many=True)
+        operator_wallets = ValidatorOperatorWallet.objects.filter(
+            validator=request.user.validator
+        ).order_by('address')
+        operator_wallet_serializer = ValidatorOperatorWalletSerializer(operator_wallets, many=True)
         return Response({
             'wallets': serializer.data,
+            'operator_wallets': operator_wallet_serializer.data,
             'active_count': wallets.filter(status='active').count(),
             'total_count': wallets.count()
         })
@@ -213,83 +218,74 @@ class ValidatorViewSet(viewsets.ModelViewSet):
             throttle_classes=[WalletLinkRateThrottle])
     def link_by_operator(self, request):
         """
-        Link validator wallets to the current user by operator address.
-        Only available for validators who don't have any wallets linked yet.
+        First-come-first-served operator wallet claim.
 
-        NOTE: linking is first-come-first-served on a public operator address
-        and carries no cryptographic ownership proof; the throttle bounds
-        mass-claiming, and mistaken/abusive links are logged and reversible
-        by staff via the admin.
+        A validator profile can claim multiple operator wallets. Each operator
+        address can only be claimed by one validator profile.
         """
         user = request.user
-
-        # Verify user is a validator
         if not hasattr(user, 'validator'):
             return Response(
-                {'error': 'Only validators can link wallets'},
+                {'error': 'Only validators can link operator wallets'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        validator = user.validator
-
-        # Check user has no linked wallets
-        if ValidatorWallet.objects.filter(operator=validator).exists():
-            return Response(
-                {'error': 'You already have validator wallets linked'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
         operator_address = request.data.get('operator_address', '').strip().lower()
-
-        # Validate format (0x + 40 hex chars)
         if not re.match(r'^0x[a-fA-F0-9]{40}$', operator_address):
             return Response(
                 {'error': 'Invalid Ethereum address format'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Claim atomically: lock the matching wallet rows so two concurrent
-        # requests cannot both pass the "not linked yet" checks and link the
-        # same operator (or give one user two operators).
+        validator = user.validator
         with transaction.atomic():
+            existing_claim = (
+                ValidatorOperatorWallet.objects
+                .select_for_update()
+                .filter(address__iexact=operator_address)
+                .first()
+            )
+            if existing_claim and existing_claim.validator_id != validator.id:
+                return Response(
+                    {'error': 'This operator wallet is already linked to another validator'},
+                    status=status.HTTP_409_CONFLICT
+                )
+
             wallets = (
                 ValidatorWallet.objects
                 .select_for_update()
                 .filter(operator_address__iexact=operator_address)
             )
-
             if not wallets.exists():
                 return Response(
                     {'error': 'No validator wallets found for this operator address'},
                     status=status.HTTP_404_NOT_FOUND
                 )
 
-            # Re-check under the lock that the caller still has no wallets
-            if ValidatorWallet.objects.filter(operator=validator).exists():
+            conflicting_wallet = wallets.exclude(
+                Q(operator__isnull=True) | Q(operator=validator)
+            ).first()
+            if conflicting_wallet:
                 return Response(
-                    {'error': 'You already have validator wallets linked'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # Check if any wallet is already linked to another validator
-            already_linked = wallets.exclude(operator__isnull=True).first()
-            if already_linked:
-                return Response(
-                    {'error': 'This operator address is already linked to another validator'},
+                    {'error': 'A matching validator wallet is linked to another validator'},
                     status=status.HTTP_409_CONFLICT
                 )
 
-            # Link all wallets to this validator
-            count = wallets.update(operator=validator)
+            operator_wallet = existing_claim or ValidatorOperatorWallet.objects.create(
+                validator=validator,
+                address=operator_address,
+            )
+            wallets_linked = wallets.update(operator=validator)
 
         logger.info(
-            "Validator wallet link: user=%s (id=%s) claimed %s wallet(s) for operator %s",
-            user.address, user.id, count, operator_address,
+            "Validator operator wallet claimed: user=%s (id=%s) operator=%s wallets_linked=%s",
+            user.address, user.id, operator_address, wallets_linked,
         )
 
         return Response({
             'success': True,
-            'wallets_linked': count
+            'wallets_linked': wallets_linked,
+            'operator_wallet': ValidatorOperatorWalletSerializer(operator_wallet).data,
         })
 
 

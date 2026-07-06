@@ -89,6 +89,32 @@ class ValidatorWallet(BaseModel):
         return f"ValidatorWallet {self.address[:10]}... ({self.network}/{self.status})"
 
 
+class ValidatorOperatorWallet(BaseModel):
+    """
+    Operator wallet claimed by a validator profile.
+
+    ValidatorWallet.operator_address comes from chain state. This table stores
+    the portal-side first-come-first-served attribution for that operator wallet.
+    """
+    validator = models.ForeignKey(
+        'Validator',
+        on_delete=models.CASCADE,
+        related_name='operator_wallets',
+    )
+    address = models.CharField(max_length=42, unique=True, db_index=True)
+
+    class Meta:
+        ordering = ['address']
+
+    def save(self, *args, **kwargs):
+        if self.address:
+            self.address = self.address.lower()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.address} -> {self.validator_id}"
+
+
 class Validator(NodeVersionMixin, BaseModel):
     """
     Represents a validator with their node version information.

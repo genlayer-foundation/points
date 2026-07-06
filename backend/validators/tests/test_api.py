@@ -1,11 +1,13 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.test import override_settings
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
 from rest_framework import status
 from django.utils import timezone
-from validators.models import SyncLock, Validator
+from validators.genlayer_validators_service import GenLayerValidatorsService
+from validators.models import SyncLock, Validator, ValidatorOperatorWallet, ValidatorWallet
 from validators.views import ValidatorWalletViewSet
 from contributions.models import Category
 
@@ -92,6 +94,153 @@ class ValidatorAPITestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('node_version_asimov', response.data)
         self.assertEqual(response.data['node_version_asimov'], '1.2.3')
+
+
+class ValidatorOperatorWalletLinkTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='validator@example.com',
+            password='testpass123',
+            address='0x1111111111111111111111111111111111111111',
+            name='Validator',
+        )
+        self.validator = Validator.objects.create(user=self.user)
+        self.client.force_authenticate(user=self.user)
+
+    def _claim_operator(self, address):
+        return self.client.post('/api/v1/validators/link-by-operator/', {
+            'operator_address': address,
+        }, format='json')
+
+    def test_operator_wallet_claim_links_matching_wallets_across_networks(self):
+        operator_address = '0x2222222222222222222222222222222222222222'
+        asimov_wallet = ValidatorWallet.objects.create(
+            address='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            network='asimov',
+            operator_address=operator_address,
+            status='active',
+        )
+        bradbury_wallet = ValidatorWallet.objects.create(
+            address='0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            network='bradbury',
+            operator_address=operator_address,
+            status='active',
+        )
+
+        response = self._claim_operator(operator_address)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['wallets_linked'], 2)
+        link = ValidatorOperatorWallet.objects.get(address=operator_address)
+        self.assertEqual(link.validator, self.validator)
+        asimov_wallet.refresh_from_db()
+        bradbury_wallet.refresh_from_db()
+        self.assertEqual(asimov_wallet.operator, self.validator)
+        self.assertEqual(bradbury_wallet.operator, self.validator)
+
+    def test_validator_can_claim_multiple_operator_wallets(self):
+        first = '0x2222222222222222222222222222222222222222'
+        second = '0x3333333333333333333333333333333333333333'
+        ValidatorWallet.objects.create(
+            address='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            network='asimov',
+            operator_address=first,
+            status='active',
+        )
+        ValidatorWallet.objects.create(
+            address='0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            network='bradbury',
+            operator_address=second,
+            status='active',
+        )
+
+        first_response = self._claim_operator(first)
+        second_response = self._claim_operator(second)
+
+        self.assertEqual(first_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(second_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            set(self.validator.operator_wallets.values_list('address', flat=True)),
+            {first, second},
+        )
+
+    def test_operator_wallet_claim_is_first_come_first_served(self):
+        operator_address = '0x2222222222222222222222222222222222222222'
+        other_user = User.objects.create_user(
+            email='other-validator@example.com',
+            password='testpass123',
+            address='0x4444444444444444444444444444444444444444',
+        )
+        other_validator = Validator.objects.create(user=other_user)
+        ValidatorOperatorWallet.objects.create(
+            validator=other_validator,
+            address=operator_address,
+        )
+        ValidatorWallet.objects.create(
+            address='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            network='asimov',
+            operator_address=operator_address,
+            status='active',
+        )
+
+        response = self._claim_operator(operator_address)
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_operator_wallet_claim_requires_existing_synced_wallet(self):
+        response = self._claim_operator('0x2222222222222222222222222222222222222222')
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_sync_uses_claimed_operator_wallet_link(self):
+        link = ValidatorOperatorWallet.objects.create(
+            validator=self.validator,
+            address='0x2222222222222222222222222222222222222222',
+        )
+        service = GenLayerValidatorsService.__new__(GenLayerValidatorsService)
+        service.network_key = 'bradbury'
+        stats = {'rpc_time_operator': 0.0, 'rpc_time_identity': 0.0, 'rpc_time_view': 0.0, 'created': 0, 'updated': 0}
+
+        with patch.object(service, 'fetch_operator_for_wallet', return_value=link.address), \
+                patch.object(service, 'fetch_validator_identity', return_value={'moniker': 'Bradbury One'}), \
+                patch.object(service, 'fetch_validator_view', return_value={'v_stake': '1', 'd_stake': '2'}):
+            service._process_validator(
+                address='0xcccccccccccccccccccccccccccccccccccccccc',
+                is_active=True,
+                banned_info=None,
+                stats=stats,
+            )
+
+        wallet = ValidatorWallet.objects.get(address='0xcccccccccccccccccccccccccccccccccccccccc')
+        self.assertEqual(wallet.network, 'bradbury')
+        self.assertEqual(wallet.operator, self.validator)
+
+    def test_sync_clears_stale_operator_link_when_chain_operator_changes(self):
+        old_operator = self.user.address.lower()
+        wallet = ValidatorWallet.objects.create(
+            address='0xdddddddddddddddddddddddddddddddddddddddd',
+            network='bradbury',
+            operator=self.validator,
+            operator_address=old_operator,
+            status='active',
+        )
+        service = GenLayerValidatorsService.__new__(GenLayerValidatorsService)
+        service.network_key = 'bradbury'
+        stats = {'rpc_time_operator': 0.0, 'rpc_time_identity': 0.0, 'rpc_time_view': 0.0, 'created': 0, 'updated': 0}
+
+        with patch.object(service, 'fetch_operator_for_wallet', return_value='0x3333333333333333333333333333333333333333'), \
+                patch.object(service, 'fetch_validator_identity', return_value=None), \
+                patch.object(service, 'fetch_validator_view', return_value=None):
+            service._process_validator(
+                address=wallet.address,
+                is_active=True,
+                banned_info=None,
+                stats=stats,
+            )
+
+        wallet.refresh_from_db()
+        self.assertEqual(wallet.operator_address, '0x3333333333333333333333333333333333333333')
+        self.assertIsNone(wallet.operator)
 
 
 @override_settings(CRON_SYNC_TOKEN='test-cron-token')
