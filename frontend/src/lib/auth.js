@@ -471,8 +471,16 @@ async function performVerification() {
 
     return isAuthenticated;
   } catch (error) {
-    authState.setAuthenticated(false, null);
-    return false;
+    const status = error.response?.status;
+    if (status && status < 500) {
+      // Definitive rejection: the session is gone.
+      authState.setAuthenticated(false, null);
+      return false;
+    }
+    // Network error / 5xx: the backend couldn't answer, which says nothing
+    // about the session. Keep the current state (often restored from
+    // localStorage) and leave hasVerified unset so a later call retries.
+    return authState.get().isAuthenticated;
   }
 }
 

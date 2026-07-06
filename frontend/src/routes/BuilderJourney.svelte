@@ -242,40 +242,49 @@
     const handlePageHide = () => trackJourneyExit('pagehide');
     window.addEventListener('pagehide', handlePageHide);
 
-    if (!user?.has_builder_welcome && !user?.builder) {
-      journeyAPI
-        .startBuilderJourney()
-        .then((res) => {
-          if (res.data?.user) userStore.updateUser(res.data.user);
-          else userStore.loadUser?.();
-          markFunnelTime('journey_start:builder');
-          markLifecycleTime('first_journey_start:builder');
-          trackEvent('journey_started', getAnalyticsContext({
-            role_context: 'builder',
-            selected_role: 'builder',
-            surface: 'journey',
-            journey_state: 'started',
-            time_from_role_landing_ms: getFunnelDurationMs('role_landing:builder'),
-            time_from_wallet_click_ms: getFunnelDurationMs('wallet_click'),
-            time_from_wallet_auth_success_ms: getFunnelDurationMs('wallet_auth_success'),
-            time_from_profile_completion_ms: getFunnelDurationMs('profile_completion'),
-          }));
-        })
-        .catch((err) => {
-          trackEvent('journey_start_error', getAnalyticsContext({
-            role_context: 'builder',
-            selected_role: 'builder',
-            surface: 'journey',
-            error_stage: err.response?.status ? 'backend' : 'network',
-          }));
-          showWarning('Could not start your builder journey. Try refreshing in a moment.');
-        });
-    }
     loadTasks({ showLoading: true });
     return () => {
       window.removeEventListener('pagehide', handlePageHide);
       trackJourneyExit('route_leave');
     };
+  });
+
+  // Start the journey only once the user profile has actually loaded. The
+  // route can mount before /users/me/ resolves, so this must be reactive (an
+  // onMount check would permanently skip the start marker for direct visits),
+  // and a null user (backend down) must never trigger the mutation.
+  let journeyStartChecked = false;
+  $effect(() => {
+    if (journeyStartChecked || !user) return;
+    journeyStartChecked = true;
+    if (user.has_builder_welcome || user.builder) return;
+    journeyAPI
+      .startBuilderJourney()
+      .then((res) => {
+        if (res.data?.user) userStore.updateUser(res.data.user);
+        else userStore.loadUser?.();
+        markFunnelTime('journey_start:builder');
+        markLifecycleTime('first_journey_start:builder');
+        trackEvent('journey_started', getAnalyticsContext({
+          role_context: 'builder',
+          selected_role: 'builder',
+          surface: 'journey',
+          journey_state: 'started',
+          time_from_role_landing_ms: getFunnelDurationMs('role_landing:builder'),
+          time_from_wallet_click_ms: getFunnelDurationMs('wallet_click'),
+          time_from_wallet_auth_success_ms: getFunnelDurationMs('wallet_auth_success'),
+          time_from_profile_completion_ms: getFunnelDurationMs('profile_completion'),
+        }));
+      })
+      .catch((err) => {
+        trackEvent('journey_start_error', getAnalyticsContext({
+          role_context: 'builder',
+          selected_role: 'builder',
+          surface: 'journey',
+          error_stage: err.response?.status ? 'backend' : 'network',
+        }));
+        showWarning('Could not start your builder journey. Try refreshing in a moment.');
+      });
   });
 
   function isPositiveBalance(result) {
