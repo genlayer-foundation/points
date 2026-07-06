@@ -25,15 +25,10 @@
   async function fetchMissions(category = activeCategory) {
     try {
       loading = true;
-      const response = await contributionsAPI.getMissions({
+      const response = await contributionsAPI.getAllMissions({
         category: category !== 'global' ? category : undefined
       });
-
-      if (response.data?.results !== undefined) {
-        missions = response.data.results || [];
-      } else {
-        missions = response.data || [];
-      }
+      missions = response.data || [];
 
       missions.sort((a, b) => {
         if (!a.end_date && !b.end_date) return 0;

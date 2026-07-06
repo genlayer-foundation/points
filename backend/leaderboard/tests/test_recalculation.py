@@ -123,6 +123,9 @@ class LeaderboardRecalculationTest(TestCase):
                 'description': 'Double points for node running'
             }
         )
+        self.multiplier1.multiplier_value = Decimal('2.0')
+        self.multiplier1.valid_from = timezone.now() - timezone.timedelta(days=30)
+        self.multiplier1.save(update_fields=['multiplier_value', 'valid_from'])
         
         self.multiplier2, _ = GlobalLeaderboardMultiplier.objects.get_or_create(
             contribution_type=self.builder_type,
@@ -132,6 +135,9 @@ class LeaderboardRecalculationTest(TestCase):
                 'description': '1.5x points for builders'
             }
         )
+        self.multiplier2.multiplier_value = Decimal('1.5')
+        self.multiplier2.valid_from = timezone.now() - timezone.timedelta(days=30)
+        self.multiplier2.save(update_fields=['multiplier_value', 'valid_from'])
         
         # Add multipliers for waitlist and validator types too
         GlobalLeaderboardMultiplier.objects.create(
@@ -140,7 +146,7 @@ class LeaderboardRecalculationTest(TestCase):
             valid_from=timezone.now() - timezone.timedelta(days=30),
             description='Standard points for waitlist',
         )
-        
+
         GlobalLeaderboardMultiplier.objects.create(
             contribution_type=self.validator_type,
             multiplier_value=Decimal('1.0'),

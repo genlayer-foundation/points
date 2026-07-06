@@ -380,8 +380,7 @@ class GenLayerValidatorsService:
         Returns:
             Dictionary with sync statistics
         """
-        from .models import ValidatorWallet, Validator
-        from users.models import User
+        from .models import ValidatorWallet
 
         sync_start = time.time()
         stats = {
@@ -529,7 +528,7 @@ class GenLayerValidatorsService:
             quarantined_info: Quarantine info if validator is quarantined
             stats: Statistics dictionary to update
         """
-        from .models import ValidatorWallet, Validator
+        from .models import ValidatorOperatorWallet, ValidatorWallet
         from users.models import User
 
         address_lower = address.lower()
@@ -544,6 +543,8 @@ class GenLayerValidatorsService:
 
         # Track if anything changed
         has_changes = is_new
+        previous_operator_address = (wallet.operator_address or '').lower()
+        operator_address_changed = False
 
         # Always fetch operator address to capture updates (like identity)
         t0 = time.time()
@@ -553,18 +554,50 @@ class GenLayerValidatorsService:
             new_operator_address = operator_address.lower()
             if wallet.operator_address != new_operator_address:
                 wallet.operator_address = new_operator_address
+                operator_address_changed = previous_operator_address != new_operator_address
                 has_changes = True
 
-        # Try to link to existing Validator model if not already linked
-        # This handles the case where a user creates their profile after their wallet was synced
-        if wallet.operator_address and not wallet.operator:
-            try:
-                user = User.objects.get(address__iexact=wallet.operator_address)
-                if hasattr(user, 'validator'):
-                    wallet.operator = user.validator
-                    has_changes = True
-            except User.DoesNotExist:
-                pass
+        # Resolve portal attribution from claimed operator wallets. Preserve an
+        # existing non-claim link only while the on-chain operator address is
+        # unchanged, and back it with a claim so future syncs are explicit.
+        desired_operator = None
+        if wallet.operator_address:
+            claim_address = wallet.operator_address.lower()
+            operator_link = (
+                ValidatorOperatorWallet.objects
+                .select_related('validator')
+                .filter(address=claim_address)
+                .first()
+            )
+            if operator_link:
+                desired_operator = operator_link.validator
+            else:
+                user = (
+                    User.objects
+                    .filter(address__iexact=wallet.operator_address, validator__isnull=False)
+                    .select_related('validator')
+                    .first()
+                )
+                if user:
+                    operator_link, _ = ValidatorOperatorWallet.objects.get_or_create(
+                        address=claim_address,
+                        defaults={
+                            'validator': user.validator,
+                        },
+                    )
+                    desired_operator = operator_link.validator
+                elif wallet.operator_id and not operator_address_changed:
+                    operator_link, _ = ValidatorOperatorWallet.objects.get_or_create(
+                        address=claim_address,
+                        defaults={
+                            'validator': wallet.operator,
+                        },
+                    )
+                    desired_operator = operator_link.validator
+
+        if wallet.operator_id != (desired_operator.id if desired_operator else None):
+            wallet.operator = desired_operator
+            has_changes = True
 
         # Always fetch identity to capture updates
         t0 = time.time()

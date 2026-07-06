@@ -115,12 +115,7 @@
       </div>
     </div>
 
-    <RoleLandingVideo
-      variant="validator"
-      eyebrow="Validator Preview"
-      title="Adjudication in motion"
-      description="Watch the flow for reasoning, verification, and finality before joining the validator path."
-    />
+    <RoleLandingVideo variant="validator" title="Adjudication in motion" />
   </section>
 
   <section class="comparison-section" aria-labelledby="validator-comparison-title">

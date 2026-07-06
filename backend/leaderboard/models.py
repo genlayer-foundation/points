@@ -1,4 +1,6 @@
-from django.db import models, transaction
+import zlib
+
+from django.db import connection, models, transaction
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 from django.conf import settings
@@ -11,6 +13,25 @@ from validators.models import user_has_validator_profile
 from tally.middleware.logging_utils import get_app_logger
 
 logger = get_app_logger('leaderboard')
+
+LEADERBOARD_RANK_LOCK_NAMESPACE = 0x1EADBEEF
+
+
+def _signed_int32(value):
+    return value - 2**32 if value >= 2**31 else value
+
+
+def _lock_leaderboard_rank_update(leaderboard_type):
+    if connection.vendor != 'postgresql':
+        return
+
+    lock_key = _signed_int32(zlib.crc32(leaderboard_type.encode('utf-8')))
+    with connection.cursor() as cursor:
+        cursor.execute(
+            'SELECT pg_advisory_xact_lock(%s, %s)',
+            [LEADERBOARD_RANK_LOCK_NAMESPACE, lock_key],
+        )
+
 
 # Onboarding/journey contribution slugs excluded from referral point calculations.
 # These are signup markers and journey milestones, not actual contribution work.
@@ -388,7 +409,13 @@ class LeaderboardEntry(BaseModel):
         """
         if leaderboard_type not in LEADERBOARD_CONFIG:
             return
-        
+
+        with transaction.atomic():
+            _lock_leaderboard_rank_update(leaderboard_type)
+            cls._update_leaderboard_ranks_unlocked(leaderboard_type)
+
+    @classmethod
+    def _update_leaderboard_ranks_unlocked(cls, leaderboard_type):
         config = LEADERBOARD_CONFIG[leaderboard_type]
         ranking_order = config['ranking_order']
         
@@ -543,7 +570,7 @@ def update_user_leaderboard_entries(user):
     
     # Step 5: Update ranks for all affected leaderboards
     affected_leaderboards = set(qualified_leaderboards) | removed_leaderboards
-    for leaderboard_type in affected_leaderboards:
+    for leaderboard_type in sorted(affected_leaderboards):
         LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
 
 
@@ -578,7 +605,7 @@ def update_leaderboard_on_contribution_delete(sender, instance, **kwargs):
             entry.delete()
         affected_types.add(entry.type)
 
-    for leaderboard_type in affected_types:
+    for leaderboard_type in sorted(affected_types):
         LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
 
     # Mirror the save path: a referred user's contribution also feeds the
@@ -796,7 +823,7 @@ def update_all_ranks():
     Only visible users are ranked. Non-visible users get null rank.
     """
     # Update each leaderboard type
-    for leaderboard_type in LEADERBOARD_CONFIG.keys():
+    for leaderboard_type in sorted(LEADERBOARD_CONFIG.keys()):
         LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
 
 
@@ -1074,7 +1101,7 @@ def recalculate_all_leaderboards():
             LeaderboardEntry.objects.bulk_create(entries_to_create, batch_size=500)
             ReferralPoints.objects.bulk_create(referral_points_to_create, batch_size=500)
 
-            for leaderboard_type in ['validator', 'builder', 'validator-waitlist', 'validator-waitlist-graduation']:
+            for leaderboard_type in sorted(LEADERBOARD_CONFIG.keys()):
                 LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
 
             return (

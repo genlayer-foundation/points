@@ -66,6 +66,26 @@ describe('userStore', () => {
       const finalState = get(userStore);
       expect(finalState.loading).toBe(false);
     });
+
+    it('should share one in-flight request across concurrent callers', async () => {
+      const mockUser = { id: 1, name: 'Concurrent User' };
+      let resolveUser;
+      getCurrentUser.mockImplementation(() => new Promise(resolve => {
+        resolveUser = resolve;
+      }));
+
+      const firstLoad = userStore.loadUser();
+      const secondLoad = userStore.loadUser();
+
+      expect(getCurrentUser).toHaveBeenCalledTimes(1);
+
+      resolveUser(mockUser);
+      await expect(Promise.all([firstLoad, secondLoad])).resolves.toEqual([mockUser, mockUser]);
+
+      const state = get(userStore);
+      expect(state.user).toEqual(mockUser);
+      expect(state.loading).toBe(false);
+    });
   });
 
   describe('updateUser', () => {

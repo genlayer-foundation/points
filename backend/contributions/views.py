@@ -3519,8 +3519,14 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.exclude(start_date__gt=timezone.now())
 
         # Filter by contribution type if specified
-        contribution_type = self.request.query_params.get('contribution_type', None)
-        if contribution_type:
+        contribution_type = self.request.query_params.get('contribution_type')
+        if contribution_type not in (None, ''):
+            try:
+                contribution_type = int(contribution_type)
+            except (TypeError, ValueError) as err:
+                raise serializers.ValidationError({
+                    'contribution_type': 'Must be a valid contribution type id.'
+                }) from err
             queryset = queryset.filter(contribution_type_id=contribution_type)
 
         # Filter by category if specified

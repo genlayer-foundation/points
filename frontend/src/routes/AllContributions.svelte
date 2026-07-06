@@ -489,8 +489,8 @@
     typesLoading = true;
     try {
       const [types, missions] = await Promise.all([
-        contributionsAPI.getContributionTypes().then((r) => r.data.results || r.data),
-        getMissions({ include_inactive: true, page_size: 100 }),
+        contributionsAPI.getAllContributionTypes().then((r) => r.data),
+        getMissions({ include_inactive: true }),
       ]);
       allTypes = Array.isArray(types)
         ? types.filter(isPublicContributionType).sort((a, b) => a.name.localeCompare(b.name))
