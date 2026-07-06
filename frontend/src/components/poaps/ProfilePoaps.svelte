@@ -3,6 +3,7 @@
   import { format } from '../../lib/dates.js';
   import { poapsAPI } from '../../lib/api.js';
   import { authState } from '../../lib/auth.js';
+  import { userStore } from '../../lib/userStore.js';
   import PoapCollectionWall from './PoapCollectionWall.svelte';
 
   /** @type {{ userId?: string | null, limit?: number }} */
@@ -113,8 +114,13 @@
   let canRecover = $derived(Boolean(
     userId &&
     $authState.isAuthenticated &&
-    $authState.address &&
-    String(userId).toLowerCase() === String($authState.address).toLowerCase()
+    (
+      // userId is usually the participant's user id now; fall back to the
+      // own-wallet compare for address-keyed callers.
+      ($userStore.user?.id != null && String(userId) === String($userStore.user.id)) ||
+      ($authState.address &&
+        String(userId).toLowerCase() === String($authState.address).toLowerCase())
+    )
   ));
 
   $effect(() => {
