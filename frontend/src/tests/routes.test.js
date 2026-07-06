@@ -36,15 +36,13 @@ beforeEach(() => {
     } 
   });
   
-  contributionsAPI.getContributionTypes.mockResolvedValue({
-    data: {
-      results: [
-        { id: 1, name: 'Code', description: 'Code contributions' },
-        { id: 2, name: 'Documentation', description: 'Documentation contributions' }
-      ]
-    }
+  contributionsAPI.getAllContributionTypes.mockResolvedValue({
+    data: [
+      { id: 1, name: 'Code', description: 'Code contributions' },
+      { id: 2, name: 'Documentation', description: 'Documentation contributions' }
+    ]
   });
-  
+
   statsAPI.getDashboardStats.mockResolvedValue({
     data: {
       participant_count: 10,

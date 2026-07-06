@@ -12,30 +12,12 @@ function isInvalidQueryValue(value) {
   return value === undefined || value === null || INVALID_QUERY_VALUES.has(value);
 }
 
-function sanitizeQueryValue(value) {
-  if (Array.isArray(value)) {
-    return value.filter(item => !isInvalidQueryValue(item));
-  }
-  return value;
-}
-
+// All callers pass plain-object params; extend if URLSearchParams or array
+// values ever show up.
 function sanitizeRequestParams(params) {
   if (!params) return params;
-
-  if (typeof URLSearchParams !== 'undefined' && params instanceof URLSearchParams) {
-    const nextParams = new URLSearchParams();
-    params.forEach((value, key) => {
-      if (!isInvalidQueryValue(value)) {
-        nextParams.append(key, value);
-      }
-    });
-    return nextParams;
-  }
-
   return Object.fromEntries(
-    Object.entries(params)
-      .filter(([, value]) => !isInvalidQueryValue(value))
-      .map(([key, value]) => [key, sanitizeQueryValue(value)])
+    Object.entries(params).filter(([, value]) => !isInvalidQueryValue(value))
   );
 }
 
@@ -170,14 +152,6 @@ export const contributionsAPI = {
   getContributions: (params) => api.get('/contributions/', { params }),
   getContribution: (id) => api.get(`/contributions/${id}/`),
   getContributionsByUser: (address) => api.get(`/contributions/?user_address=${address}`),
-  getContributionTypes: (params) => {
-    // Contribution type catalogs are small; keep the request bounded.
-    const enhancedParams = {
-      page_size: 50,
-      ...params
-    };
-    return api.get('/contribution-types/', { params: enhancedParams });
-  },
   getAllContributionTypes: (params = {}) =>
     fetchSmallCatalogPages('/contribution-types/', params).then(data => ({ data })),
   getContributionType: (id) => api.get(`/contribution-types/${id}/`),
@@ -190,7 +164,6 @@ export const contributionsAPI = {
   getContributionCount: () => api.get('/leaderboard/stats/').then(res => ({
     data: { count: res.data.contribution_count }
   })),
-  getMissions: (params) => api.get('/missions/', { params }),
   getAllMissions: (params = {}) =>
     fetchSmallCatalogPages('/missions/', params).then(data => ({ data })),
   getMission: (id) => api.get(`/missions/${id}/`),
@@ -498,7 +471,6 @@ export const alertsAPI = {
 
 // Ecosystem Partners API
 export const partnersAPI = {
-  list: (params) => api.get('/partners/', { params }),
   listAll: (params = {}) =>
     fetchSmallCatalogPages('/partners/', params).then(data => ({ data })),
   get: (slug) => api.get(`/partners/${slug}/`),

@@ -107,7 +107,7 @@ class ParticipantsGrowthViewTests(TestCase):
             guild_id=guild_id,
             guild_name=f'Guild {guild_id}',
             status=Mee6SyncRun.STATUS_SUCCESS,
-            page_size=50,
+            page_size=1000,
             pages_fetched=1,
             players_fetched=1,
             matched_players=1,

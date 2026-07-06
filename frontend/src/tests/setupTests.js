@@ -154,9 +154,7 @@ vi.mock('../lib/api', () => {
       getContributions: vi.fn().mockResolvedValue(mockContributionsData),
 	      getContribution: vi.fn().mockResolvedValue({ data: {} }),
 	      getContributionsByUser: vi.fn().mockResolvedValue(mockContributionsData),
-	      getContributionTypes: vi.fn().mockResolvedValue(mockContributionTypes),
 	      getAllContributionTypes: vi.fn().mockResolvedValue({ data: mockContributionTypes.data.results }),
-	      getMissions: vi.fn().mockResolvedValue({ data: { results: [] } }),
 	      getAllMissions: vi.fn().mockResolvedValue({ data: [] }),
 	      getContributionTypeStatistics: vi.fn().mockResolvedValue({ data: {} }),
 	      getContributionCount: vi.fn().mockResolvedValue({ data: { count: 50 } }),
@@ -208,7 +206,6 @@ vi.mock('../lib/api', () => {
 	      getValidatorsStewards: vi.fn().mockResolvedValue({ data: [] })
 	    },
 	    partnersAPI: {
-	      list: vi.fn().mockResolvedValue({ data: [] }),
 	      listAll: vi.fn().mockResolvedValue({ data: [] }),
 	      get: vi.fn().mockResolvedValue({ data: {} })
 	    },

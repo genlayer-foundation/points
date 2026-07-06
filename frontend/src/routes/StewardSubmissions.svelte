@@ -912,7 +912,7 @@
           {currentPage}
           totalItems={totalCount}
           itemsPerPage={pageSize}
-          pageSizeOptions={[10, 25, 50, 100]}
+          pageSizeOptions={[10, 25, 50]}
           showPageSize={true}
           on:pageChange={handlePageChange}
           on:pageSizeChange={handlePageSizeChange}
@@ -999,7 +999,7 @@
           {currentPage}
           totalItems={totalCount}
           itemsPerPage={pageSize}
-          pageSizeOptions={[10, 25, 50, 100]}
+          pageSizeOptions={[10, 25, 50]}
           showPageSize={false}
           on:pageChange={handlePageChange}
           on:pageSizeChange={handlePageSizeChange}

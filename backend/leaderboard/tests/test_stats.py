@@ -177,7 +177,7 @@ class LeaderboardStatsTest(TestCase):
             guild_id='1237055789441487021',
             guild_name='GenLayer',
             status=Mee6SyncRun.STATUS_SUCCESS,
-            page_size=50,
+            page_size=1000,
             pages_fetched=1,
             players_fetched=1,
             matched_players=1,

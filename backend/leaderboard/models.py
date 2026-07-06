@@ -410,13 +410,9 @@ class LeaderboardEntry(BaseModel):
         if leaderboard_type not in LEADERBOARD_CONFIG:
             return
 
-        if connection.vendor == 'postgresql':
-            with transaction.atomic():
-                _lock_leaderboard_rank_update(leaderboard_type)
-                cls._update_leaderboard_ranks_unlocked(leaderboard_type)
-            return
-
-        cls._update_leaderboard_ranks_unlocked(leaderboard_type)
+        with transaction.atomic():
+            _lock_leaderboard_rank_update(leaderboard_type)
+            cls._update_leaderboard_ranks_unlocked(leaderboard_type)
 
     @classmethod
     def _update_leaderboard_ranks_unlocked(cls, leaderboard_type):
