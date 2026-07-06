@@ -91,6 +91,20 @@ export async function getMetaMaskConnectClient() {
 
 export async function getMetaMaskConnectProvider() {
   const client = await getMetaMaskConnectClient();
+  // Drop any persisted session before connecting. When the SDK holds a
+  // session whose wallet side is gone (app reinstalled, session expired,
+  // earlier flow iteration), connect() sends the request over the dead relay
+  // channel and opens a payload-less deeplink: MetaMask foregrounds with
+  // nothing to approve and the promise hangs forever. A fresh pairing embeds
+  // the approval request in the deeplink itself, so the wallet always shows
+  // the prompt. Explicit selection re-prompts anyway (forceRequest below), so
+  // no silent-reconnect UX is lost. Time-boxed because tearing down a dead
+  // session can itself stall on the unreachable relay; on timeout we proceed
+  // and let connect() take its normal path.
+  await Promise.race([
+    client.disconnect().catch(() => {}),
+    new Promise((resolve) => setTimeout(resolve, 3000)),
+  ]);
   try {
     // forceRequest re-prompts even when a persisted session exists, so an
     // explicit MetaMask selection always shows the wallet's account picker
