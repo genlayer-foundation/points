@@ -738,6 +738,14 @@ if (typeof window !== 'undefined') {
       }
     }
   }, 5 * 60 * 1000); // Refresh every 5 minutes
+
+  // The interval skips hidden tabs, so catch up as soon as the tab is visible
+  // again instead of waiting for the next tick.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && authState.get().isAuthenticated) {
+      refreshSession().catch(() => {});
+    }
+  });
 }
 
 export { authState };

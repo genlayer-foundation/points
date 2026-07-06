@@ -79,7 +79,10 @@ async function fetchSmallCatalogPages(endpoint, params = {}) {
     }
   }
 
-  throw new Error(`Small catalog ${endpoint} exceeded ${SMALL_CATALOG_MAX_PAGES} pages`);
+  // Degrade gracefully if a "small" catalog outgrows the cap: partial data
+  // beats crashing every consumer.
+  console.warn(`Small catalog ${endpoint} exceeded ${SMALL_CATALOG_MAX_PAGES} pages; returning the first ${results.length} records`);
+  return results;
 }
 
 // Create axios instance with base configuration

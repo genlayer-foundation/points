@@ -50,7 +50,7 @@ class Command(BaseCommand):
         # when this command's connection closes.
         connection.ensure_connection()
         with connection.cursor() as cursor:
-            cursor.execute(f"SET lock_timeout = '{LOCK_TIMEOUT_SECONDS}s'")
+            cursor.execute(f"SET lock_timeout = '{int(LOCK_TIMEOUT_SECONDS)}s'")
             self.stdout.write('Waiting for PostgreSQL migration advisory lock...')
             cursor.execute(
                 'SELECT pg_advisory_lock(%s, %s)',

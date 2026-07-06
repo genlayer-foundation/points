@@ -38,10 +38,12 @@ class MigrateWithLockCommandTests(SimpleTestCase):
     def run_command(self, connection):
         stdout = StringIO()
         command = Command(stdout=stdout, stderr=StringIO())
-        with patch.object(migrate_with_lock, 'connections', {'default': connection}):
-            with patch.object(migrate_with_lock, 'call_command') as call_command:
-                command.handle(interactive=False, verbosity=1)
-                return call_command, stdout.getvalue()
+        with (
+            patch.object(migrate_with_lock, 'connections', {'default': connection}),
+            patch.object(migrate_with_lock, 'call_command') as call_command,
+        ):
+            command.handle(interactive=False, verbosity=1)
+            return call_command, stdout.getvalue()
 
     def test_non_postgres_runs_migrate_without_lock(self):
         connection = FakeConnection(vendor='sqlite')

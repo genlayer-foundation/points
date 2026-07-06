@@ -3520,10 +3520,10 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
         if contribution_type not in (None, ''):
             try:
                 contribution_type = int(contribution_type)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as err:
                 raise serializers.ValidationError({
                     'contribution_type': 'Must be a valid contribution type id.'
-                })
+                }) from err
             queryset = queryset.filter(contribution_type_id=contribution_type)
 
         # Filter by category if specified
