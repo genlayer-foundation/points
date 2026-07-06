@@ -112,6 +112,11 @@ class ValidatorOperatorWallet(BaseModel):
             self.address = self.address.lower()
         super().save(*args, **kwargs)
 
+    def matching_wallet_count(self):
+        if not self.address:
+            return 0
+        return ValidatorWallet.objects.filter(operator_address=self.address.lower()).count()
+
     def __str__(self):
         return f"{self.address} -> {self.validator_id}"
 

@@ -78,17 +78,25 @@ class ValidatorOperatorWalletSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def _wallets(self, obj):
-        return ValidatorWallet.objects.filter(operator_address__iexact=obj.address)
+    def _wallet_rows(self, obj):
+        cache_name = '_matching_wallet_rows'
+        if not hasattr(obj, cache_name):
+            rows = list(
+                ValidatorWallet.objects
+                .filter(operator_address=obj.address)
+                .values('status', 'network')
+            )
+            setattr(obj, cache_name, rows)
+        return getattr(obj, cache_name)
 
     def get_wallet_count(self, obj):
-        return self._wallets(obj).count()
+        return len(self._wallet_rows(obj))
 
     def get_active_wallet_count(self, obj):
-        return self._wallets(obj).filter(status='active').count()
+        return sum(1 for row in self._wallet_rows(obj) if row['status'] == 'active')
 
     def get_networks(self, obj):
-        return sorted(set(self._wallets(obj).values_list('network', flat=True)))
+        return sorted({row['network'] for row in self._wallet_rows(obj)})
 
 
 class GrafanaValidatorSerializer(serializers.ModelSerializer):

@@ -836,6 +836,7 @@
                       </p>
                     </div>
                     <div class="flex w-full flex-col gap-2 sm:w-[360px] sm:flex-row">
+                      <label for="operatorAddress" class="sr-only">Operator wallet address</label>
                       <input
                         id="operatorAddress"
                         type="text"

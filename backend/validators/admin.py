@@ -1,4 +1,6 @@
 from django.contrib import admin
+from django.db.models import Count, IntegerField, OuterRef, Subquery, Value
+from django.db.models.functions import Coalesce
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
@@ -31,7 +33,7 @@ class ValidatorOperatorWalletInline(admin.TabularInline):
     def wallet_count(self, obj):
         if not obj.pk:
             return '-'
-        return ValidatorWallet.objects.filter(operator_address__iexact=obj.address).count()
+        return obj.matching_wallet_count()
     wallet_count.short_description = 'Matching Wallets'
 
 
@@ -109,8 +111,28 @@ class ValidatorOperatorWalletAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at', 'updated_at')
     ordering = ('address',)
 
+    def get_queryset(self, request):
+        wallet_counts = (
+            ValidatorWallet.objects
+            .filter(operator_address=OuterRef('address'))
+            .values('operator_address')
+            .annotate(count=Count('id'))
+            .values('count')
+        )
+        return super().get_queryset(request).annotate(
+            _matching_wallet_count=Coalesce(
+                Subquery(wallet_counts, output_field=IntegerField()),
+                Value(0),
+            )
+        )
+
     def wallet_count(self, obj):
-        return ValidatorWallet.objects.filter(operator_address__iexact=obj.address).count()
+        if not obj.pk:
+            return '-'
+        annotated_count = getattr(obj, '_matching_wallet_count', None)
+        if annotated_count is not None:
+            return annotated_count
+        return obj.matching_wallet_count()
     wallet_count.short_description = 'Matching Wallets'
 
 

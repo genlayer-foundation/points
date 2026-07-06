@@ -215,6 +215,38 @@ class ValidatorOperatorWalletLinkTests(APITestCase):
         self.assertEqual(wallet.network, 'bradbury')
         self.assertEqual(wallet.operator, self.validator)
 
+    def test_sync_preserves_existing_link_when_operator_unchanged_and_claim_missing(self):
+        operator_address = '0x2222222222222222222222222222222222222222'
+        wallet = ValidatorWallet.objects.create(
+            address='0xdddddddddddddddddddddddddddddddddddddddd',
+            network='bradbury',
+            operator=self.validator,
+            operator_address=operator_address,
+            status='active',
+        )
+        service = GenLayerValidatorsService.__new__(GenLayerValidatorsService)
+        service.network_key = 'bradbury'
+        stats = {'rpc_time_operator': 0.0, 'rpc_time_identity': 0.0, 'rpc_time_view': 0.0, 'created': 0, 'updated': 0}
+
+        with patch.object(service, 'fetch_operator_for_wallet', return_value=operator_address), \
+                patch.object(service, 'fetch_validator_identity', return_value=None), \
+                patch.object(service, 'fetch_validator_view', return_value=None):
+            service._process_validator(
+                address=wallet.address,
+                is_active=True,
+                banned_info=None,
+                stats=stats,
+            )
+
+        wallet.refresh_from_db()
+        self.assertEqual(wallet.operator, self.validator)
+        self.assertTrue(
+            ValidatorOperatorWallet.objects.filter(
+                validator=self.validator,
+                address=operator_address,
+            ).exists()
+        )
+
     def test_sync_clears_stale_operator_link_when_chain_operator_changes(self):
         old_operator = self.user.address.lower()
         wallet = ValidatorWallet.objects.create(

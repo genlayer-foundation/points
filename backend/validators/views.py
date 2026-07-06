@@ -242,7 +242,7 @@ class ValidatorViewSet(viewsets.ModelViewSet):
             existing_claim = (
                 ValidatorOperatorWallet.objects
                 .select_for_update()
-                .filter(address__iexact=operator_address)
+                .filter(address=operator_address)
                 .first()
             )
             if existing_claim and existing_claim.validator_id != validator.id:
@@ -271,10 +271,26 @@ class ValidatorViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_409_CONFLICT
                 )
 
-            operator_wallet = existing_claim or ValidatorOperatorWallet.objects.create(
-                validator=validator,
-                address=operator_address,
-            )
+            if existing_claim:
+                operator_wallet = existing_claim
+            else:
+                try:
+                    with transaction.atomic():
+                        operator_wallet = ValidatorOperatorWallet.objects.create(
+                            validator=validator,
+                            address=operator_address,
+                        )
+                except IntegrityError:
+                    operator_wallet = (
+                        ValidatorOperatorWallet.objects
+                        .select_for_update()
+                        .get(address=operator_address)
+                    )
+                    if operator_wallet.validator_id != validator.id:
+                        return Response(
+                            {'error': 'This operator wallet is already linked to another validator'},
+                            status=status.HTTP_409_CONFLICT
+                        )
             wallets_linked = wallets.update(operator=validator)
 
         logger.info(
