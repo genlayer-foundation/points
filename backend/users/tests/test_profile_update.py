@@ -2,9 +2,14 @@
 
 from django.test import TestCase
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
+
+from contributions.models import Category, Contribution, ContributionType
+from leaderboard.models import GlobalLeaderboardMultiplier, LeaderboardEntry
+from validators.models import Validator
 
 User = get_user_model()
 
@@ -179,6 +184,70 @@ class UserProfileUpdateTests(TestCase):
         self.assertEqual(response.data['email'], '')  # Should be empty string for unverified
         self.assertFalse(response.data['is_email_verified'])
         self.assertEqual(response.data['name'], 'Unverified User')
+
+    def test_validator_graduation_contribution_grants_profile_state(self):
+        """Graduated validators are earned validators, even after a stale relation miss."""
+        validator_category, _ = Category.objects.get_or_create(
+            slug='validator',
+            defaults={'name': 'Validator', 'description': 'Validator contributions'},
+        )
+        waitlist_type, _ = ContributionType.objects.update_or_create(
+            slug='validator-waitlist',
+            defaults={
+                'name': 'Validator Waitlist',
+                'category': validator_category,
+                'min_points': 0,
+                'max_points': 0,
+            },
+        )
+
+        validator_type, _ = ContributionType.objects.update_or_create(
+            slug='validator',
+            defaults={
+                'name': 'Validator',
+                'category': validator_category,
+                'min_points': 1,
+                'max_points': 1,
+            },
+        )
+
+        for contribution_type in [waitlist_type, validator_type]:
+            GlobalLeaderboardMultiplier.objects.create(
+                contribution_type=contribution_type,
+                multiplier_value=1,
+                valid_from=timezone.now() - timezone.timedelta(days=2),
+            )
+
+        # This used to poison the same User instance for later graduation checks.
+        self.assertFalse(hasattr(self.verified_user, 'validator'))
+
+        Contribution.objects.create(
+            user=self.verified_user,
+            contribution_type=waitlist_type,
+            points=0,
+            contribution_date=timezone.now() - timezone.timedelta(days=1),
+        )
+        Contribution.objects.create(
+            user=self.verified_user,
+            contribution_type=validator_type,
+            points=1,
+            contribution_date=timezone.now(),
+        )
+
+        self.assertTrue(Validator.objects.filter(user=self.verified_user).exists())
+        self.assertTrue(
+            LeaderboardEntry.objects.filter(user=self.verified_user, type='validator').exists()
+        )
+        self.assertFalse(
+            LeaderboardEntry.objects.filter(user=self.verified_user, type='validator-waitlist').exists()
+        )
+
+        self.client.force_authenticate(user=self.verified_user)
+        response = self.client.get('/api/v1/users/me/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNotNone(response.data['validator'])
+        self.assertTrue(response.data['has_validator_waitlist'])
     
     def test_unauthenticated_cannot_update_profile(self):
         """Test that unauthenticated users cannot update profiles."""

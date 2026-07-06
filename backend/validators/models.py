@@ -1,5 +1,6 @@
-from django.db import models
 from django.conf import settings
+from django.core.exceptions import FieldDoesNotExist
+from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 from utils.models import BaseModel
 from .node_version import NodeVersionMixin
@@ -109,6 +110,53 @@ class Validator(NodeVersionMixin, BaseModel):
         asimov = self.node_version_asimov or 'Not set'
         bradbury = self.node_version_bradbury or 'Not set'
         return f"{self.user.email} - Asimov: {asimov}, Bradbury: {bradbury}"
+
+
+def get_validator_profile(user, *, trust_cached_missing=False):
+    """Return a user's Validator profile, falling back to the database.
+
+    Reverse OneToOne lookups can be stale on long-lived User instances after an
+    admin action creates the Validator row. Querying by id keeps graduation
+    checks authoritative even when the relation cache says "missing".
+    """
+    user_id = getattr(user, 'id', None)
+    if not user_id:
+        return None
+
+    try:
+        validator_relation = user._meta.get_field('validator')
+    except (AttributeError, FieldDoesNotExist):
+        validator_relation = None
+
+    if validator_relation is not None and validator_relation.is_cached(user):
+        validator = validator_relation.get_cached_value(user)
+        if validator is not None or trust_cached_missing:
+            return validator
+
+    return Validator.objects.filter(user_id=user_id).first()
+
+
+def user_has_validator_profile(user):
+    return get_validator_profile(user) is not None
+
+
+def ensure_validator_profile(user):
+    user_id = getattr(user, 'id', None)
+    if not user_id:
+        return None
+
+    try:
+        with transaction.atomic():
+            validator, _ = Validator.objects.get_or_create(user_id=user_id)
+    except IntegrityError:
+        validator = Validator.objects.get(user_id=user_id)
+
+    try:
+        user._meta.get_field('validator').set_cached_value(user, validator)
+    except (AttributeError, FieldDoesNotExist):
+        pass
+
+    return validator
 
 
 class ValidatorWalletStatusSnapshot(BaseModel):

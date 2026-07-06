@@ -4,6 +4,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Graduated validators now keep their validator profile section instead of being sent back through the validator application journey (10a6fa0a)
+
 - Leaderboards load much faster and builder ranks are contiguous with no gaps; builders whose contributions were added directly by stewards now appear on the board, and every pre-existing builder received the star-the-boilerplate task and its points (11d6b38b)
 
 - Deleting a contribution now updates the owner's leaderboard totals and builder eligibility immediately instead of waiting for the next recalculation (9115c006)

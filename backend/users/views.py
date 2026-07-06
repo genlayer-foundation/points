@@ -93,6 +93,9 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         through /users/me/ rather than through the public directory.
         """
         queryset = User.objects.all()
+        if getattr(self, 'action', None) == 'list':
+            queryset = queryset.select_related('validator', 'builder', 'steward', 'creator')
+
         request_user = self.request.user
 
         if request_user.is_authenticated and request_user.is_staff:
