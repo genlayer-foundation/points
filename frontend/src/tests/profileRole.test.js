@@ -63,4 +63,19 @@ describe("getTopRole", () => {
       badges: [{ category: "validator" }],
     });
   });
+
+  it("labels graduated validators as validators even when waitlist history remains", () => {
+    const result = getTopRole(
+      { validator: {}, has_validator_waitlist: true },
+      {
+        validatorStats: { totalContributions: 0, totalPoints: 0 },
+      },
+    );
+
+    expect(result).toMatchObject({
+      label: "Validator",
+      category: "validator",
+      badges: [{ category: "validator" }],
+    });
+  });
 });

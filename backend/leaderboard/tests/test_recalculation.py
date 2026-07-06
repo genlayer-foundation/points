@@ -134,22 +134,18 @@ class LeaderboardRecalculationTest(TestCase):
         )
         
         # Add multipliers for waitlist and validator types too
-        GlobalLeaderboardMultiplier.objects.get_or_create(
+        GlobalLeaderboardMultiplier.objects.create(
             contribution_type=self.waitlist_type,
-            defaults={
-                'multiplier_value': Decimal('1.0'),
-                'valid_from': timezone.now() - timezone.timedelta(days=30),
-                'description': 'Standard points for waitlist'
-            }
+            multiplier_value=Decimal('1.0'),
+            valid_from=timezone.now() - timezone.timedelta(days=30),
+            description='Standard points for waitlist',
         )
         
-        GlobalLeaderboardMultiplier.objects.get_or_create(
+        GlobalLeaderboardMultiplier.objects.create(
             contribution_type=self.validator_type,
-            defaults={
-                'multiplier_value': Decimal('1.0'),
-                'valid_from': timezone.now() - timezone.timedelta(days=30),
-                'description': 'Standard points for validator'
-            }
+            multiplier_value=Decimal('1.0'),
+            valid_from=timezone.now() - timezone.timedelta(days=30),
+            description='Standard points for validator',
         )
     
     def test_recalculate_all_leaderboards_empty(self):
@@ -237,7 +233,6 @@ class LeaderboardRecalculationTest(TestCase):
             frozen_global_points=1,
             contribution_date=timezone.now()
         )
-        Validator.objects.create(user=self.user1)
         
         # Second recalculation - user should move to validator and graduation
         recalculate_all_leaderboards()
@@ -300,7 +295,6 @@ class LeaderboardRecalculationTest(TestCase):
             frozen_global_points=1,
             contribution_date=timezone.now() - timezone.timedelta(days=5)
         )
-        Validator.objects.create(user=self.user2)
         
         # User 3: Non-visible (should not have ranks)
         self.user3.visible = True
@@ -467,7 +461,6 @@ class LeaderboardRecalculationTest(TestCase):
             frozen_global_points=1,
             contribution_date=timezone.now() - timezone.timedelta(days=2)
         )
-        Validator.objects.create(user=self.user1)
         
         # Recalculate after graduation
         recalculate_all_leaderboards()

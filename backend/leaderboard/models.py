@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.db.models import Sum
 from utils.models import BaseModel
 from contributions.models import ContributionType, Contribution, Category
+from validators.models import user_has_validator_profile
 from tally.middleware.logging_utils import get_app_logger
 
 logger = get_app_logger('leaderboard')
@@ -225,7 +226,7 @@ def calculate_graduation_points(user):
 LEADERBOARD_CONFIG = {
     'validator': {
         'name': 'Validator',
-        'participants': lambda user: hasattr(user, 'validator'),  # Has Validator profile
+        'participants': lambda user: user_has_validator_profile(user),
         'points_calculator': lambda user: calculate_category_points(user, 'validator'),
         'ranking_order': '-total_points',  # Highest points first
     },
@@ -244,7 +245,7 @@ LEADERBOARD_CONFIG = {
         'name': 'Validator Waitlist',
         'participants': lambda user: (
             has_contribution_badge(user, 'validator-waitlist') and
-            not hasattr(user, 'validator')  # Not graduated yet
+            not user_has_validator_profile(user)  # Not graduated yet
         ),
         'points_calculator': lambda user: calculate_waitlist_points(user),
         'ranking_order': '-total_points',
@@ -253,7 +254,7 @@ LEADERBOARD_CONFIG = {
         'name': 'Validator Waitlist Graduation',
         'participants': lambda user: (
             has_contribution_badge(user, 'validator-waitlist') and
-            hasattr(user, 'validator')  # Graduated
+            user_has_validator_profile(user)  # Graduated
         ),
         'points_calculator': lambda user: calculate_graduation_points(user),
         'ranking_order': '-graduation_date',  # Most recent graduations first
@@ -835,9 +836,12 @@ def recalculate_all_leaderboards():
 
             initial_builders_set = set(Builder.objects.values_list('user_id', flat=True))
             user_builder_contribs = defaultdict(list)
+            graduated_validator_user_ids = set()
             for contrib in initial_contributions:
                 if _is_eligible_builder_contribution(contrib):
                     user_builder_contribs[contrib['user_id']].append(contrib['contribution_date'])
+                if contrib['contribution_type__slug'] == 'validator':
+                    graduated_validator_user_ids.add(contrib['user_id'])
 
             for user_id, dates in user_builder_contribs.items():
                 if user_id not in initial_builders_set:
@@ -847,6 +851,19 @@ def recalculate_all_leaderboards():
                         ensure_builder_status(user, earliest_date)
                     except User.DoesNotExist:
                         pass
+
+            if graduated_validator_user_ids:
+                existing_validator_user_ids = set(
+                    Validator.objects.filter(user_id__in=graduated_validator_user_ids)
+                    .values_list('user_id', flat=True)
+                )
+                missing_validator_user_ids = (
+                    graduated_validator_user_ids - existing_validator_user_ids
+                )
+                Validator.objects.bulk_create(
+                    [Validator(user_id=user_id) for user_id in missing_validator_user_ids],
+                    ignore_conflicts=True,
+                )
 
             # Load all contribution data (including newly created)
             contributions = list(Contribution.objects.select_related(
