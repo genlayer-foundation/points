@@ -115,6 +115,28 @@
     }
   }
 
+  function handleSubmitContribution() {
+    trackEvent('submit_contribution_click', getAnalyticsContext({
+      surface: 'sidebar',
+    }));
+
+    if ($authState.isAuthenticated) {
+      push('/submit-contribution');
+    } else {
+      setConnectWalletIntent({
+        surface: 'sidebar',
+        cta_id: 'submit_contribution',
+      });
+      sessionStorage.setItem('redirectAfterLogin', '/submit-contribution');
+      const authButton = document.querySelector('[data-auth-button]');
+      if (authButton) authButton.click();
+    }
+
+    if (window.innerWidth < 768) {
+      isOpen = false;
+    }
+  }
+
   // A signed-in user who has not earned this category's role: the role's
   // subsections are shown but locked.
   function isRoleLocked(category) {
@@ -1043,6 +1065,13 @@
         <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
       </svg>
       <span class="text-[14px] font-medium tracking-[0.28px] {isActive('/how-it-works') ? 'text-[#6D5DD3]' : 'text-[#656567]'}">How it works</span>
+    </button>
+    <button
+      onclick={handleSubmitContribution}
+      class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-left {isActive('/submit-contribution') ? 'bg-[#eeedfb]' : 'hover:bg-[#f5f5f5]'}"
+    >
+      <img src="/assets/icons/add-line-sidebar.svg" alt="" class="w-4 h-4 flex-shrink-0">
+      <span class="text-[14px] font-medium tracking-[0.28px] {isActive('/submit-contribution') ? 'text-[#6D5DD3]' : 'text-[#656567]'}">Submit Contribution</span>
     </button>
     {#if $authState.isAuthenticated}
       <button
