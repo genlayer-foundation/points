@@ -82,7 +82,10 @@
   @media (max-width: 767px) {
     .submit-contribution-route {
       max-width: 100%;
-      overflow-x: hidden;
+      /* clip, not hidden: overflow-x hidden computes overflow-y to auto,
+         making this wrapper a scroll container that cuts the type dropdown
+         at the route's bottom edge (see frontend/CLAUDE.md, Common Issues) */
+      overflow-x: clip;
       padding: 20px 12px 28px;
     }
 
