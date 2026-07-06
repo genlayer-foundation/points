@@ -85,8 +85,8 @@
 			if (onlySubmittable && !stewardMode) {
 				params.is_submittable = 'true';
 			}
-			const response = await contributionsAPI.getContributionTypes(params);
-			contributionTypes = response.data.results || response.data;
+			const response = await contributionsAPI.getAllContributionTypes(params);
+			contributionTypes = response.data || [];
 
 			// Fetch missions for all types in current category
 			await loadMissions();

@@ -31,7 +31,6 @@ set -e
 SERVICE_NAME=${1:-tally-backend}
 VPC_CONNECTOR_ARN=${2:-}
 REGION=${AWS_DEFAULT_REGION:-us-east-1}
-APP_RUNNER_RUN_MIGRATIONS_ON_STARTUP=${APP_RUNNER_RUN_MIGRATIONS_ON_STARTUP:-true}
 
 # Extract SSM parameter prefix from service name (remove -backend suffix)
 SSM_PREFIX="/${SERVICE_NAME%-backend}"
@@ -44,7 +43,6 @@ else
     echo "Note: Database connectivity will use App Runner's external networking"
 fi
 echo "Using SSM parameter prefix: $SSM_PREFIX"
-echo "App Runner RUN_MIGRATIONS_ON_STARTUP: $APP_RUNNER_RUN_MIGRATIONS_ON_STARTUP"
 
 # Get AWS account ID
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -190,8 +188,7 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
         "Port": "8000",
         "RuntimeEnvironmentVariables": {
           "PYTHONPATH": "/app",
-          "DJANGO_SETTINGS_MODULE": "tally.settings",
-          "RUN_MIGRATIONS_ON_STARTUP": "$APP_RUNNER_RUN_MIGRATIONS_ON_STARTUP"
+          "DJANGO_SETTINGS_MODULE": "tally.settings"
         },
         "RuntimeEnvironmentSecrets": {
           "SECRET_KEY": "$SSM_PREFIX/prod/secret_key",
@@ -306,8 +303,7 @@ else
         "Port": "8000",
         "RuntimeEnvironmentVariables": {
           "PYTHONPATH": "/app",
-          "DJANGO_SETTINGS_MODULE": "tally.settings",
-          "RUN_MIGRATIONS_ON_STARTUP": "$APP_RUNNER_RUN_MIGRATIONS_ON_STARTUP"
+          "DJANGO_SETTINGS_MODULE": "tally.settings"
         },
         "RuntimeEnvironmentSecrets": {
           "SECRET_KEY": "$SSM_PREFIX/prod/secret_key",
