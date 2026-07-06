@@ -166,9 +166,7 @@
       const authButton = document.querySelector('[data-auth-button]');
       if (authButton) authButton.click();
     }
-    if (window.innerWidth < 768) {
-      isOpen = false;
-    }
+    closeMobileSidebar();
   }
 
   // Check if a route is active
@@ -197,9 +195,7 @@
     currentCategory.set(category);
     trackSidebarNav(path, { roleContext: roleContextForCategory(category) });
     push(path);
-    if (window.innerWidth < 768) {
-      isOpen = false;
-    }
+    closeMobileSidebar();
   }
 
   // Shorten address for display
