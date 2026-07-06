@@ -1,33 +1,31 @@
-<script>
-  import { push } from 'svelte-spa-router';
-</script>
-
-<div class="min-h-full bg-white px-4 py-16 sm:px-6 sm:py-24 md:grid md:place-items-center lg:px-8">
-  <div class="max-w-max mx-auto">
-    <main class="sm:flex">
-      <p class="text-4xl font-extrabold text-primary-600 sm:text-5xl">404</p>
-      <div class="sm:ml-6">
-        <div class="sm:border-l sm:border-gray-200 sm:pl-6">
-          <h1 class="text-4xl font-extrabold text-gray-900 tracking-tight sm:text-5xl">Page not found</h1>
-          <p class="mt-1 text-base text-gray-500">Please check the URL in the address bar and try again.</p>
-        </div>
-        <div class="mt-10 flex gap-3 sm:border-l sm:border-transparent sm:pl-6">
-          <a 
-            href="/" 
-            onclick={(e) => { e.preventDefault(); push('/'); }}
-            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-          >
-            Go back home
-          </a>
-          <a 
-            href="/contributions" 
-            onclick={(e) => { e.preventDefault(); push('/contributions'); }}
-            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-700 bg-primary-100 hover:bg-primary-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-          >
-            View contributions
-          </a>
-        </div>
-      </div>
-    </main>
+<div class="flex min-h-[70vh] items-center justify-center px-4 py-16 sm:px-6">
+  <div class="max-w-xl text-center">
+    <p class="font-mono text-xs uppercase tracking-[0.8px] text-[#6b6b6b] mb-4 flex items-center justify-center gap-2">
+      <span class="h-2 w-2 rounded-full bg-[#131214]" aria-hidden="true"></span>
+      Error 404
+    </p>
+    <h1 class="font-display text-6xl md:text-[96px] font-medium text-gray-900 leading-none mb-4" style="letter-spacing: -1.92px;">
+      Lost in the network
+    </h1>
+    <p class="mx-auto mb-8 max-w-md text-base leading-6 text-[#6b6b6b]">
+      This page doesn't exist or has moved. Check the URL, or head back to the Portal.
+    </p>
+    <div class="flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
+      <a
+        href="/"
+        class="inline-flex h-12 w-full max-w-[280px] items-center justify-center gap-2 rounded-full px-8 text-base font-medium text-white transition-colors hover:opacity-90 sm:w-auto bg-[#131214]"
+      >
+        Back to home
+      </a>
+      <a
+        href="/all-contributions"
+        class="inline-flex h-12 w-full max-w-[280px] items-center justify-center gap-2 rounded-full border border-[#e0e0e0] px-8 text-base font-medium text-[#131214] transition-colors hover:bg-gray-50 sm:w-auto"
+      >
+        Explore contributions
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+        </svg>
+      </a>
+    </div>
   </div>
 </div>
