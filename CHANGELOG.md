@@ -4,6 +4,10 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- The Submit Contribution type and mission dropdown now opens fully visible on mobile instead of being clipped by the form, and no longer hides behind the Linked Project panel when changing a milestone type (8f2a1dc3)
+
+- Connecting with MetaMask recovers from stale sessions: selecting MetaMask always starts a fresh pairing, so the approval prompt reliably appears in the MetaMask mobile app instead of the app opening with nothing to sign (69870fc7)
+
 - Role landing videos now show a clean player with just the play button and control bar, without the title and description overlay (5a4f7dc1)
 
 - Members are no longer treated as newcomers when the backend is briefly down or overloaded: the portal keeps your session and role, stops bouncing you to the start of your journey, and no longer restarts a journey it could not verify (047191c1)
