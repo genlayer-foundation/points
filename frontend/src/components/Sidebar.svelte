@@ -1055,14 +1055,14 @@
       </svg>
       <span class="text-[14px] font-medium tracking-[0.28px] {isActive('/how-it-works') ? 'text-[#6D5DD3]' : 'text-[#656567]'}">How it works</span>
     </button>
-    <button
-      onclick={handleSubmitContribution}
-      class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-left {isActive('/submit-contribution') ? 'bg-[#eeedfb]' : 'hover:bg-[#f5f5f5]'}"
-    >
-      <img src="/assets/icons/add-line-sidebar.svg" alt="" class="w-4 h-4 flex-shrink-0">
-      <span class="text-[14px] font-medium tracking-[0.28px] {isActive('/submit-contribution') ? 'text-[#6D5DD3]' : 'text-[#656567]'}">Submit Contribution</span>
-    </button>
     {#if $authState.isAuthenticated}
+      <button
+        onclick={handleSubmitContribution}
+        class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-left {isActive('/submit-contribution') ? 'bg-[#eeedfb]' : 'hover:bg-[#f5f5f5]'}"
+      >
+        <img src="/assets/icons/add-line-sidebar.svg" alt="" class="w-4 h-4 flex-shrink-0">
+        <span class="text-[14px] font-medium tracking-[0.28px] {isActive('/submit-contribution') ? 'text-[#6D5DD3]' : 'text-[#656567]'}">Submit Contribution</span>
+      </button>
       <button
         onclick={() => navigate('/my-submissions')}
         class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors text-left"

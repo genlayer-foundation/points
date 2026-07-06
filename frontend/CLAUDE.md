@@ -909,6 +909,9 @@ $location // reactive store with current path
 ### Issue: State not reactive
 **Solution**: Use `$state()` for reactive variables
 
+### Issue: Absolutely-positioned dropdown gets clipped by a container
+**Solution**: `overflow-x: hidden` on an ancestor forces its computed `overflow-y` to `auto`, silently turning it into a scroll container that clips/scrolls absolutely-positioned descendants (this hid the Submit Contribution type dropdown on mobile). Use `overflow-x: clip` instead — it clips horizontal bleed without capturing vertical overflow. Also mind stacking: panels with `z-20` (e.g. the linked-project panel) paint over lower-z dropdowns in the same stacking context; dropdown menus use `z-[60]`.
+
 ## File Creation Guidelines
 - Pages go in `src/routes/`
 - Reusable components in `src/components/`
