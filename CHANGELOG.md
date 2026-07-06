@@ -4,6 +4,12 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Role landing videos now show a clean player with just the play button and control bar, without the title and description overlay (5a4f7dc1)
+
+- Members are no longer treated as newcomers when the backend is briefly down or overloaded: the portal keeps your session and role, stops bouncing you to the start of your journey, and no longer restarts a journey it could not verify (047191c1)
+
+- The 404 page was redesigned to match the portal branding, with clear paths back to the home page and the contributions explorer (e43815d0)
+
 - Graduated validators now keep their validator profile section instead of being sent back through the validator application journey (10a6fa0a)
 
 - Leaderboards load much faster and builder ranks are contiguous with no gaps; builders whose contributions were added directly by stewards now appear on the board, and every pre-existing builder received the star-the-boilerplate task and its points (11d6b38b)
