@@ -4,6 +4,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- The Submit Contribution type and mission dropdown on mobile now overlaps the page content below it instead of being cut off at the bottom of the page container (73d4e752)
+
 - The Submit Contribution type and mission dropdown now opens fully visible on mobile instead of being clipped by the form, and no longer hides behind the Linked Project panel when changing a milestone type (8f2a1dc3)
 
 - The mobile sidebar only shows the Submit Contribution shortcut to signed-in users (246306a0)
