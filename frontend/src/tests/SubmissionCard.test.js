@@ -326,6 +326,74 @@ describe('SubmissionCard', () => {
     });
   });
 
+  it('shows the proposal overall reason in the existing project rubric', async () => {
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          has_proposal: true,
+          proposed_action: 'accept',
+          proposed_by: 21,
+          proposed_by_details: { name: 'Proposal Reviewer' },
+          proposed_user_details: {
+            id: 9,
+            name: 'Project Builder',
+            address: '0x1234567890abcdef',
+            display_name: 'Project Builder'
+          },
+          rubric_review: {
+            action: 'accept',
+            confidence: 'high',
+            gate_failures: [],
+            sections: {
+              genlayer_fit: { score: 4, reason: 'Strong fit because the contract adjudicates a contested outcome.' },
+              contract_quality: { score: 3, reason: '' },
+              engineering: { score: 4, reason: 'The repository builds and includes useful docs.' },
+              frontend_ux: { score: 2, reason: '' }
+            },
+            extras: ['live_deployment'],
+            overall_reason: 'The proposal has enough evidence to accept.'
+          }
+        }),
+        showReviewForm: true,
+        onReview: vi.fn(),
+        onPropose: vi.fn(),
+        reviewData: {
+          action: 'accept',
+          user: 9,
+          contribution_type: 7,
+          points: 0,
+          staff_reply: ''
+        },
+        permissions: {
+          7: ['accept', 'reject', 'propose']
+        },
+        contributionTypes: [
+          {
+            id: 7,
+            name: 'Builder Project',
+            category: 'builder',
+            min_points: 0,
+            max_points: 100,
+            review_flow: 'builder_project',
+            rubric_extra_points: 2
+          }
+        ],
+        multipliers: { 7: 1 },
+        templates: [],
+        notes: [],
+        currentUserId: 21,
+        enableRubricReview: true
+      }
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Project rubric')).toBeTruthy();
+      expect(screen.getByText('Overall reason')).toBeTruthy();
+      expect(screen.getByText('The proposal has enough evidence to accept.')).toBeTruthy();
+    });
+    expect(screen.queryByText('Proposal evaluation')).toBeNull();
+  });
+
   it('shows the builder project rubric as a direct accept evaluation without criterion reasons', async () => {
     render(SubmissionCard, {
       props: {
