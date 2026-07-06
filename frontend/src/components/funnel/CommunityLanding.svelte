@@ -90,12 +90,7 @@
       </div>
     </div>
 
-    <RoleLandingVideo
-      variant="community"
-      eyebrow="Creator Preview"
-      title="Contribution becomes reputation"
-      description="See how community actions, tasks, and verified work show up inside the Portal."
-    />
+    <RoleLandingVideo variant="community" title="Contribution becomes reputation" />
   </section>
 
   <section class="feature-section" aria-labelledby="community-contribution-title">
