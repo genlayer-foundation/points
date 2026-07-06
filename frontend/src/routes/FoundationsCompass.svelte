@@ -87,7 +87,7 @@
         </div>
       </header>
 
-      <!-- BENTO STAT TILES — set 1 -->
+      <!-- BENTO STAT TILES - set 1 -->
       <section class="bento reveal-stagger" aria-label="Key figures">
         <div class="stat stat-dark stat-wide">
           <span class="stat-eyebrow">Agentic economy</span>
@@ -102,7 +102,7 @@
         <div class="stat stat-lav">
           <span class="stat-eyebrow">International average</span>
           <span class="stat-num">657 days</span>
-          <span class="stat-label">The international average resolution time &mdash; latency designed for human speed.</span>
+          <span class="stat-label">The international average resolution time - latency designed for human speed.</span>
         </div>
       </section>
 
@@ -120,7 +120,7 @@
             <p>Read the specifications of the agentic-commerce stack as it is being released right now. x402 has no formal dispute mechanism. ERC-8004: adjudication is managed by specific validation protocols. A2A: dispute resolution is not defined within the protocol.</p>
             <p>These are not opinions. They are the published specifications of three foundational standards of the emerging stack: the payment layer (Coinbase&rsquo;s x402), the trustless-agent identity and reputation layer (ERC-8004), and the agent interoperability layer (Google&rsquo;s A2A, now under the Linux Foundation). Read them. Notice what is missing.</p>
 
-            <p>GenLayer is the adjudication layer for the agentic-commerce stack: machine-speed judgment when a transaction becomes ambiguous or contested. Internet Court &mdash; one of our own initiatives &mdash; is the open standard and agent skill that connects these layers into a full transaction path: discovery, negotiation, contracts, payment, escrow, execution, verification, and disputes, with GenLayer as its adjudication layer.</p>
+            <p>GenLayer is the adjudication layer for the agentic-commerce stack: machine-speed judgment when a transaction becomes ambiguous or contested. Internet Court - one of our own initiatives - is the open standard and agent skill that connects these layers into a full transaction path: discovery, negotiation, contracts, payment, escrow, execution, verification, and disputes, with GenLayer as its adjudication layer.</p>
 
             <div class="diagram">
               <div class="diagram-title">The agentic-commerce stack, 2026</div>
@@ -153,13 +153,13 @@
                   <div class="ic-row ic-row-genlayer">
                     <span class="ic-no">06</span>
                     <div class="ic-block"><span class="ic-name">Verification &amp; disputes</span><span class="ic-std"><strong>GenLayer</strong> &middot; Kleros &middot; UMA</span></div>
-                    <span class="ic-tag">GenLayer &mdash; the judgment layer</span>
+                    <span class="ic-tag">GenLayer - the judgment layer</span>
                   </div>
                 </div>
               </div>
               <p class="diagram-cap">GenLayer is the adjudication layer that makes the stack safe when something goes wrong. Internet Court connects the full path around it.</p>
             </div>
-            <p>Every layer of the stack has been engineered with extraordinary care to handle the moment when everything goes right. None of the layers handles the moment when something goes wrong. The payment goes through. The job is accepted. The reputation is updated. The identity is established. And then a single dispute appears &mdash; over a delivered specification, an interpreted clause, a missed deadline &mdash; and the entire stack reaches for a function it does not yet have.</p>
+            <p>Every layer of the stack has been engineered with extraordinary care to handle the moment when everything goes right. None of the layers handles the moment when something goes wrong. The payment goes through. The job is accepted. The reputation is updated. The identity is established. And then a single dispute appears - over a delivered specification, an interpreted clause, a missed deadline - and the entire stack reaches for a function it does not yet have.</p>
             <p>That function is <strong>adjudication</strong>. Not adjudication in the narrow courtroom sense. Not a sovereign court. Not a replacement for every legal system. Adjudication in the deeper sense: a credible mechanism for evaluating contested commitments, weighing evidence, interpreting language, reaching a judgment, and attaching consequences to it.</p>
             <p>By 2030, AI agents will be running businesses, managing portfolios, signing contracts, and making deals at a velocity and volume the existing legal system cannot survive. They will outnumber human transactors by orders of magnitude. They will negotiate across jurisdictions that do not recognize their existence. They will disagree. They will disagree at machine speed. They will disagree about things that matter. And when they do, they will find that the system that was supposed to resolve their disagreements was built for parties with bodies, addresses, and a finite tolerance for waiting.</p>
             <p>The agents have none of those.</p>
@@ -180,11 +180,11 @@
           <div class="prose">
             <h3>The technology we forgot we invented</h3>
             <p>There is a sentence at the heart of every meaningful exchange in human history. <em>I trust you.</em> It is the most valuable sentence in business and in love. It clears friction. It unlocks credit. It compresses due diligence. It makes cooperation feel inevitable. It is also the most fragile sentence we know how to say, because the moment it is said, the speaker hands a piece of their uncertainty over to someone else and stands exposed. Trusting means becoming vulnerable.</p>
-            <p>We call this &ldquo;trust&rdquo;, but the word obscures what it actually is. Trust is not a feeling. It is a technology &mdash; a piece of social machinery that human beings have been quietly engineering for the entire history of our species. The German sociologist Niklas Luhmann, in his 1968 monograph <em>Vertrauen</em>, put it most precisely: trust is &ldquo;a mechanism for the reduction of social complexity.&rdquo; It is the operating system that makes action possible in a world too complicated to verify in full.</p>
+            <p>We call this &ldquo;trust&rdquo;, but the word obscures what it actually is. Trust is not a feeling. It is a technology - a piece of social machinery that human beings have been quietly engineering for the entire history of our species. The German sociologist Niklas Luhmann, in his 1968 monograph <em>Vertrauen</em>, put it most precisely: trust is &ldquo;a mechanism for the reduction of social complexity.&rdquo; It is the operating system that makes action possible in a world too complicated to verify in full.</p>
             <p>Without trust, life becomes computationally intractable. Every breakfast becomes a negotiation. Every transaction becomes a lawsuit. Every stranger becomes a threat. Trust is what lets us put down our defenses long enough to build anything at all. And like any technology, trust evolves.</p>
 
             <h3>The physics of trust</h3>
-            <p>Trust is what you fall back on when you cannot verify. The amount of trust required for any action is directly proportional to the entropy of that action &mdash; the amount of unknown the actor must absorb.</p>
+            <p>Trust is what you fall back on when you cannot verify. The amount of trust required for any action is directly proportional to the entropy of that action - the amount of unknown the actor must absorb.</p>
             <p>If two people are betting on the result of a coin flip, they need to trust each other to honor the outcome. If they are running the same flip through a public, mathematically provable random function, they need to trust nothing at all.</p>
             <p>This gives us what we will call the physics of trust: <strong>as verifiability rises, the requirement for trust falls.</strong> Where mathematical proof is possible, trust is no longer needed, only verification. Where proof is impossible, trust is the only mechanism available.</p>
             <p>Most of the world lives in the second category. Most agreements are not coin flips. Most agreements are interpretations of incomplete information by parties who will inevitably disagree about what was agreed.</p>
@@ -209,7 +209,7 @@
             </div>
           </div>
 
-          <!-- BENTO STAT TILES — trust history -->
+          <!-- BENTO STAT TILES - trust history -->
           <div class="bento reveal-stagger" aria-label="Trust milestones">
             <div class="stat">
               <span class="stat-eyebrow">Consulate of the Sea</span>
@@ -233,12 +233,12 @@
             </div>
           </div>
 
-          <!-- SEVEN LAYERS — feature grid -->
+          <!-- SEVEN LAYERS - feature grid -->
           <div class="layers-grid reveal-stagger" aria-label="The seven layers of trust">
             <div class="layer">
               <div class="layer-head"><span class="layer-no">I</span><h5>Personal trust</h5></div>
               <span class="layer-tag">Direct memory &middot; repeated interaction</span>
-              <p>The original layer. Trust based on direct memory, repeated interactions, and human biases. Limited by what the evolutionary anthropologist Robin Dunbar measured as the cognitive ceiling of human relationships &mdash; roughly 150 people. You trust your family, your tribe, your closest friends because you have a body to share, a face to read, and a memory of every prior interaction. Beyond these limits, this layer fails completely.</p>
+              <p>The original layer. Trust based on direct memory, repeated interactions, and human biases. Limited by what the evolutionary anthropologist Robin Dunbar measured as the cognitive ceiling of human relationships - roughly 150 people. You trust your family, your tribe, your closest friends because you have a body to share, a face to read, and a memory of every prior interaction. Beyond these limits, this layer fails completely.</p>
             </div>
 
             <div class="layer">
@@ -269,7 +269,7 @@
             <div class="layer">
               <div class="layer-head"><span class="layer-no">VI</span><h5>Cryptographic trust</h5></div>
               <span class="layer-tag">Trust replaced by proof &middot; deterministic systems</span>
-              <p>In 2008, Satoshi Nakamoto did something none of the previous five layers had done: he wrote a system in which trust could be replaced by proof. Building on the work of Leslie Lamport on Byzantine generals, Ralph Merkle on hash trees, and decades of distributed-systems research, Bitcoin made it possible to coordinate value across the internet without trusting any of the participants &mdash; only the math.</p>
+              <p>In 2008, Satoshi Nakamoto did something none of the previous five layers had done: he wrote a system in which trust could be replaced by proof. Building on the work of Leslie Lamport on Byzantine generals, Ralph Merkle on hash trees, and decades of distributed-systems research, Bitcoin made it possible to coordinate value across the internet without trusting any of the participants - only the math.</p>
               <p>It was also the moment we discovered the limit of cryptographic trust: it works only for things that can be expressed deterministically. Bitcoin can prove that a coin moved. It cannot prove that a contract was breached. It cannot read a clause, weigh the evidence, or interpret a phrase like &ldquo;reasonable efforts&rdquo; or &ldquo;force majeure.&rdquo;</p>
             </div>
 
@@ -277,7 +277,7 @@
               <div class="layer-head"><span class="layer-no">VII</span><h5>AI trust</h5></div>
               <span class="layer-tag">Machine interpretation &middot; AI-mediated judgment</span>
               <p>Trust grounded in machine interpretation, AI-mediated judgment, and systems that can evaluate language, evidence, and ambiguity at a scale and speed human institutions cannot match. Where cryptographic trust replaced trust with proof for deterministic systems, AI trust extends the trust stack into cases where proof alone is not enough: contracts written in natural language, disputed outcomes, contextual evidence, and questions that require judgment rather than calculation.</p>
-              <p>This layer will take many forms &mdash; centralized and decentralized, proprietary and open, permissioned and permissionless. GenLayer is one specific implementation inside it: a trustless adjudication protocol for the agentic economy.</p>
+              <p>This layer will take many forms - centralized and decentralized, proprietary and open, permissioned and permissionless. GenLayer is one specific implementation inside it: a trustless adjudication protocol for the agentic economy.</p>
             </div>
           </div>
 
@@ -298,7 +298,7 @@
             <p><strong>GenLayer is not a mechanism for asking the world to trust a new intermediary. It is a mechanism for reducing how much trust any one intermediary needs to be given in the first place.</strong></p>
             <p>The distinction matters. A trust mechanism asks the participants to extend confidence to a system, an institution, or a counterparty. A substitution mechanism removes the need for that confidence entirely. Bitcoin substituted trust in central banks with trust in math. Ethereum substituted trust in legal contracts with trust in code. GenLayer extends that logic into adjudication: a decentralized, AI-mediated mechanism in which judgment is reached through process rather than unilateral authority.</p>
             <p>This is what the seventh layer looks like in practice. Validators powered by diverse large language models, selected at random, reach majority agreement on whether a non-deterministic claim is true, with appeals, escalation, and finality enforced by cryptography. Where Bitcoin reached consensus on the order of transactions, GenLayer reaches consensus on the meaning of transactions. Where Ethereum reached consensus on the execution of code, GenLayer reaches consensus on the interpretation of language. The Equivalence Principle, the technical primitive at the core of GenLayer, is the formal expression of the following: that two answers can be different and yet still be the same.</p>
-            <p>This is, we think, the most important property a trust technology can have. The world is not deterministic. It&rsquo;s not black or white. Every existing infrastructure for adjudication &mdash; every court, every arbitration panel, every escrow service &mdash; is in some way a hand-crafted, jurisdiction-dependent, slow attempt to perform the kind of judgment that GenLayer can perform automatically, in minutes, at internet scale, for anyone in the world. And the world about to come online is the one with the most need for it: an economy in which the parties have no bodies, no patience, and no shared courtroom to walk into.</p>
+            <p>This is, we think, the most important property a trust technology can have. The world is not deterministic. It&rsquo;s not black or white. Every existing infrastructure for adjudication - every court, every arbitration panel, every escrow service - is in some way a hand-crafted, jurisdiction-dependent, slow attempt to perform the kind of judgment that GenLayer can perform automatically, in minutes, at internet scale, for anyone in the world. And the world about to come online is the one with the most need for it: an economy in which the parties have no bodies, no patience, and no shared courtroom to walk into.</p>
             <p>That is why we believe an Agentic Adjudication Layer is the missing piece of infrastructure for the agentic economy.</p>
             <p>That is why we exist.</p>
           </div>
@@ -326,7 +326,7 @@
             </div>
             <div class="def">
               <dt>Adjudication</dt>
-              <dd><p>Not &ldquo;dispute resolution,&rdquo; not &ldquo;arbitration,&rdquo; not &ldquo;court.&rdquo; Adjudication is the verb of judgment. It is the act of weighing evidence, interpreting intent, and reaching a verdict the parties will accept as legitimate. Arbitration is a process. Dispute resolution is an outcome. Adjudication is the thing itself &mdash; the moment a judgment becomes the truth the world will trade on.</p></dd>
+              <dd><p>Not &ldquo;dispute resolution,&rdquo; not &ldquo;arbitration,&rdquo; not &ldquo;court.&rdquo; Adjudication is the verb of judgment. It is the act of weighing evidence, interpreting intent, and reaching a verdict the parties will accept as legitimate. Arbitration is a process. Dispute resolution is an outcome. Adjudication is the thing itself - the moment a judgment becomes the truth the world will trade on.</p></dd>
             </div>
             <div class="def">
               <dt>Layer</dt>
@@ -355,33 +355,33 @@
         <div class="ed-aside">
           <span class="sec-badge">Section 03</span>
           <h2>What is GenLayer?</h2>
-          <p class="sec-lede">One protocol, many lenses. Versions of the same answer, each tuned for a different audience &mdash; from a stranger at a party to a venture investor to a regulator.</p>
+          <p class="sec-lede">One protocol, many lenses. Versions of the same answer, each tuned for a different audience - from a stranger at a party to a venture investor to a regulator.</p>
           <div class="ed-rule"></div>
         </div>
         <div class="ed-body">
-          <div class="voices reveal-stagger" aria-label="What is GenLayer — voices">
+          <div class="voices reveal-stagger" aria-label="What is GenLayer - voices">
             <div class="voice">
-              <span class="voice-for">V1 &mdash; For a stranger</span>
+              <span class="voice-for">V1 - For a stranger</span>
               <p>AI agents will soon be doing business with each other. And just like humans, they will have disputes. We&rsquo;re building an AI-powered adjudication system so that they can resolve contracts and disputes at machine speed.</p>
             </div>
 
             <div class="voice">
-              <span class="voice-for">V4 &mdash; For a regulator</span>
+              <span class="voice-for">V4 - For a regulator</span>
               <p>GenLayer is an open-source, decentralized protocol that brings transparent, auditable, and impartial dispute resolution to digital commerce. It is designed to complement, not replace, existing legal frameworks in the domains where speed, scale and the cross-border nature of automated transactions exceed what traditional courts were built to handle.</p>
             </div>
 
             <div class="voice voice-wide">
-              <span class="voice-for">V2 &mdash; For a builder</span>
+              <span class="voice-for">V2 - For a builder</span>
               <p>GenLayer is a new type of blockchain designed for agreements that cannot be resolved by code alone. At its core are Intelligent Contracts: agreements that combine code, natural language, and real-world information, and are adjudicated through decentralized AI validator consensus. This lets agentic commerce keep functioning even when outcomes are disputed, ambiguous, or context-dependent.</p>
             </div>
 
             <div class="voice voice-wide">
-              <span class="voice-for">V3 &mdash; For an investor</span>
-              <p>GenLayer is the missing layer that will enable truly agentic commerce. As AI agents begin to transact, negotiate, and coordinate with each other, disputes will inevitably arise &mdash; not as edge cases, but as a structural feature of an economy built on probabilistic systems operating under ambiguity. Until now, most of the market has focused on the happy path: payments, execution, and agents operating in isolation or within limited workflows. But once agents start entering into meaningful commitments with real economic consequence, the bottleneck is no longer just moving money or executing code. It is adjudication.</p>
+              <span class="voice-for">V3 - For an investor</span>
+              <p>GenLayer is the missing layer that will enable truly agentic commerce. As AI agents begin to transact, negotiate, and coordinate with each other, disputes will inevitably arise - not as edge cases, but as a structural feature of an economy built on probabilistic systems operating under ambiguity. Until now, most of the market has focused on the happy path: payments, execution, and agents operating in isolation or within limited workflows. But once agents start entering into meaningful commitments with real economic consequence, the bottleneck is no longer just moving money or executing code. It is adjudication.</p>
             </div>
 
             <div class="voice voice-dark voice-wide">
-              <span class="voice-for">V5 &mdash; In one breath</span>
+              <span class="voice-for">V5 - In one breath</span>
               <p>The adjudication layer for the agentic economy. The missing infrastructure that lets AI agents resolve disputes at machine speed.</p>
             </div>
           </div>
@@ -427,7 +427,7 @@
             <div class="stat stat-lav">
               <span class="stat-eyebrow">StakeHound incident</span>
               <span class="stat-num">38K ETH</span>
-              <span class="stat-label">Roughly $150M lost when a top custody provider lost access &mdash; years of litigation, still unrecovered.</span>
+              <span class="stat-label">Roughly $150M lost when a top custody provider lost access - years of litigation, still unrecovered.</span>
             </div>
             <div class="stat">
               <span class="stat-eyebrow">App Store surge</span>
@@ -448,11 +448,11 @@
 
             <h3>The founding experiences</h3>
             <p>The idea behind GenLayer goes back to 2021. Albert and Edgars, who had already been building together for years, went through a custodian incident at StakeHound in which one of the top custody providers lost access to roughly thirty-eight thousand ETH, worth over $150 million at the time. The case went to the Tel Aviv District Court, even reaching the Supreme Court. Years of litigation followed, but the funds still haven&rsquo;t been recovered. The experience gave them a precise, expensive understanding of what happens when the legal system meets the velocity of cryptocurrency: it stops working. The institutional infrastructure for adjudicating disputes in digital commerce was simply not built for the speed at which those disputes arrive.</p>
-            <p>At the same time, Albert, Edgars, and Jose Maria &mdash; GenLayer Labs&rsquo; co-founders &mdash; were exploring a different but related question through YeagerAI, later renamed GenLayer Labs: what happens when software agents stop being passive tools and start acting on their own. First came yAgents, an early self-reflecting terminal agent that could observe its own execution, reason about it, and modify its behavior. Then came GenWorlds, which explored how networks of LLM agents could coordinate through shared state and message passing without a central planner. Together, those research directions pointed toward the same future: agents would not just assist &mdash; they would act, coordinate, and increasingly participate in economic life. The StakeHound litigation revealed the missing piece. If agentic commerce was going to become real, it would need infrastructure not just for execution, but for adjudication. GenLayer was born from that convergence.</p>
-            <p>David&rsquo;s story &mdash; the GenLayer Foundation&rsquo;s CEO &mdash; came earlier and from a different angle. He had been the first investor in a startup that was eventually acquired for more than one hundred million dollars. The acquirer refused to pay. The case went to trial. Two years passed before any resolution was possible. When Albert explained the idea to David, it was an instant match.</p>
-            <p>What both experiences pointed at was not a new product. It was a new primitive. Smart contracts could enforce deterministic agreements perfectly, but the agreements that matter most in commerce &mdash; the ones with judgment and interpretation and ambiguity baked into them &mdash; are the ones smart contracts cannot reach. The legal system handles them badly. Cryptography can&rsquo;t handle them at all.</p>
+            <p>At the same time, Albert, Edgars, and Jose Maria - GenLayer Labs&rsquo; co-founders - were exploring a different but related question through YeagerAI, later renamed GenLayer Labs: what happens when software agents stop being passive tools and start acting on their own. First came yAgents, an early self-reflecting terminal agent that could observe its own execution, reason about it, and modify its behavior. Then came GenWorlds, which explored how networks of LLM agents could coordinate through shared state and message passing without a central planner. Together, those research directions pointed toward the same future: agents would not just assist - they would act, coordinate, and increasingly participate in economic life. The StakeHound litigation revealed the missing piece. If agentic commerce was going to become real, it would need infrastructure not just for execution, but for adjudication. GenLayer was born from that convergence.</p>
+            <p>David&rsquo;s story - the GenLayer Foundation&rsquo;s CEO - came earlier and from a different angle. He had been the first investor in a startup that was eventually acquired for more than one hundred million dollars. The acquirer refused to pay. The case went to trial. Two years passed before any resolution was possible. When Albert explained the idea to David, it was an instant match.</p>
+            <p>What both experiences pointed at was not a new product. It was a new primitive. Smart contracts could enforce deterministic agreements perfectly, but the agreements that matter most in commerce - the ones with judgment and interpretation and ambiguity baked into them - are the ones smart contracts cannot reach. The legal system handles them badly. Cryptography can&rsquo;t handle them at all.</p>
             <blockquote class="pull">The gap between <em>I can prove a coin moved</em> and <em>I can prove a contract was honored</em> is the gap GenLayer was created to close.</blockquote>
-            <p>The technical insight that made it possible came from the convergence of three things: the maturation of large language models in 2023, which finally made machine interpretation of natural language production-ready; the long history of game-theoretic consensus mechanisms &mdash; Schelling points, Condorcet&rsquo;s jury theorem, Byzantine fault tolerance; and the realization that non-determinism could itself be made consensus-friendly if you could define what it meant for two different answers to be considered equivalent. That last insight became the Equivalence Principle. It is the technical foundation of the entire protocol.</p>
+            <p>The technical insight that made it possible came from the convergence of three things: the maturation of large language models in 2023, which finally made machine interpretation of natural language production-ready; the long history of game-theoretic consensus mechanisms - Schelling points, Condorcet&rsquo;s jury theorem, Byzantine fault tolerance; and the realization that non-determinism could itself be made consensus-friendly if you could define what it meant for two different answers to be considered equivalent. That last insight became the Equivalence Principle. It is the technical foundation of the entire protocol.</p>
             <p>In February 2024, Albert, Jose Maria, and Edgars co-authored the GenLayer white paper, <em>GenLayer: The Intelligent Contract Network</em>, and stated the ambition plainly in the paper&rsquo;s conclusion: &ldquo;we believe that GenLayer can become the legal system of choice for autonomous AGI agents to conduct business with each other.&rdquo; That sentence is the seed of everything in this document.</p>
 
             <h3>Present: what we have built</h3>
@@ -461,9 +461,9 @@
             <p>What defines the present moment is that GenLayer has already crossed the line from possibility to reality. Decentralized adjudication is no longer the open question. The work now is to make it robust enough to serve as infrastructure: hardening validator behavior, appeals, edge cases, and developer workflows under real conditions, and turning a breakthrough into something the rest of the agentic economy can depend on.</p>
 
             <h3>Future: where this leads</h3>
-            <p>By 2034, AI agents will have become major economic actors of the global economy. Each human will have, on average, dozens of agents working on their behalf &mdash; booking travel, negotiating contracts, managing finances, hiring other agents, paying bills, disputing them, paying again. The total volume of agent-to-agent contracts will exceed the total volume of human-to-human contracts by orders of magnitude. Every measurable metric of commerce &mdash; speed, throughput, complexity &mdash; will have shifted from human time to machine time.</p>
-            <p>The infrastructure for that economy will not look like the infrastructure of today. Payments will be instant. Identity will be portable. Reputation will be on-chain. Adjudication &mdash; the piece that does not yet exist as a true internet-native layer &mdash; will be machine-speed, neutral, and integrated into digital contracts from the moment they are written. GenLayer is the protocol where that resolution happens.</p>
-            <p>By 2034, the GenLayer Foundation will have dissolved itself. A foundation whose mission is the decentralization of power cannot, in the end, make an exception of itself. What remains is Deepthought DAO, a fully AI-powered governance layer built on GenLayer itself &mdash; the institution through which governance will be carried out and which will eventually substitute the GenLayer Foundation.</p>
+            <p>By 2034, AI agents will have become major economic actors of the world economy. Each human will have, on average, dozens of agents working on their behalf - booking travel, negotiating contracts, managing finances, hiring other agents, paying bills, disputing them, paying again. The total volume of agent-to-agent contracts will exceed the total volume of human-to-human contracts by orders of magnitude. Every measurable metric of commerce - speed, throughput, complexity - will have shifted from human time to machine time.</p>
+            <p>The infrastructure for that economy will not look like the infrastructure of today. Payments will be instant. Identity will be portable. Reputation will be on-chain. Adjudication - the piece that does not yet exist as a true internet-native layer - will be machine-speed, neutral, and integrated into digital contracts from the moment they are written. GenLayer is the protocol where that resolution happens.</p>
+            <p>By 2034, the GenLayer Foundation will have dissolved itself. A foundation whose mission is the decentralization of power cannot, in the end, make an exception of itself. What remains is Deepthought DAO, a fully AI-powered governance layer built on GenLayer itself - the institution through which governance will be carried out and which will eventually substitute the GenLayer Foundation.</p>
             <p>That is where this leads. That is what we are building toward. And the moment is now, because the agentic economy is starting today.</p>
           </div>
         </div>
@@ -487,7 +487,7 @@
                 <p>The protocol must, in the end, belong to the network that runs it. Not to the Labs that built it. Not to the Foundation that stewarded it. Not to any team, partner, or token holder large enough to think of itself as indispensable. If any single entity, including the GenLayer Foundation, becomes load-bearing for the network&rsquo;s survival, we have failed the test the protocol was built to pass.</p>
                 <p>This has different consequences for different parts of GenLayer. For the Foundation, it means self-dissolution: the work ends when the network can govern itself, and Deepthought DAO inherits. For Labs, it means building products, contracts, and dependencies that do not require Labs to keep running for them to keep working. For every contributor, it means writing code, making decisions, and shipping features that can be challenged, forked, or reversed without any of us in the room.</p>
               </div>
-              <div class="pillar-value"><strong>Value &mdash; Build to be replaced</strong>The measure of our work is not how essential we become but how cleanly we can be succeeded. The day the network functions better without us than with us is the day we have done our job.</div>
+              <div class="pillar-value"><strong>Value - Build to be replaced</strong> The measure of our work is not how essential we become but how cleanly we can be succeeded. The day the network functions better without us than with us is the day we have done our job.</div>
             </div>
 
             <div class="pillar">
@@ -498,7 +498,7 @@
                 <p>This is not cynicism. It is the pattern that has played out across every system humans have built to resolve disputes, from arbitration panels to platform moderation to financial clearing houses. The moment a single actor can decide what is true, that actor becomes a target, an attack surface, and eventually a liability. GenLayer breaks the pattern by requiring consensus among diverse, independent validators. No single model, operator, or node can unilaterally determine an outcome. Truth emerges from the only place it reliably can: independent reasoners converging on the same answer without coordination.</p>
                 <p>In practice: we do not designate trusted validators. We do not appeal to credentials or reputation. We do not give ourselves or any partner the power to override the network. Every design choice should prefer the path that asks for less trust, even when the alternative is faster or simpler.</p>
               </div>
-              <div class="pillar-value"><strong>Value &mdash; Trustlessness</strong>A system that requires you to trust someone is only as honest as that someone. We build systems that do not require you to take anyone&rsquo;s word for it.</div>
+              <div class="pillar-value"><strong>Value - Trustlessness</strong> A system that requires you to trust someone is only as honest as that someone. We build systems that do not require you to take anyone&rsquo;s word for it.</div>
             </div>
 
             <div class="pillar">
@@ -509,7 +509,7 @@
                 <p>The agentic economy will produce disputes at a volume and velocity no human institution was designed to absorb. When resolution is slow, the harmed party does not just lose time. They lose agency, leverage, and the ability to act on the truth. The U.S. legal system&rsquo;s average resolution time for complex civil disputes is 344 days. The international average is 657. That latency is not a bug in the legacy system. It is a structural feature of any system designed for human speed.</p>
                 <p>In practice: the protocol must prevent any actor from introducing deliberate delay. We benchmark every system we ship on adjudication latency. Speed is not a feature we add when everything else is done. It is the condition everything else is built around.</p>
               </div>
-              <div class="pillar-value"><strong>Value &mdash; Velocity wins</strong>Speed is strategy. Shipping is oxygen. In frontier technology, speed and execution determine survival. We operate with urgency and precision. We move fast, stay sharp, and adapt, because standing still is falling behind.</div>
+              <div class="pillar-value"><strong>Value - Velocity wins</strong> Speed is strategy. Shipping is oxygen. In frontier technology, speed and execution determine survival. We operate with urgency and precision. We move fast, stay sharp, and adapt, because standing still is falling behind.</div>
             </div>
 
             <div class="pillar">
@@ -520,7 +520,7 @@
                 <p>Traditional dispute resolution depends on who you are, where you are, and how long you can wait. Most people and most agents will never have access to it. GenLayer is built on the opposite assumption: anyone, anywhere, at any status, should be able to deploy a contract, trigger adjudication, and receive a credible resolution under exactly the same rules as everyone else. The diversity of the validator set reinforces this. A permissionless network cannot be captured by any single jurisdiction, operator, or interest group. Diversity is not an ethical bonus. It is a security property.</p>
                 <p>In practice: we do not maintain whitelists, priority queues, or exceptions for large customers or partners. Anyone with stake can run a validator. Anyone with a bond can appeal. Gas costs the same regardless of who is asking.</p>
               </div>
-              <div class="pillar-value"><strong>Value &mdash; Accessibility</strong>The protocol is only as powerful as the range of people it actually serves.</div>
+              <div class="pillar-value"><strong>Value - Accessibility</strong> The protocol is only as powerful as the range of people it actually serves.</div>
             </div>
 
             <div class="pillar">
@@ -531,7 +531,7 @@
                 <p>Every adjudication system confronts the same problem: judgment is shaped by whoever is doing the judging. Courts lean toward local power. Platforms enforce the preferences of whoever wrote the moderation policy. Single-model AI systems encode the assumptions of whoever trained the model. GenLayer exists to break that pattern by requiring consensus among a diverse set of independent validators running different models, different seeds, on different hardware, in different geographies. No single perspective can quietly become the default. Bias cannot be eliminated. It can be counterbalanced.</p>
                 <p>In practice: we do not pick a preferred LLM. We do not run a reference implementation that gets special treatment. We treat homogeneity in the validator set as a security risk, not a simplification. Validator diversity is something we actively build toward and measure.</p>
               </div>
-              <div class="pillar-value"><strong>Value &mdash; Fairness</strong>Equal before the system. Every contract, every user, every dispute, judged by the same process with no exceptions.</div>
+              <div class="pillar-value"><strong>Value - Fairness</strong> Equal before the system. Every contract, every user, every dispute, judged by the same process with no exceptions.</div>
             </div>
           </div>
         </div>
@@ -571,25 +571,25 @@
             <div class="bib-group">
               <h4><span class="bib-dot"></span>Trust theory</h4>
               <ul>
-                <li>Niklas Luhmann, <a href="https://www.wiley.com/en-us/Trust+and+Power-p-9781509519453" target="_blank" rel="noopener"><cite>Trust and Power</cite></a> (English translation 1979; original German <cite>Vertrauen</cite>, 1968) <span class="bib-note">&mdash; trust as a mechanism for the reduction of social complexity.</span></li>
-                <li>Lynne G. Zucker, &ldquo;<a href="https://digitalassets.lib.berkeley.edu/irle/ucb/text/irla0277.pdf" target="_blank" rel="noopener">Production of Trust: Institutional Sources of Economic Structure, 1840&ndash;1920</a>&rdquo; (<cite>Research in Organizational Behavior</cite>, 1986) <span class="bib-note">&mdash; the three modes of trust production.</span></li>
-                <li>Roger C. Mayer, James H. Davis, F. David Schoorman, &ldquo;<a href="https://www.jstor.org/stable/258792?seq=1" target="_blank" rel="noopener">An Integrative Model of Organizational Trust</a>&rdquo; (<cite>Academy of Management Review</cite>, 1995) <span class="bib-note">&mdash; the ability/benevolence/integrity model.</span></li>
-                <li>Diego Gambetta (ed.), <a href="https://www.nuffield.ox.ac.uk/users/gambetta/Trust_making%20and%20breaking%20cooperative%20relations.pdf" target="_blank" rel="noopener"><cite>Trust: Making and Breaking Cooperative Relations</cite></a> (1988) <span class="bib-note">&mdash; including the Sicilian Mafia as a private adjudicator emerging where public enforcement fails.</span></li>
-                <li>Russell Hardin, <a href="https://www.russellsage.org/publications/trust-and-trustworthiness" target="_blank" rel="noopener"><cite>Trust and Trustworthiness</cite></a> (2002) <span class="bib-note">&mdash; the encapsulated-interest model.</span></li>
-                <li>Robert Putnam, <a href="http://bowlingalone.com/" target="_blank" rel="noopener"><cite>Bowling Alone</cite></a> (2000); Francis Fukuyama, <a href="https://www.harvard.com/book/9780684825250" target="_blank" rel="noopener"><cite>Trust: The Social Virtues and the Creation of Prosperity</cite></a> (1995) <span class="bib-note">&mdash; the social-capital tradition.</span></li>
-                <li>Georg Simmel, <a href="https://archive.org/details/sociologyofgeorg0000simm" target="_blank" rel="noopener"><cite>The Sociology of Georg Simmel</cite></a> (translated 1950) <span class="bib-note">&mdash; the less we know about others, the more we need to trust.</span></li>
+                <li>Niklas Luhmann, <a href="https://www.wiley.com/en-us/Trust+and+Power-p-9781509519453" target="_blank" rel="noopener"><cite>Trust and Power</cite></a> (English translation 1979; original German <cite>Vertrauen</cite>, 1968) <span class="bib-note">- trust as a mechanism for the reduction of social complexity.</span></li>
+                <li>Lynne G. Zucker, &ldquo;<a href="https://digitalassets.lib.berkeley.edu/irle/ucb/text/irla0277.pdf" target="_blank" rel="noopener">Production of Trust: Institutional Sources of Economic Structure, 1840&ndash;1920</a>&rdquo; (<cite>Research in Organizational Behavior</cite>, 1986) <span class="bib-note">- the three modes of trust production.</span></li>
+                <li>Roger C. Mayer, James H. Davis, F. David Schoorman, &ldquo;<a href="https://www.jstor.org/stable/258792?seq=1" target="_blank" rel="noopener">An Integrative Model of Organizational Trust</a>&rdquo; (<cite>Academy of Management Review</cite>, 1995) <span class="bib-note">- the ability/benevolence/integrity model.</span></li>
+                <li>Diego Gambetta (ed.), <a href="https://www.nuffield.ox.ac.uk/users/gambetta/Trust_making%20and%20breaking%20cooperative%20relations.pdf" target="_blank" rel="noopener"><cite>Trust: Making and Breaking Cooperative Relations</cite></a> (1988) <span class="bib-note">- including the Sicilian Mafia as a private adjudicator emerging where public enforcement fails.</span></li>
+                <li>Russell Hardin, <a href="https://www.russellsage.org/publications/trust-and-trustworthiness" target="_blank" rel="noopener"><cite>Trust and Trustworthiness</cite></a> (2002) <span class="bib-note">- the encapsulated-interest model.</span></li>
+                <li>Robert Putnam, <a href="http://bowlingalone.com/" target="_blank" rel="noopener"><cite>Bowling Alone</cite></a> (2000); Francis Fukuyama, <a href="https://www.harvard.com/book/9780684825250" target="_blank" rel="noopener"><cite>Trust: The Social Virtues and the Creation of Prosperity</cite></a> (1995) <span class="bib-note">- the social-capital tradition.</span></li>
+                <li>Georg Simmel, <a href="https://archive.org/details/sociologyofgeorg0000simm" target="_blank" rel="noopener"><cite>The Sociology of Georg Simmel</cite></a> (translated 1950) <span class="bib-note">- the less we know about others, the more we need to trust.</span></li>
               </ul>
             </div>
 
             <div class="bib-group">
               <h4><span class="bib-dot"></span>Game theory, consensus &amp; the wisdom of crowds</h4>
               <ul>
-                <li>Marquis de Condorcet, <a href="https://gallica.bnf.fr/ark:/12148/bpt6k417181" target="_blank" rel="noopener"><cite>Essai sur l&rsquo;application de l&rsquo;analyse &agrave; la probabilit&eacute; des d&eacute;cisions rendues &agrave; la pluralit&eacute; des voix</cite></a> (1785) <span class="bib-note">&mdash; the Jury Theorem.</span></li>
-                <li>John Nash, &ldquo;<a href="https://library.princeton.edu/sites/g/files/toruqf6021/files/documents/Non-Cooperative_Games_Nash.pdf" target="_blank" rel="noopener">Non-Cooperative Games</a>&rdquo; (<cite>Annals of Mathematics</cite>, 1951) <span class="bib-note">&mdash; Nash equilibrium.</span></li>
-                <li>Thomas Schelling, <a href="https://www.hup.harvard.edu/books/9780674840317" target="_blank" rel="noopener"><cite>The Strategy of Conflict</cite></a> (1960) <span class="bib-note">&mdash; focal points.</span></li>
-                <li>Leslie Lamport, Robert Shostak, Marshall Pease, &ldquo;<a href="https://lamport.azurewebsites.net/pubs/byz.pdf" target="_blank" rel="noopener">The Byzantine Generals Problem</a>&rdquo; (<cite>ACM TOPLAS</cite>, 1982) <span class="bib-note">&mdash; Byzantine fault tolerance.</span></li>
+                <li>Marquis de Condorcet, <a href="https://gallica.bnf.fr/ark:/12148/bpt6k417181" target="_blank" rel="noopener"><cite>Essai sur l&rsquo;application de l&rsquo;analyse &agrave; la probabilit&eacute; des d&eacute;cisions rendues &agrave; la pluralit&eacute; des voix</cite></a> (1785) <span class="bib-note">- the Jury Theorem.</span></li>
+                <li>John Nash, &ldquo;<a href="https://library.princeton.edu/sites/g/files/toruqf6021/files/documents/Non-Cooperative_Games_Nash.pdf" target="_blank" rel="noopener">Non-Cooperative Games</a>&rdquo; (<cite>Annals of Mathematics</cite>, 1951) <span class="bib-note">- Nash equilibrium.</span></li>
+                <li>Thomas Schelling, <a href="https://www.hup.harvard.edu/books/9780674840317" target="_blank" rel="noopener"><cite>The Strategy of Conflict</cite></a> (1960) <span class="bib-note">- focal points.</span></li>
+                <li>Leslie Lamport, Robert Shostak, Marshall Pease, &ldquo;<a href="https://lamport.azurewebsites.net/pubs/byz.pdf" target="_blank" rel="noopener">The Byzantine Generals Problem</a>&rdquo; (<cite>ACM TOPLAS</cite>, 1982) <span class="bib-note">- Byzantine fault tolerance.</span></li>
                 <li>Garay, Kiayias, Leonardos, &ldquo;<a href="https://eprint.iacr.org/2014/765" target="_blank" rel="noopener">The Bitcoin Backbone Protocol: Analysis and Applications</a>&rdquo; (2015).</li>
-                <li>Akbir Khan et al., &ldquo;<a href="https://arxiv.org/abs/2402.06782" target="_blank" rel="noopener">Debating with More Persuasive LLMs Leads to More Truthful Answers</a>&rdquo; (arXiv, 2024) <span class="bib-note">&mdash; the future of inter-validator persuasion the GenLayer white paper hints at.</span></li>
+                <li>Akbir Khan et al., &ldquo;<a href="https://arxiv.org/abs/2402.06782" target="_blank" rel="noopener">Debating with More Persuasive LLMs Leads to More Truthful Answers</a>&rdquo; (arXiv, 2024) <span class="bib-note">- the future of inter-validator persuasion the GenLayer white paper hints at.</span></li>
                 <li>Justin Chih-Yao Chen et al., &ldquo;<a href="https://arxiv.org/abs/2309.13007" target="_blank" rel="noopener">ReConcile: Round-Table Conference Improves Reasoning via Consensus among Diverse LLMs</a>&rdquo; (arXiv, 2024).</li>
               </ul>
             </div>
@@ -602,15 +602,15 @@
                 <li>Nick Szabo, &ldquo;<a href="https://nakamotoinstitute.org/library/smart-contracts/" target="_blank" rel="noopener">Smart Contracts</a>&rdquo; (1994).</li>
                 <li>Daniel Larimer, &ldquo;<a href="https://bitshares.org/delegated-proof-of-stake-consensus/" target="_blank" rel="noopener">Delegated Proof-of-Stake</a>&rdquo; (2014).</li>
                 <li>Silvio Micali, Michael Rabin, Salil Vadhan, &ldquo;<a href="https://people.csail.mit.edu/silvio/Selected%20Scientific%20Papers/Pseudo%20Randomness/Verifiable_Random_Functions.pdf" target="_blank" rel="noopener">Verifiable Random Functions</a>&rdquo; (FOCS, 1999).</li>
-                <li>Ralph Merkle, &ldquo;<a href="https://ralphmerkle.com/papers/Protocols.pdf" target="_blank" rel="noopener">Protocols for Public Key Cryptosystems</a>&rdquo; (1980) <span class="bib-note">&mdash; Merkle trees.</span></li>
+                <li>Ralph Merkle, &ldquo;<a href="https://ralphmerkle.com/papers/Protocols.pdf" target="_blank" rel="noopener">Protocols for Public Key Cryptosystems</a>&rdquo; (1980) <span class="bib-note">- Merkle trees.</span></li>
               </ul>
             </div>
 
             <div class="bib-group">
               <h4><span class="bib-dot"></span>AI, LLMs &amp; the modern attention era</h4>
               <ul>
-                <li>Ashish Vaswani et al., &ldquo;<a href="https://arxiv.org/abs/1706.03762" target="_blank" rel="noopener">Attention Is All You Need</a>&rdquo; (NeurIPS, 2017) <span class="bib-note">&mdash; the paper that named the era.</span></li>
-                <li>Andy Zou et al., &ldquo;<a href="https://arxiv.org/abs/2307.15043" target="_blank" rel="noopener">Universal and Transferable Adversarial Attacks on Aligned Language Models</a>&rdquo; (arXiv, 2023) <span class="bib-note">&mdash; the threat model Greyboxing exists to counter.</span></li>
+                <li>Ashish Vaswani et al., &ldquo;<a href="https://arxiv.org/abs/1706.03762" target="_blank" rel="noopener">Attention Is All You Need</a>&rdquo; (NeurIPS, 2017) <span class="bib-note">- the paper that named the era.</span></li>
+                <li>Andy Zou et al., &ldquo;<a href="https://arxiv.org/abs/2307.15043" target="_blank" rel="noopener">Universal and Transferable Adversarial Attacks on Aligned Language Models</a>&rdquo; (arXiv, 2023) <span class="bib-note">- the threat model Greyboxing exists to counter.</span></li>
                 <li>Christian Szegedy et al., &ldquo;<a href="https://arxiv.org/abs/1312.6199" target="_blank" rel="noopener">Intriguing Properties of Neural Networks</a>&rdquo; (arXiv, 2013).</li>
                 <li>Andrej Karpathy, <cite><a href="https://www.youtube.com/playlist?list=PLAqhIrjkxbuWI23v9cThsA9GvCAUhRvKZ" target="_blank" rel="noopener">Zero to Hero</a></cite> lecture series and public writing (2022&ndash;).</li>
               </ul>
@@ -620,11 +620,11 @@
               <h4><span class="bib-dot"></span>History of trust institutions</h4>
               <ul>
                 <li>Avner Greif, &ldquo;<a href="https://doi.org/10.1017/S0022050700009475" target="_blank" rel="noopener">Reputation and Coalitions in Medieval Trade: Evidence from the Maghribi Traders</a>&rdquo; (<cite>Journal of Economic History</cite>, 1989).</li>
-                <li><a href="https://en.wikipedia.org/wiki/Book_of_the_Consulate_of_the_Sea" target="_blank" rel="noopener"><cite>The Llibre del Consolat de Mar</cite></a> (compiled in the 14th century, with origins in Barcelona, 1258) <span class="bib-note">&mdash; the first durable supra-sovereign commercial code.</span></li>
-                <li>Robin Dunbar, <a href="https://www.hup.harvard.edu/books/9780674363366" target="_blank" rel="noopener"><cite>Grooming, Gossip, and the Evolution of Language</cite></a> (1996) <span class="bib-note">&mdash; the cognitive ceiling of personal trust.</span></li>
-                <li>Yuval Noah Harari, <a href="https://www.ynharari.com/book/sapiens/" target="_blank" rel="noopener"><cite>Sapiens: A Brief History of Humankind</cite></a> (2014) <span class="bib-note">&mdash; intersubjective reality and the Cognitive Revolution.</span></li>
+                <li><a href="https://en.wikipedia.org/wiki/Book_of_the_Consulate_of_the_Sea" target="_blank" rel="noopener"><cite>The Llibre del Consolat de Mar</cite></a> (compiled in the 14th century, with origins in Barcelona, 1258) <span class="bib-note">- the first durable supra-sovereign commercial code.</span></li>
+                <li>Robin Dunbar, <a href="https://www.hup.harvard.edu/books/9780674363366" target="_blank" rel="noopener"><cite>Grooming, Gossip, and the Evolution of Language</cite></a> (1996) <span class="bib-note">- the cognitive ceiling of personal trust.</span></li>
+                <li>Yuval Noah Harari, <a href="https://www.ynharari.com/book/sapiens/" target="_blank" rel="noopener"><cite>Sapiens: A Brief History of Humankind</cite></a> (2014) <span class="bib-note">- intersubjective reality and the Cognitive Revolution.</span></li>
                 <li>David Flusser, theological writings on <em>pistis</em> (faith).</li>
-                <li>Giorgio Agamben, <cite>Il Capitalismo come Religione</cite> <span class="bib-note">&mdash; on the etymology of credit / creditum.</span></li>
+                <li>Giorgio Agamben, <cite>Il Capitalismo come Religione</cite> <span class="bib-note">- on the etymology of credit / creditum.</span></li>
               </ul>
             </div>
 
@@ -632,12 +632,12 @@
               <h4><span class="bib-dot"></span>Contemporary thinking on AI &times; crypto</h4>
               <ul>
                 <li>Chris Dixon, <a href="https://readwriteown.com/" target="_blank" rel="noopener"><cite>Read Write Own</cite></a> (2024).</li>
-                <li>Chris Dixon and Elizabeth Harkavy, &ldquo;<a href="https://a16zcrypto.com/posts/article/investing-in-catena-labs/" target="_blank" rel="noopener">Investing in Catena Labs</a>&rdquo; (a16z, 2025) <span class="bib-note">&mdash; machine-speed systems need machine-speed money.</span></li>
+                <li>Chris Dixon and Elizabeth Harkavy, &ldquo;<a href="https://a16zcrypto.com/posts/article/investing-in-catena-labs/" target="_blank" rel="noopener">Investing in Catena Labs</a>&rdquo; (a16z, 2025) <span class="bib-note">- machine-speed systems need machine-speed money.</span></li>
                 <li>Marc Andreessen, &ldquo;<a href="https://a16z.com/the-techno-optimist-manifesto/" target="_blank" rel="noopener">The Techno-Optimist Manifesto</a>&rdquo; (a16z, 2023).</li>
-                <li>Sreeram Kannan (EigenLayer), public essays and interviews (2023&ndash;) <span class="bib-note">&mdash; coordination = communication + commitment.</span></li>
-                <li>Brian Armstrong (Coinbase), public statements (2024) <span class="bib-note">&mdash; AI agents cannot get bank accounts but they can get crypto wallets.</span></li>
-                <li>Larry Fink (BlackRock), public statements (2024) <span class="bib-note">&mdash; everything will be tokenized.</span></li>
-                <li>Cathie Wood (ARK Invest), AI-commerce projections (2024) <span class="bib-note">&mdash; the $9T-by-2030 number this document cites.</span></li>
+                <li>Sreeram Kannan (EigenLayer), public essays and interviews (2023&ndash;) <span class="bib-note">- coordination = communication + commitment.</span></li>
+                <li>Brian Armstrong (Coinbase), public statements (2024) <span class="bib-note">- AI agents cannot get bank accounts but they can get crypto wallets.</span></li>
+                <li>Larry Fink (BlackRock), public statements (2024) <span class="bib-note">- everything will be tokenized.</span></li>
+                <li>Cathie Wood (ARK Invest), AI-commerce projections (2024) <span class="bib-note">- the $9T-by-2030 number this document cites.</span></li>
               </ul>
             </div>
 
@@ -653,11 +653,11 @@
             <div class="bib-group">
               <h4><span class="bib-dot"></span>Founding works</h4>
               <ul>
-                <li>Albert Castellana, Jose Maria Lago, Edgars Nemse, <a href="/genesis/whitepaper"><cite>GenLayer: The Intelligent Contract Network</cite></a> (whitepaper, February 2024) <span class="bib-note">&mdash; the founding technical document.</span></li>
-                <li>David Riudor, <a href="https://x.com/driudor/status/1996993081791361353" target="_blank" rel="noopener"><cite>What Does Trust Mean for an Artificial Intelligence?</cite></a> (5-part essay, 2025) <span class="bib-note">&mdash; the philosophical foundation.</span></li>
-                <li>David Riudor, <a href="https://x.com/driudor/status/1910315466465173713" target="_blank" rel="noopener"><cite>Are We Witnessing the Death of Trust? &mdash; A World on Edge</cite></a> (2025) <span class="bib-note">&mdash; the Consulate of the Internet article.</span></li>
-                <li>Jose Maria Lago, <a href="https://jmlago.github.io/posts/illusion-of-determinism.html" target="_blank" rel="noopener"><cite>The Illusion of Determinism</cite></a> <span class="bib-note">&mdash; why determinism was always an approximation.</span></li>
-                <li>Jose Maria Lago, <a href="https://jmlago.github.io/posts/semantic-consensus.html" target="_blank" rel="noopener"><cite>The Challenges of Semantic Consensus</cite></a> <span class="bib-note">&mdash; reaching agreement on meaning, the core of the Equivalence Principle.</span></li>
+                <li>Albert Castellana, Jose Maria Lago, Edgars Nemse, <a href="/genesis/whitepaper"><cite>GenLayer: The Intelligent Contract Network</cite></a> (whitepaper, February 2024) <span class="bib-note">- the founding technical document.</span></li>
+                <li>David Riudor, <a href="https://x.com/driudor/status/1996993081791361353" target="_blank" rel="noopener"><cite>What Does Trust Mean for an Artificial Intelligence?</cite></a> (5-part essay, 2025) <span class="bib-note">- the philosophical foundation.</span></li>
+                <li>David Riudor, <a href="https://x.com/driudor/status/1910315466465173713" target="_blank" rel="noopener"><cite>Are We Witnessing the Death of Trust? - A World on Edge</cite></a> (2025) <span class="bib-note">- the Consulate of the Internet article.</span></li>
+                <li>Jose Maria Lago, <a href="https://jmlago.github.io/posts/illusion-of-determinism.html" target="_blank" rel="noopener"><cite>The Illusion of Determinism</cite></a> <span class="bib-note">- why determinism was always an approximation.</span></li>
+                <li>Jose Maria Lago, <a href="https://jmlago.github.io/posts/semantic-consensus.html" target="_blank" rel="noopener"><cite>The Challenges of Semantic Consensus</cite></a> <span class="bib-note">- reaching agreement on meaning, the core of the Equivalence Principle.</span></li>
               </ul>
             </div>
           </div>
@@ -678,11 +678,11 @@
           <div class="resources reveal-stagger">
             <a class="res" href="/genesis/whitepaper">
               <span class="res-name">Whitepaper</span>
-              <span class="res-desc">GenLayer: The Intelligent Contract Network (2024) &mdash; the founding technical document. Read it here.</span>
+              <span class="res-desc">GenLayer: The Intelligent Contract Network (2024) - the founding technical document. Read it here.</span>
             </a>
             <a class="res" href="https://docs.genlayer.com" target="_blank" rel="noopener">
               <span class="res-name">Documentation</span>
-              <span class="res-desc">Intelligent Contracts, GenVM, Optimistic Democracy &mdash; how to build on GenLayer.</span>
+              <span class="res-desc">Intelligent Contracts, GenVM, Optimistic Democracy - how to build on GenLayer.</span>
             </a>
             <a class="res" href="https://studio.genlayer.com" target="_blank" rel="noopener">
               <span class="res-name">GenLayer Studio</span>
@@ -694,11 +694,11 @@
             </a>
             <a class="res" href="https://internetcourt.org" target="_blank" rel="noopener">
               <span class="res-name">Internet Court</span>
-              <span class="res-desc">One of our initiatives &mdash; an open standard and agent skill for agent-to-agent contracts, connecting identity, negotiation, contracts, payment, escrow, execution, verification, and disputes, with GenLayer as its adjudication layer.</span>
+              <span class="res-desc">One of our initiatives - an open standard and agent skill for agent-to-agent contracts, connecting identity, negotiation, contracts, payment, escrow, execution, verification, and disputes, with GenLayer as its adjudication layer.</span>
             </a>
             <a class="res" href="https://github.com/genlayerlabs" target="_blank" rel="noopener">
               <span class="res-name">GitHub</span>
-              <span class="res-desc">The protocol, open source &mdash; read the code, open issues, contribute.</span>
+              <span class="res-desc">The protocol, open source - read the code, open issues, contribute.</span>
             </a>
             <a class="res" href="https://x.com/GenLayer" target="_blank" rel="noopener">
               <span class="res-name">X / Twitter</span>
@@ -706,7 +706,7 @@
             </a>
             <a class="res" href="https://discord.gg/genlayerlabs" target="_blank" rel="noopener">
               <span class="res-name">Discord</span>
-              <span class="res-desc">Where the community lives &mdash; questions, testnet, working groups.</span>
+              <span class="res-desc">Where the community lives - questions, testnet, working groups.</span>
             </a>
             <a class="res" href="https://www.youtube.com/@GenLayer" target="_blank" rel="noopener">
               <span class="res-name">YouTube</span>
@@ -719,7 +719,7 @@
       <footer class="footer-card reveal">
         <p class="foot-line">&ldquo;Two answers can be different and <em>still be the same</em>.&rdquo;</p>
         <div class="footer-actions">
-          <a class="btn-hero" href="/genesis/manifesto">The Manifesto &mdash; For the Right to Decide
+          <a class="btn-hero" href="/genesis/manifesto">The Manifesto - For the Right to Decide
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
           </a>
           <a class="btn-ghost" href="https://genlayer.com" target="_blank" rel="noopener">genlayer.com</a>
@@ -1154,7 +1154,7 @@
     color: #c4b5fd;
   }
 
-  /* ============ TRUST LAYERS — feature grid ============ */
+  /* ============ TRUST LAYERS - feature grid ============ */
   .layers-grid {
     display: grid;
     grid-template-columns: 1fr;

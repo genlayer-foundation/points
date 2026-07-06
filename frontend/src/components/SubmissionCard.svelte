@@ -994,6 +994,13 @@
         </div>
       </div>
 
+      {#if !isProposalRubric && rubricOverallReason}
+        <div class="rounded-md border border-slate-200 bg-white px-3 py-2">
+          <p class="mb-1 text-xs font-semibold uppercase text-slate-600">Overall reason</p>
+          <p class="whitespace-pre-wrap text-sm font-medium text-slate-900">{rubricOverallReason}</p>
+        </div>
+      {/if}
+
       {#if !hasRubricGateFailures}
         <div class="space-y-3">
           {#each RUBRIC_SECTIONS as section}

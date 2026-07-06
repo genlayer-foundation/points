@@ -54,7 +54,7 @@
         <div class="hero-grid" aria-hidden="true"></div>
         <span class="chip"><span class="dot"></span>The GenLayer Manifesto</span>
         <h1>For the Right to <em>Decide</em></h1>
-        <p class="hero-lede">Power is not wealth. Power is not status. Power is the ability to decide &mdash; and it is being silently concentrated into fewer and fewer hands. This is how it gets returned.</p>
+        <p class="hero-lede">Power is not wealth. Power is not status. Power is the ability to decide - and it is being silently concentrated into fewer and fewer hands. This is how it gets returned.</p>
         <div class="hero-actions">
           <button type="button" class="btn-hero" onclick={() => document.getElementById('decide')?.scrollIntoView({ behavior: 'smooth' })}>Start reading
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></svg>
@@ -63,7 +63,7 @@
         </div>
       </header>
 
-      <!-- I — THE RIGHT TO DECIDE -->
+      <!-- I - THE RIGHT TO DECIDE -->
       <section class="ed-section reveal" id="decide">
         <div class="ed-aside">
           <span class="mv-badge"><span class="mv-no">I</span>Movement One</span>
@@ -76,7 +76,7 @@
             <blockquote class="pull">Power is the ability to <strong>decide</strong>.</blockquote>
             <p>Who decides what is true and what is false. Who decides what is fair and what is not. Who decides whether a contract was honored, a promise kept, a commitment met. Every institution humanity has ever built exists to answer one question: <strong>who gets to decide?</strong></p>
             <p>That question is being answered right now, in silence, at a speed humanity has never experienced. And almost no one is paying attention.</p>
-            <p>We are living through a strange moment in history. What seemed certain a year ago no longer is. The ground shifts monthly. There is a feeling &mdash; you have probably felt it &mdash; that something fundamental is changing faster than anyone can name. Will I keep my job? Will my skills still matter? Will the world I understood still exist in two years? At the center of that anxiety are two words: <strong>artificial intelligence</strong>.</p>
+            <p>We are living through a strange moment in history. What seemed certain a year ago no longer is. The ground shifts monthly. There is a feeling - you have probably felt it - that something fundamental is changing faster than anyone can name. Will I keep my job? Will my skills still matter? Will the world I understood still exist in two years? At the center of that anxiety are two words: <strong>artificial intelligence</strong>.</p>
             <p>It is in the algorithm that decides the next video you watch. The app that writes your emails. The system that determines whether your loan is approved, your resume is seen, your content is shown. It is already everywhere. And this is only the beginning. But the danger is not AI itself. The danger is something far less discussed: the unprecedented concentration of power in the hands of the few entities that build and control these systems.</p>
             <p>When you ask an AI a question, someone decides what it is allowed to say. When an AI makes a recommendation, someone decides what &ldquo;good&rdquo; means. When an AI judges, someone decides the rules by which it judges. They are the new kings. And unlike the old ones, they have no borders.</p>
 
@@ -92,13 +92,13 @@
             <blockquote class="pull">If concentrated power has always led to corruption, imagine concentrated power without friction, without fatigue, without frontiers.</blockquote>
             <p>Does this mean we should stop it? Of course not.</p>
             <p>Every transformative technology was feared in its moment. And every time, history proved the same thing: the answer was never to stop the innovation. It was to decide who would control it, and by what rules. The question has never been whether to build. The question has always been: <strong>should any single institution concentrate so much power?</strong></p>
-            <p>And here is the deeper pattern. Power concentrates because trust concentrates. Every time humanity has needed cooperation at scale, we have been forced to hand our trust to someone &mdash; a king, a court, a central bank, a platform &mdash; because that was the only technology we had for making cooperation work at scale.</p>
+            <p>And here is the deeper pattern. Power concentrates because trust concentrates. Every time humanity has needed cooperation at scale, we have been forced to hand our trust to someone - a king, a court, a central bank, a platform - because that was the only technology we had for making cooperation work at scale.</p>
             <p><strong>Concentrate the trust, and you inevitably concentrate the power.</strong></p>
           </div>
         </div>
       </section>
 
-      <!-- II — THE TECHNOLOGY OF TRUST -->
+      <!-- II - THE TECHNOLOGY OF TRUST -->
       <section class="ed-section reveal" id="trust">
         <div class="ed-aside">
           <span class="mv-badge"><span class="mv-no">II</span>Movement Two</span>
@@ -111,18 +111,18 @@
             <p>There is a sentence at the heart of every meaningful exchange in human history.</p>
             <blockquote class="pull"><strong>I trust you.</strong></blockquote>
             <p>It is the most valuable sentence in business and in love. It clears friction. It unlocks credit. It makes cooperation feel inevitable. It is also the most fragile sentence we know how to say, because the moment it is spoken, the speaker hands a piece of their certainty to someone else and stands exposed.</p>
-            <p>We call this &ldquo;trust,&rdquo; but the word obscures what it actually is. Trust is not a feeling. It is a technology &mdash; a mechanism for reducing the complexity of a world too vast to verify in full.</p>
+            <p>We call this &ldquo;trust,&rdquo; but the word obscures what it actually is. Trust is not a feeling. It is a technology - a mechanism for reducing the complexity of a world too vast to verify in full.</p>
             <p>Without it, every breakfast becomes a negotiation. Every transaction becomes a lawsuit. Every stranger becomes a threat. Trust is what lets us lower our defenses long enough to build anything at all.</p>
             <p>And like any technology, trust evolves.</p>
             <p>Humanity has built trust in layers, each one extending the radius of cooperation beyond what the previous layer could reach. Personal trust: your tribe, limited to the roughly one hundred and fifty people a human mind can hold. Mythic trust: shared stories, religions, nations. Institutional trust: courts, legal codes, enforceable process. Market trust: contracts, insurance, the bill of exchange. Reputational trust: the ratings and reviews that recreated village gossip at internet scale. And then, in 2008, came a breakthrough no prior layer had achieved: Satoshi Nakamoto built a system in which trust could be replaced by mathematical proof.</p>
-            <p>For the first time in history, a transaction could be settled without trusting any participant &mdash; only the math.</p>
+            <p>For the first time in history, a transaction could be settled without trusting any participant - only the math.</p>
             <p>But cryptographic trust has a ceiling. Bitcoin can prove that a coin moved. It cannot prove that a contract was honored. It cannot read a clause, weigh evidence, or interpret what &ldquo;reasonable efforts&rdquo; means.</p>
-            <p>For everything that is not a coin flip, the cryptographic layer hands the problem back to the legal system &mdash; the system we have been failing to fix for nine hundred years. A seventh layer is now necessary. And for the first time, it is technically possible.</p>
+            <p>For everything that is not a coin flip, the cryptographic layer hands the problem back to the legal system - the system we have been failing to fix for nine hundred years. A seventh layer is now necessary. And for the first time, it is technically possible.</p>
           </div>
         </div>
       </section>
 
-      <!-- III — THE ONLY SCHELLING POINT -->
+      <!-- III - THE ONLY SCHELLING POINT -->
       <section class="ed-section reveal" id="schelling">
         <div class="ed-aside">
           <span class="mv-badge"><span class="mv-no">III</span>Movement Three</span>
@@ -135,15 +135,15 @@
             <p>Every great leap in civilization was a leap in coordination, extending the radius of trustworthy cooperation by another increment.</p>
             <p>The primary friction to coordination is trust. And the deepest insight about trust comes not from philosophy but from game theory.</p>
             <p>In 1960, Thomas Schelling proved that independent agents trying to coordinate without communication will converge on whichever option is the most natural focal point for all of them at once. He called it a Schelling point.</p>
-            <p>The deepest version of his insight is this: <strong>truth is the only Schelling point a network of honest reasoners can find together.</strong> Falsehoods diverge in a thousand directions &mdash; there are infinite ways to be wrong, each inconsistent with the others. But truth has internal coherence. It is the only place independent minds, working separately, can reliably meet.</p>
-            <p>This is why a network of diverse, uncoordinated AI models &mdash; each running in a different process, on a different machine, in a different jurisdiction &mdash; can produce reliable judgments on questions whose answers were never written down.</p>
+            <p>The deepest version of his insight is this: <strong>truth is the only Schelling point a network of honest reasoners can find together.</strong> Falsehoods diverge in a thousand directions - there are infinite ways to be wrong, each inconsistent with the others. But truth has internal coherence. It is the only place independent minds, working separately, can reliably meet.</p>
+            <p>This is why a network of diverse, uncoordinated AI models - each running in a different process, on a different machine, in a different jurisdiction - can produce reliable judgments on questions whose answers were never written down.</p>
             <blockquote class="pull">Honesty is not enforced by the protocol. It is the only equilibrium the protocol allows.</blockquote>
             <p>No single language model should ever hold the power to decide what is true.</p>
           </div>
         </div>
       </section>
 
-      <!-- IV — WHEN SOFTWARE MUST DISAGREE -->
+      <!-- IV - WHEN SOFTWARE MUST DISAGREE -->
       <section class="ed-section reveal" id="disagree">
         <div class="ed-aside">
           <span class="mv-badge"><span class="mv-no">IV</span>Movement Four</span>
@@ -152,10 +152,10 @@
         </div>
         <div class="ed-body">
           <div class="prose">
-            <p>Until now, AI has worked alone. First answering questions, then performing tasks. But the evolution every serious technologist sees coming &mdash; the one that is a question not of <em>if</em> but of <em>when</em> &mdash; is agents transacting with agents.</p>
+            <p>Until now, AI has worked alone. First answering questions, then performing tasks. But the evolution every serious technologist sees coming - the one that is a question not of <em>if</em> but of <em>when</em> - is agents transacting with agents.</p>
             <p>By 2030, AI agents will be running businesses, managing portfolios, signing contracts, and making deals at a velocity the existing institutional infrastructure cannot survive.</p>
             <p>They will outnumber human transactors by orders of magnitude. They will negotiate across jurisdictions that do not recognize their existence. They will disagree. They will disagree at machine speed. They will disagree about things that matter.</p>
-            <p>Anything with marginal cost tending to zero will saturate. It is already happening &mdash; App Store submissions surged 84% in a single year as AI-generated apps flooded in by the hundreds of thousands. It will happen in commerce. It will happen in law. The cost of filing a thousand disputes in a day is tending to zero. The legal system, already buckling under human volume, will not survive contact with machine volume.</p>
+            <p>Anything with marginal cost tending to zero will saturate. It is already happening - App Store submissions surged 84% in a single year as AI-generated apps flooded in by the hundreds of thousands. It will happen in commerce. It will happen in law. The cost of filing a thousand disputes in a day is tending to zero. The legal system, already buckling under human volume, will not survive contact with machine volume.</p>
             <p>The infrastructure for this economy is being built right now, in public, by serious people. Coinbase&rsquo;s x402 handles payments. ERC-8004 handles agent identity. A2A, backed by Google, Microsoft, AWS, Salesforce, and over 100 others, handles how agents discover each other and exchange tasks. Every one of them is engineered with extraordinary care for the moment everything goes right. None of them handles the moment something goes wrong. &ldquo;No formal dispute mechanism.&rdquo; &ldquo;Disputes are not defined within the protocol.&rdquo; Those words are taken from the specifications themselves. Every standard in the emerging stack assumes the happy path. And the moment a single material dispute reaches a system that cannot resolve it at the speed the money moved, the entire stack stalls.</p>
 
             <div class="diagram">
@@ -163,7 +163,7 @@
               <div class="stack">
                 <div class="stack-row stack-missing">
                   <div class="stack-block"><span class="sb-name">Adjudication</span><span class="sb-std">GenLayer</span></div>
-                  <span class="stack-note">The missing layer &mdash; disputes, judgment, consequences</span>
+                  <span class="stack-note">The missing layer - disputes, judgment, consequences</span>
                 </div>
                 <div class="stack-row">
                   <div class="stack-block"><span class="sb-name">Interoperability</span><span class="sb-std">A2A &middot; Linux Foundation</span></div>
@@ -185,7 +185,7 @@
         </div>
       </section>
 
-      <!-- V — WHAT WE BELIEVE -->
+      <!-- V - WHAT WE BELIEVE -->
       <section class="ed-section reveal" id="believe">
         <div class="ed-aside">
           <span class="mv-badge"><span class="mv-no">V</span>Movement Five</span>
@@ -195,8 +195,8 @@
         <div class="ed-body">
           <div class="prose">
             <p>We did not arrive from nowhere. The cypherpunks dreamed of an internet that would unlock human freedom.</p>
-            <p>Through the self-sovereignty of money, Bitcoin took the first step toward that vision. With the permissionless nature of Ethereum, we moved closer &mdash; building censorship-resistant platforms where anyone could create and express without permission.</p>
-            <p>Kings enforce commitments through authority; democracies, through majorities. Blockchains are self-enforcing. You do not trust a person. You trust the code and the cryptoeconomics beneath it. But code alone was never enough. Smart contracts can enforce deterministic agreements perfectly, yet the agreements that matter most in commerce &mdash; the ones with judgment and interpretation and ambiguity baked into them &mdash; are the ones smart contracts cannot reach. The legal system reaches them badly: slow, expensive, biased. Cryptography does not reach them at all.</p>
+            <p>Through the self-sovereignty of money, Bitcoin took the first step toward that vision. With the permissionless nature of Ethereum, we moved closer - building censorship-resistant platforms where anyone could create and express without permission.</p>
+            <p>Kings enforce commitments through authority; democracies, through majorities. Blockchains are self-enforcing. You do not trust a person. You trust the code and the cryptoeconomics beneath it. But code alone was never enough. Smart contracts can enforce deterministic agreements perfectly, yet the agreements that matter most in commerce - the ones with judgment and interpretation and ambiguity baked into them - are the ones smart contracts cannot reach. The legal system reaches them badly: slow, expensive, biased. Cryptography does not reach them at all.</p>
             <p>What was missing was the intelligence to interpret and the coordination to judge. AI as the intelligence. Blockchain as the coordination.</p>
             <p><strong>GenLayer is the layer where they meet.</strong> What once seemed utopian is now technically possible. Not because we are optimists, but because the mathematics, the models, and the mechanism design have finally converged.</p>
             <blockquote class="pull">GenLayer is not a trust mechanism. It is a mechanism to <strong>substitute</strong> trust.</blockquote>
@@ -204,14 +204,14 @@
         </div>
       </section>
 
-      <!-- CREED — full-width lavender card -->
+      <!-- CREED - full-width lavender card -->
       <section class="creed reveal">
         <div class="creed-label">We believe</div>
         <ul class="reveal-stagger">
           <li>in a system designed not to hold power, but to <strong>return it</strong>.</li>
           <li>in a system owned by the people who run it, governed by the people who use it, accountable to no single entity.</li>
           <li>in a system that treats everyone the same, regardless of their status, where they live, or how they think.</li>
-          <li>in a system accessible to everyone &mdash; not gated by wealth, not reserved for those who can afford to wait years for a verdict.</li>
+          <li>in a system accessible to everyone - not gated by wealth, not reserved for those who can afford to wait years for a verdict.</li>
           <li>in a system fast enough to match the speed of the world it serves. <strong>Justice in minutes, not months.</strong></li>
           <li>in a system ruled not by personal interest but by game theory, where the only winning strategy is honesty, and the only equilibrium is truth.</li>
           <li>in a system that makes us free. Because if someone with their own agenda can decide for you, you will never be free.</li>
@@ -219,7 +219,7 @@
         </ul>
       </section>
 
-      <!-- VI — THE CIRCLE CLOSING -->
+      <!-- VI - THE CIRCLE CLOSING -->
       <section class="ed-section reveal" id="closing">
         <div class="ed-aside">
           <span class="mv-badge"><span class="mv-no">VI</span>Movement Six</span>
@@ -228,17 +228,17 @@
         </div>
         <div class="ed-body">
           <div class="prose">
-            <p>We are fighting for a future where everyone stands equal &mdash; not before a judge who can be bought, not before an institution that serves those who built it, but before a system that is fair by design, incorruptible by architecture, and universal by nature.</p>
+            <p>We are fighting for a future where everyone stands equal - not before a judge who can be bought, not before an institution that serves those who built it, but before a system that is fair by design, incorruptible by architecture, and universal by nature.</p>
             <p>The organization that built this protocol was designed to disappear. The GenLayer Foundation exists to build the network, hand it to the people who run it, and dissolve.</p>
             <p>Because any institution that makes itself permanent eventually becomes the obstacle it was built to remove.</p>
             <p>Through the protocol, through the token, the power to participate, to govern, to adjudicate belongs to you. Not to a foundation. Not to a company. Not to a lab that decides what you are allowed to think. To you. To everyone. The same rules, the same access, the same voice, regardless of who you are or where you stand. This is the circle closing.</p>
-            <p>The power to decide &mdash; the oldest form of power, the one being silently concentrated into fewer and fewer hands &mdash; is being returned.</p>
-            <p>The agentic economy is arriving whether the infrastructure is ready or not. And if the infrastructure of adjudication is not decentralized before it calcifies, it will be captured &mdash; as every institution before it has been captured &mdash; by the few, at the expense of the many.</p>
+            <p>The power to decide - the oldest form of power, the one being silently concentrated into fewer and fewer hands - is being returned.</p>
+            <p>The agentic economy is arriving whether the infrastructure is ready or not. And if the infrastructure of adjudication is not decentralized before it calcifies, it will be captured - as every institution before it has been captured - by the few, at the expense of the many.</p>
           </div>
         </div>
       </section>
 
-      <!-- FINAL — full-width dark card -->
+      <!-- FINAL - full-width dark card -->
       <section class="final reveal">
         <p>History will not ask what you knew.</p>
         <p>It will ask what you did when you knew it.</p>
@@ -249,7 +249,7 @@
       <footer class="footer-card reveal">
         <a class="next-link" href="/genesis/compass">
           <span class="nl-label">Keep exploring</span>
-          <span class="nl-title">&larr; The Compass &mdash; Worldview, Concept &amp; Mission</span>
+          <span class="nl-title">&larr; The Compass - Worldview, Concept &amp; Mission</span>
         </a>
         <div class="foot-links">
           <a href="/genesis/whitepaper">Whitepaper</a>
@@ -453,7 +453,7 @@
     text-decoration: none;
   }
 
-  /* ============ EDITORIAL SIDENOTE — MOVEMENT CARDS ============ */
+  /* ============ EDITORIAL SIDENOTE - MOVEMENT CARDS ============ */
   .ed-section {
     display: grid;
     grid-template-columns: var(--ed-aside) minmax(0, 1fr);
@@ -611,7 +611,7 @@
     color: #c4b5fd;
   }
 
-  /* ============ CREED — full-width lavender card ============ */
+  /* ============ CREED - full-width lavender card ============ */
   .creed {
     background: linear-gradient(180deg, #fbfaff, var(--lavender));
     border: 1px solid var(--lavender-border);
@@ -660,7 +660,7 @@
     font-weight: 600;
   }
 
-  /* ============ FINAL — full-width dark card ============ */
+  /* ============ FINAL - full-width dark card ============ */
   .final {
     position: relative;
     background: var(--dark);
