@@ -32,6 +32,7 @@ describe('getMetaMaskConnectProvider', () => {
   });
 
   it('drops any persisted session before connecting so a stale relay channel cannot swallow the request', async () => {
+    vi.useFakeTimers();
     const calls = [];
     const client = makeClient({
       disconnect: vi.fn(async () => calls.push('disconnect')),
@@ -44,6 +45,7 @@ describe('getMetaMaskConnectProvider', () => {
 
     expect(calls).toEqual(['disconnect', 'connect']);
     expect(client.connect).toHaveBeenCalledWith({ chainIds: ['0x107d'], forceRequest: true });
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('still connects when tearing down the stale session hangs on the dead relay', async () => {
@@ -53,9 +55,9 @@ describe('getMetaMaskConnectProvider', () => {
     });
     mocks.createEVMClient.mockResolvedValue(client);
 
-    const { getMetaMaskConnectProvider } = await freshModule();
+    const { getMetaMaskConnectProvider, METAMASK_CONNECT_DISCONNECT_TIMEOUT_MS } = await freshModule();
     const providerPromise = getMetaMaskConnectProvider();
-    await vi.advanceTimersByTimeAsync(3000);
+    await vi.advanceTimersByTimeAsync(METAMASK_CONNECT_DISCONNECT_TIMEOUT_MS);
     const provider = await providerPromise;
 
     expect(client.connect).toHaveBeenCalledTimes(1);

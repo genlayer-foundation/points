@@ -11,6 +11,8 @@ const GENLAYER_STUDIO_RPC_URL = 'https://studio.genlayer.com/api';
 const MAINNET_CHAIN_ID = '0x1';
 const MAINNET_RPC_URL = 'https://cloudflare-eth.com';
 
+export const METAMASK_CONNECT_DISCONNECT_TIMEOUT_MS = 3000;
+
 let metaMaskClientPromise = null;
 
 function getDappUrl() {
@@ -101,10 +103,17 @@ export async function getMetaMaskConnectProvider() {
   // no silent-reconnect UX is lost. Time-boxed because tearing down a dead
   // session can itself stall on the unreachable relay; on timeout we proceed
   // and let connect() take its normal path.
-  await Promise.race([
-    client.disconnect().catch(() => {}),
-    new Promise((resolve) => setTimeout(resolve, 3000)),
-  ]);
+  let disconnectTimeout;
+  try {
+    await Promise.race([
+      client.disconnect().catch(() => {}),
+      new Promise((resolve) => {
+        disconnectTimeout = setTimeout(resolve, METAMASK_CONNECT_DISCONNECT_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    clearTimeout(disconnectTimeout);
+  }
   try {
     // forceRequest re-prompts even when a persisted session exists, so an
     // explicit MetaMask selection always shows the wallet's account picker
