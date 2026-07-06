@@ -4,6 +4,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Wallet addresses are now private: the portal only ever shows and serves the shortened form (0x1234...abcd) of other participants' addresses, with no way to copy or retrieve the complete address, while you keep full access to your own. Profiles are linked by account id (old address links still work), and searching by address now requires pasting the complete address, so ownership can still be verified without exposing anyone's wallet (287dfa61)
+
 - Graduated validators now keep their validator profile section instead of being sent back through the validator application journey (10a6fa0a)
 
 - Leaderboards load much faster and builder ranks are contiguous with no gaps; builders whose contributions were added directly by stewards now appear on the board, and every pre-existing builder received the star-the-boilerplate task and its points (11d6b38b)
