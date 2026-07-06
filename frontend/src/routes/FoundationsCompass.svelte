@@ -461,7 +461,7 @@
             <p>What defines the present moment is that GenLayer has already crossed the line from possibility to reality. Decentralized adjudication is no longer the open question. The work now is to make it robust enough to serve as infrastructure: hardening validator behavior, appeals, edge cases, and developer workflows under real conditions, and turning a breakthrough into something the rest of the agentic economy can depend on.</p>
 
             <h3>Future: where this leads</h3>
-            <p>By 2034, AI agents will have become major economic actors of the global economy. Each human will have, on average, dozens of agents working on their behalf - booking travel, negotiating contracts, managing finances, hiring other agents, paying bills, disputing them, paying again. The total volume of agent-to-agent contracts will exceed the total volume of human-to-human contracts by orders of magnitude. Every measurable metric of commerce - speed, throughput, complexity - will have shifted from human time to machine time.</p>
+            <p>By 2034, AI agents will have become major economic actors of the world economy. Each human will have, on average, dozens of agents working on their behalf - booking travel, negotiating contracts, managing finances, hiring other agents, paying bills, disputing them, paying again. The total volume of agent-to-agent contracts will exceed the total volume of human-to-human contracts by orders of magnitude. Every measurable metric of commerce - speed, throughput, complexity - will have shifted from human time to machine time.</p>
             <p>The infrastructure for that economy will not look like the infrastructure of today. Payments will be instant. Identity will be portable. Reputation will be on-chain. Adjudication - the piece that does not yet exist as a true internet-native layer - will be machine-speed, neutral, and integrated into digital contracts from the moment they are written. GenLayer is the protocol where that resolution happens.</p>
             <p>By 2034, the GenLayer Foundation will have dissolved itself. A foundation whose mission is the decentralization of power cannot, in the end, make an exception of itself. What remains is Deepthought DAO, a fully AI-powered governance layer built on GenLayer itself - the institution through which governance will be carried out and which will eventually substitute the GenLayer Foundation.</p>
             <p>That is where this leads. That is what we are building toward. And the moment is now, because the agentic economy is starting today.</p>
@@ -487,7 +487,7 @@
                 <p>The protocol must, in the end, belong to the network that runs it. Not to the Labs that built it. Not to the Foundation that stewarded it. Not to any team, partner, or token holder large enough to think of itself as indispensable. If any single entity, including the GenLayer Foundation, becomes load-bearing for the network&rsquo;s survival, we have failed the test the protocol was built to pass.</p>
                 <p>This has different consequences for different parts of GenLayer. For the Foundation, it means self-dissolution: the work ends when the network can govern itself, and Deepthought DAO inherits. For Labs, it means building products, contracts, and dependencies that do not require Labs to keep running for them to keep working. For every contributor, it means writing code, making decisions, and shipping features that can be challenged, forked, or reversed without any of us in the room.</p>
               </div>
-              <div class="pillar-value"><strong>Value - Build to be replaced</strong>The measure of our work is not how essential we become but how cleanly we can be succeeded. The day the network functions better without us than with us is the day we have done our job.</div>
+              <div class="pillar-value"><strong>Value - Build to be replaced</strong> The measure of our work is not how essential we become but how cleanly we can be succeeded. The day the network functions better without us than with us is the day we have done our job.</div>
             </div>
 
             <div class="pillar">
@@ -498,7 +498,7 @@
                 <p>This is not cynicism. It is the pattern that has played out across every system humans have built to resolve disputes, from arbitration panels to platform moderation to financial clearing houses. The moment a single actor can decide what is true, that actor becomes a target, an attack surface, and eventually a liability. GenLayer breaks the pattern by requiring consensus among diverse, independent validators. No single model, operator, or node can unilaterally determine an outcome. Truth emerges from the only place it reliably can: independent reasoners converging on the same answer without coordination.</p>
                 <p>In practice: we do not designate trusted validators. We do not appeal to credentials or reputation. We do not give ourselves or any partner the power to override the network. Every design choice should prefer the path that asks for less trust, even when the alternative is faster or simpler.</p>
               </div>
-              <div class="pillar-value"><strong>Value - Trustlessness</strong>A system that requires you to trust someone is only as honest as that someone. We build systems that do not require you to take anyone&rsquo;s word for it.</div>
+              <div class="pillar-value"><strong>Value - Trustlessness</strong> A system that requires you to trust someone is only as honest as that someone. We build systems that do not require you to take anyone&rsquo;s word for it.</div>
             </div>
 
             <div class="pillar">
@@ -509,7 +509,7 @@
                 <p>The agentic economy will produce disputes at a volume and velocity no human institution was designed to absorb. When resolution is slow, the harmed party does not just lose time. They lose agency, leverage, and the ability to act on the truth. The U.S. legal system&rsquo;s average resolution time for complex civil disputes is 344 days. The international average is 657. That latency is not a bug in the legacy system. It is a structural feature of any system designed for human speed.</p>
                 <p>In practice: the protocol must prevent any actor from introducing deliberate delay. We benchmark every system we ship on adjudication latency. Speed is not a feature we add when everything else is done. It is the condition everything else is built around.</p>
               </div>
-              <div class="pillar-value"><strong>Value - Velocity wins</strong>Speed is strategy. Shipping is oxygen. In frontier technology, speed and execution determine survival. We operate with urgency and precision. We move fast, stay sharp, and adapt, because standing still is falling behind.</div>
+              <div class="pillar-value"><strong>Value - Velocity wins</strong> Speed is strategy. Shipping is oxygen. In frontier technology, speed and execution determine survival. We operate with urgency and precision. We move fast, stay sharp, and adapt, because standing still is falling behind.</div>
             </div>
 
             <div class="pillar">
@@ -520,7 +520,7 @@
                 <p>Traditional dispute resolution depends on who you are, where you are, and how long you can wait. Most people and most agents will never have access to it. GenLayer is built on the opposite assumption: anyone, anywhere, at any status, should be able to deploy a contract, trigger adjudication, and receive a credible resolution under exactly the same rules as everyone else. The diversity of the validator set reinforces this. A permissionless network cannot be captured by any single jurisdiction, operator, or interest group. Diversity is not an ethical bonus. It is a security property.</p>
                 <p>In practice: we do not maintain whitelists, priority queues, or exceptions for large customers or partners. Anyone with stake can run a validator. Anyone with a bond can appeal. Gas costs the same regardless of who is asking.</p>
               </div>
-              <div class="pillar-value"><strong>Value - Accessibility</strong>The protocol is only as powerful as the range of people it actually serves.</div>
+              <div class="pillar-value"><strong>Value - Accessibility</strong> The protocol is only as powerful as the range of people it actually serves.</div>
             </div>
 
             <div class="pillar">
@@ -531,7 +531,7 @@
                 <p>Every adjudication system confronts the same problem: judgment is shaped by whoever is doing the judging. Courts lean toward local power. Platforms enforce the preferences of whoever wrote the moderation policy. Single-model AI systems encode the assumptions of whoever trained the model. GenLayer exists to break that pattern by requiring consensus among a diverse set of independent validators running different models, different seeds, on different hardware, in different geographies. No single perspective can quietly become the default. Bias cannot be eliminated. It can be counterbalanced.</p>
                 <p>In practice: we do not pick a preferred LLM. We do not run a reference implementation that gets special treatment. We treat homogeneity in the validator set as a security risk, not a simplification. Validator diversity is something we actively build toward and measure.</p>
               </div>
-              <div class="pillar-value"><strong>Value - Fairness</strong>Equal before the system. Every contract, every user, every dispute, judged by the same process with no exceptions.</div>
+              <div class="pillar-value"><strong>Value - Fairness</strong> Equal before the system. Every contract, every user, every dispute, judged by the same process with no exceptions.</div>
             </div>
           </div>
         </div>
