@@ -1,0 +1,51 @@
+from django.db import migrations, models
+import django.db.models.deletion
+
+
+def backfill_operator_wallets(apps, schema_editor):
+    ValidatorWallet = apps.get_model('validators', 'ValidatorWallet')
+    ValidatorOperatorWallet = apps.get_model('validators', 'ValidatorOperatorWallet')
+
+    seen = set()
+    wallets = (
+        ValidatorWallet.objects
+        .exclude(operator_id__isnull=True)
+        .exclude(operator_address='')
+        .order_by('id')
+        .values('operator_id', 'operator_address')
+    )
+    for wallet in wallets:
+        address = (wallet['operator_address'] or '').lower()
+        if not address or address in seen:
+            continue
+        seen.add(address)
+        ValidatorOperatorWallet.objects.get_or_create(
+            address=address,
+            defaults={
+                'validator_id': wallet['operator_id'],
+            },
+        )
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('validators', '0016_backfill_graduated_validator_profiles'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='ValidatorOperatorWallet',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('address', models.CharField(db_index=True, max_length=42, unique=True)),
+                ('validator', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='operator_wallets', to='validators.validator')),
+            ],
+            options={
+                'ordering': ['address'],
+            },
+        ),
+        migrations.RunPython(backfill_operator_wallets, migrations.RunPython.noop),
+    ]
