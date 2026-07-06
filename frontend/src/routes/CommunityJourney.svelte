@@ -124,39 +124,48 @@
     const handlePageHide = () => trackJourneyExit('pagehide');
     window.addEventListener('pagehide', handlePageHide);
 
-    if (!user?.has_community_welcome) {
-      journeyAPI
-        .startRoleJourney('community')
-        .then(() => {
-          markFunnelTime('journey_start:community');
-          markLifecycleTime('first_journey_start:community');
-          trackEvent('journey_started', getAnalyticsContext({
-            role_context: 'community',
-            selected_role: 'community',
-            surface: 'journey',
-            journey_state: 'started',
-            time_from_role_landing_ms: getFunnelDurationMs('role_landing:community'),
-            time_from_wallet_click_ms: getFunnelDurationMs('wallet_click'),
-            time_from_wallet_auth_success_ms: getFunnelDurationMs('wallet_auth_success'),
-            time_from_profile_completion_ms: getFunnelDurationMs('profile_completion'),
-          }));
-          userStore.loadUser?.();
-        })
-        .catch((err) => {
-          trackEvent('journey_start_error', getAnalyticsContext({
-            role_context: 'community',
-            selected_role: 'community',
-            surface: 'journey',
-            error_stage: err.response?.status ? 'backend' : 'network',
-          }));
-          showError('Could not start your creator journey. Try refreshing in a moment.');
-        });
-    }
     loadJourney({ showLoading: true });
     return () => {
       window.removeEventListener('pagehide', handlePageHide);
       trackJourneyExit('route_leave');
     };
+  });
+
+  // Start the journey only once the user profile has actually loaded. The
+  // route can mount before /users/me/ resolves, so this must be reactive (an
+  // onMount check would permanently skip the start marker for direct visits),
+  // and a null user (backend down) must never trigger the mutation.
+  let journeyStartChecked = false;
+  $effect(() => {
+    if (journeyStartChecked || !user) return;
+    journeyStartChecked = true;
+    if (user.has_community_welcome) return;
+    journeyAPI
+      .startRoleJourney('community')
+      .then(() => {
+        markFunnelTime('journey_start:community');
+        markLifecycleTime('first_journey_start:community');
+        trackEvent('journey_started', getAnalyticsContext({
+          role_context: 'community',
+          selected_role: 'community',
+          surface: 'journey',
+          journey_state: 'started',
+          time_from_role_landing_ms: getFunnelDurationMs('role_landing:community'),
+          time_from_wallet_click_ms: getFunnelDurationMs('wallet_click'),
+          time_from_wallet_auth_success_ms: getFunnelDurationMs('wallet_auth_success'),
+          time_from_profile_completion_ms: getFunnelDurationMs('profile_completion'),
+        }));
+        userStore.loadUser?.();
+      })
+      .catch((err) => {
+        trackEvent('journey_start_error', getAnalyticsContext({
+          role_context: 'community',
+          selected_role: 'community',
+          surface: 'journey',
+          error_stage: err.response?.status ? 'backend' : 'network',
+        }));
+        showError('Could not start your creator journey. Try refreshing in a moment.');
+      });
   });
 
   $effect(() => {

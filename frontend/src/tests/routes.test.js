@@ -121,7 +121,7 @@ describe('Routes Rendering Tests', () => {
   describe('NotFound Page', () => {
     it('renders without crashing', async () => {
       render(NotFound);
-      expect(screen.getByText(/page not found/i)).toBeDefined();
+      expect(screen.getByText(/error 404/i)).toBeDefined();
     });
   });
 });
@@ -145,6 +145,6 @@ describe('Data Fetching and Display Tests', () => {
   
   it('tests static rendering of NotFound component', () => {
     render(NotFound);
-    expect(screen.getByText(/page not found/i)).toBeDefined();
+    expect(screen.getByText(/error 404/i)).toBeDefined();
   });
 });

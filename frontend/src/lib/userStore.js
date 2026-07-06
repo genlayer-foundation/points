@@ -32,9 +32,14 @@ function createUserStore() {
           }));
           return userData;
         } catch (err) {
+          // Only a definitive auth rejection means "no user". On network/5xx
+          // failures keep any previously loaded user so role gating and journey
+          // state don't reset while the backend is down.
+          const status = err.response?.status;
+          const unauthenticated = status === 401 || status === 403;
           update(state => ({
             ...state,
-            user: null,
+            user: unauthenticated ? null : state.user,
             loading: false,
             error: err.message || 'Failed to load user data'
           }));
