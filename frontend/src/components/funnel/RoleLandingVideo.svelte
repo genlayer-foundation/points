@@ -1,11 +1,12 @@
 <script>
   import { onMount } from 'svelte';
+  import { m } from '../../lib/paraglide/messages.js';
 
   let {
     variant = 'genlayer',
-    eyebrow = 'Portal Preview',
-    title = 'GenLayer in motion',
-    description = 'Watch the network experience before starting your journey.',
+    eyebrow = m.rlv_default_eyebrow(),
+    title = m.rlv_default_title(),
+    description = m.rlv_default_description(),
     src = '/assets/landings/default-video-landings.mp4',
     poster = '/assets/landings/default-video-landings-poster.jpg',
   } = $props();
@@ -224,7 +225,7 @@
   <button
     type="button"
     class="landing-video-center"
-    aria-label={isPlaying ? 'Pause video' : 'Play video'}
+    aria-label={isPlaying ? m.rlv_pause_video() : m.rlv_play_video()}
     onclick={togglePlayback}
   >
     {#if isPlaying}
@@ -241,13 +242,13 @@
   <div
     class="landing-video-controls"
     role="group"
-    aria-label="Video controls"
+    aria-label={m.rlv_controls_aria()}
     onpointerenter={revealControls}
   >
     <button
       type="button"
       class="control-button"
-      aria-label={isPlaying ? 'Pause video' : 'Play video'}
+      aria-label={isPlaying ? m.rlv_pause_video() : m.rlv_play_video()}
       onclick={togglePlayback}
     >
       {#if isPlaying}
@@ -261,7 +262,7 @@
       {/if}
     </button>
 
-    <div class="time-readout" aria-label={`${formatTime(currentTime)} of ${formatTime(duration)}`}>
+    <div class="time-readout" aria-label={m.rlv_time_of({ current: formatTime(currentTime), total: formatTime(duration) })}>
       {formatTime(currentTime)}
       <span>/</span>
       {formatTime(duration)}
@@ -275,7 +276,7 @@
       max="100"
       step="0.1"
       value={progress}
-      aria-label="Seek video"
+      aria-label={m.rlv_seek_aria()}
       oninput={seek}
       onpointerdown={beginScrubbing}
       onpointerup={endScrubbing}
@@ -286,7 +287,7 @@
     <button
       type="button"
       class="control-button"
-      aria-label={isMuted ? 'Unmute video' : 'Mute video'}
+      aria-label={isMuted ? m.rlv_unmute_video() : m.rlv_mute_video()}
       onclick={toggleMute}
     >
       {#if isMuted}
@@ -303,7 +304,7 @@
     <button
       type="button"
       class="control-button"
-      aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+      aria-label={isFullscreen ? m.rlv_fullscreen_exit() : m.rlv_fullscreen_enter()}
       onclick={toggleFullscreen}
     >
       <svg viewBox="0 0 24 24" aria-hidden="true">

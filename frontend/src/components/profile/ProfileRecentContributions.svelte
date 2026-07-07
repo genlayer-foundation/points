@@ -3,6 +3,7 @@
   import { push } from 'svelte-spa-router';
   import { contributionsAPI } from '../../lib/api.js';
   import PortalContributionCard from '../portal/PortalContributionCard.svelte';
+  import { m } from '../../lib/paraglide/messages.js';
 
   let {
     userId = null,
@@ -10,7 +11,7 @@
     limit = 5,
     showViewAll = true,
     viewAllPath = '/contributions',
-    viewAllText = 'View All Contributions →',
+    viewAllText = m.prc_view_all_contributions(),
   } = $props();
 
   let contributions = $state([]);
@@ -36,7 +37,7 @@
         .filter((contribution) => !hiddenContributionTypeSlugs.has(contributionTypeSlug(contribution)))
         .slice(0, limit);
     } catch (err) {
-      error = err.message || 'Failed to load contributions';
+      error = err.message || m.prc_failed_load();
     } finally {
       loading = false;
     }
@@ -56,8 +57,8 @@
     </div>
   {:else if contributions.length === 0}
     <div class="w-full rounded-[12px] bg-white border border-[#e5e5e5] py-6 px-4 flex flex-col items-center justify-center gap-1">
-      <span class="text-[14px] text-[#999]">No contributions yet.</span>
-      <span class="text-[14px] text-[#999]">Submit your first to start earning points.</span>
+      <span class="text-[14px] text-[#999]">{m.phigh_no_contributions_yet()}</span>
+      <span class="text-[14px] text-[#999]">{m.phigh_submit_first()}</span>
     </div>
   {:else}
     <div class="flex gap-2.5 overflow-x-auto pb-2" style="-ms-overflow-style: none; scrollbar-width: none;">

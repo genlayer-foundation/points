@@ -10,6 +10,7 @@
   import { getContributionTypes } from '../lib/api/contributions.js';
   import { parseMarkdown } from '../lib/markdownLoader.js';
   import { isSafeHttpUrl } from '../lib/urlSafety.js';
+  import { m } from '../lib/paraglide/messages.js';
 
   let { params = {} } = $props();
 
@@ -104,7 +105,7 @@
     if (selectedContributionType) {
       formData.contribution_type = selectedContributionType.id;
       // Clear error when a contribution type is selected
-      if (error === 'Please select a contribution type') {
+      if (error === m.esub_select_type_error()) {
         error = '';
       }
     }
@@ -152,8 +153,8 @@
     if (!requiredEvidenceTypes.length) return '';
     const names = requiredEvidenceTypes.map((t) => t.name);
     if (names.length === 1) return names[0];
-    if (names.length === 2) return `${names[0]} or ${names[1]}`;
-    return `${names.slice(0, -1).join(', ')}, or ${names[names.length - 1]}`;
+    if (names.length === 2) return m.esub_evidence_types_two({ first: names[0], second: names[1] });
+    return m.esub_evidence_types_many({ items: names.slice(0, -1).join(', '), last: names[names.length - 1] });
   });
 
   let requiredEvidenceSatisfied = $derived.by(() => {
@@ -316,7 +317,7 @@
     const urlType = acceptedEvidenceTypes.find(t => t.slug === slug) || null;
     evidenceSlots[index].selectedType = urlType;
     if (urlType) {
-      evidenceSlots[index].description = urlType.is_generic ? 'Other' : urlType.name;
+      evidenceSlots[index].description = urlType.is_generic ? m.esub_evidence_type_other() : urlType.name;
     }
   }
 
@@ -366,7 +367,7 @@
         evidenceSlots[index].description = detected.name;
       } else if (!evidenceSlots[index].selectedType) {
         evidenceSlots[index].selectedType = detected;
-        evidenceSlots[index].description = detected?.is_generic ? 'Other' : (detected?.name || '');
+        evidenceSlots[index].description = detected?.is_generic ? m.esub_evidence_type_other() : (detected?.name || '');
       }
     }
   }
@@ -387,7 +388,7 @@
 
       // Check if editing is allowed
       if (!submission.can_edit) {
-        error = 'This submission cannot be edited';
+        error = m.esub_cannot_edit();
         return;
       }
 
@@ -428,11 +429,11 @@
 
     } catch (err) {
       if (err.response?.status === 404) {
-        error = 'Submission not found';
+        error = m.esub_not_found();
       } else if (err.response?.status === 403) {
-        error = 'You do not have permission to view this submission';
+        error = m.esub_no_permission();
       } else {
-        error = 'Failed to load submission';
+        error = m.esub_load_failed();
       }
     } finally {
       loading = false;
@@ -467,22 +468,22 @@
 
     // Validate required fields
     if (!formData.contribution_type) {
-      error = 'Please select a contribution type';
+      error = m.esub_select_type_error();
       return;
     }
 
     if (!formData.contribution_date) {
-      error = 'Please select a contribution date';
+      error = m.esub_select_date_error();
       return;
     }
 
     if (isMilestoneSubmission && !selectedProject) {
-      error = 'Please select the accepted project this milestone belongs to.';
+      error = m.esub_select_project_error();
       return;
     }
 
     if (isMilestoneSubmission && !formData.notes.trim()) {
-      error = 'Please describe the changes and improvements in this milestone.';
+      error = m.esub_describe_milestone_error();
       return;
     }
 
@@ -493,11 +494,11 @@
       const hasUrl = slot.url && slot.url.trim().length > 0;
 
       if (hasDescription && !hasUrl) {
-        error = `Evidence ${i + 1}: A URL is required for each evidence item`;
+        error = m.esub_evidence_url_required({ index: i + 1 });
         return;
       }
       if (hasUrl && !hasDescription) {
-        error = `Evidence ${i + 1}: Please provide a description along with the URL`;
+        error = m.esub_evidence_description_required({ index: i + 1 });
         return;
       }
       if (hasUrl) {
@@ -507,7 +508,7 @@
         const normalizedUrl = normalizeUrl(slot.url.trim());
         // Same scheme/format validation SubmitContribution applies on create
         if (!isSafeHttpUrl(normalizedUrl)) {
-          error = `Evidence ${i + 1}: Please enter a valid http(s) URL`;
+          error = m.esub_evidence_invalid_url({ index: i + 1 });
           return;
         }
         slot.url = normalizedUrl;
@@ -524,7 +525,7 @@
     // Milestones are reviewed from the linked project's repository, so
     // extra evidence is optional for them.
     if (filledSlots.length === 0 && !isMilestoneSubmission) {
-      error = 'Please add at least one evidence item with a URL to support your contribution';
+      error = m.esub_evidence_min_one();
       return;
     }
 
@@ -533,7 +534,7 @@
       const slot = filledSlots[i];
       if (slot.selectedType && !slot.selectedType.is_generic) {
         if (!urlMatchesType(slot.url, slot.selectedType)) {
-          error = `Evidence ${i + 1}: The URL provided doesn't match the expected format for ${slot.selectedType.name}.`;
+          error = m.esub_evidence_format_mismatch({ index: i + 1, type: slot.selectedType.name });
           return;
         }
       }
@@ -541,7 +542,7 @@
 
     // Enforce the required-URL-type rule before hitting the server
     if (requiredEvidenceTypes.length > 0 && !requiredEvidenceSatisfied) {
-      error = `At least one evidence URL must be one of: ${requiredEvidenceLabel}.`;
+      error = m.esub_required_evidence_error({ types: requiredEvidenceLabel });
       return;
     }
 
@@ -577,7 +578,7 @@
       await api.put(`/submissions/${params.id}/`, updateData);
 
       // Store success message in sessionStorage to show on My Submissions page
-      sessionStorage.setItem('submissionUpdateSuccess', 'Your submission has been saved successfully.');
+      sessionStorage.setItem('submissionUpdateSuccess', m.esub_saved_success());
 
       // Redirect immediately to my submissions
       push('/my-submissions');
@@ -594,7 +595,7 @@
             : JSON.stringify(evidenceErrors);
         }
       } else {
-        error = err.response?.data?.error || err.response?.data?.detail || 'Failed to update submission';
+        error = err.response?.data?.error || err.response?.data?.detail || m.esub_update_failed();
       }
     } finally {
       submitting = false;
@@ -614,13 +615,13 @@
       await api.delete(`/submissions/${params.id}/`);
 
       // Store success message in sessionStorage to show on My Submissions page
-      sessionStorage.setItem('submissionUpdateSuccess', 'Your submission has been removed.');
+      sessionStorage.setItem('submissionUpdateSuccess', m.esub_removed_success());
 
       // Redirect to my submissions
       push('/my-submissions');
 
     } catch (err) {
-      error = err.response?.data?.error || 'Failed to delete submission';
+      error = err.response?.data?.error || m.esub_delete_failed();
     } finally {
       submitting = false;
     }
@@ -632,7 +633,7 @@
 </script>
 
 <div class="container mx-auto px-4 py-8">
-  <h1 class="text-2xl font-bold mb-6">Edit Submission</h1>
+  <h1 class="text-2xl font-bold mb-6">{m.esub_page_title()}</h1>
   
   {#if !authChecked || loading}
     <div class="flex justify-center py-12">
@@ -644,13 +645,13 @@
         <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
         </svg>
-        <h3 class="text-lg font-medium text-gray-900 mb-2">Authentication Required</h3>
-        <p class="text-gray-500 mb-4">Please connect your wallet to edit submissions.</p>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">{m.common_auth_required()}</h3>
+        <p class="text-gray-500 mb-4">{m.esub_connect_wallet_prompt()}</p>
         <button
           onclick={() => push('/')}
           class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
         >
-          Go to Dashboard
+          {m.common_go_to_dashboard()}
         </button>
       </div>
     </div>
@@ -662,7 +663,7 @@
     <div class="max-w-2xl">
       {#if submission.staff_reply}
         <div class="mb-6 bg-blue-50 border border-blue-200 p-4 rounded">
-          <h3 class="font-semibold text-blue-900 mb-2">Staff Feedback:</h3>
+          <h3 class="font-semibold text-blue-900 mb-2">{m.esub_staff_feedback()}</h3>
           <div class="markdown-content text-blue-800">{@html parseMarkdown(submission.staff_reply)}</div>
         </div>
       {/if}
@@ -676,7 +677,7 @@
         
         <div class="mb-6">
           <label class="block text-sm font-medium text-gray-700 mb-2">
-            Contribution Type <span class="text-red-500">*</span>
+            {m.esub_contribution_type_label()} <span class="text-red-500">*</span>
           </label>
           <!-- Show all types (including non-submittable) so user can see their current
                submission's type, even if it was changed to non-submittable after submission -->
@@ -701,13 +702,13 @@
               </svg>
             </div>
             <div>
-              <h3 class="font-semibold text-gray-900 mb-1">Connect Your Account</h3>
+              <h3 class="font-semibold text-gray-900 mb-1">{m.esub_connect_account_title()}</h3>
               <p class="text-sm text-gray-500">
-                This contribution type requires account verification. Please connect your account to continue.
+                {m.esub_connect_account_desc()}
               </p>
               {#if missingDiscordRoles.length > 0}
                 <p class="text-sm text-gray-500 mt-2">
-                  {$userStore.user?.discord_connection ? "Required Discord role" : "Link Discord and make sure you have one of these roles"}: {missingDiscordRoles.join(", ")}
+                  {$userStore.user?.discord_connection ? m.esub_required_discord_role() : m.esub_link_discord_roles_hint()}: {missingDiscordRoles.join(", ")}
                 </p>
               {/if}
             </div>
@@ -728,7 +729,7 @@
             </div>
             {#if missingDiscordRoles.length > 0}
               <a href="/profile" class="text-sm text-gray-500 hover:text-gray-900 transition-colors">
-                {$userStore.user?.discord_connection ? "Refresh Discord roles from profile" : "Go to profile"} →
+                {$userStore.user?.discord_connection ? m.esub_refresh_discord_roles_profile() : m.esub_go_to_profile()} →
               </a>
             {/if}
           </div>
@@ -738,26 +739,24 @@
         {#if isMilestoneSubmission}
           <div class="mb-6 bg-gray-50 border border-gray-200 rounded-md p-4">
             <label for="milestone-project" class="block text-sm font-medium text-gray-700 mb-2">
-              Linked Project <span class="text-red-500">*</span>
+              {m.esub_linked_project_label()} <span class="text-red-500">*</span>
             </label>
             {#if loadingProjects}
-              <p class="text-sm text-gray-500">Loading accepted projects...</p>
+              <p class="text-sm text-gray-500">{m.esub_loading_projects()}</p>
             {:else if projectsError}
               <p class="text-sm text-red-700">
-                We couldn't load your accepted projects.
+                {m.esub_projects_load_error()}
                 <button
                   type="button"
                   onclick={loadAcceptedProjects}
                   class="font-medium underline hover:text-red-900"
                 >
-                  Try again
+                  {m.common_try_again()}
                 </button>
               </p>
             {:else if acceptedProjects.length === 0}
               <p class="text-sm text-orange-700">
-                You need an accepted project before submitting milestones.
-                Submit a Projects contribution first; once it is accepted,
-                milestones can be linked to it.
+                {m.esub_need_accepted_project()}
               </p>
             {:else}
               <select
@@ -766,7 +765,7 @@
                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                 required
               >
-                <option value="">Select accepted project...</option>
+                <option value="">{m.esub_select_project_placeholder()}</option>
                 {#each acceptedProjects as project}
                   <option value={project.id}>
                     {project.title}
@@ -776,11 +775,11 @@
               <div class="mt-2 flex items-center gap-2 flex-wrap">
                 {#if submission?.milestone_version && submission?.project_contribution?.id && String(submission.project_contribution.id) === String(selectedProject)}
                   <span class="text-xs text-indigo-700 bg-indigo-100 rounded-full px-2 py-0.5 font-medium">
-                    Milestone v{submission.milestone_version}
+                    {m.esub_milestone_version({ version: submission.milestone_version })}
                   </span>
                 {:else if selectedProjectData}
                   <span class="text-xs text-indigo-700 bg-indigo-100 rounded-full px-2 py-0.5 font-medium">
-                    Will be saved as v{selectedProjectData.next_milestone_version || 1}
+                    {m.esub_will_save_as_version({ version: selectedProjectData.next_milestone_version || 1 })}
                   </span>
                 {/if}
                 {#if selectedProjectData?.github_url}
@@ -790,19 +789,19 @@
                     rel="noopener noreferrer"
                     class="text-xs text-primary-600 hover:text-primary-700 hover:underline"
                   >
-                    Project Repository ↗
+                    {m.esub_project_repository()} ↗
                   </a>
                 {/if}
               </div>
               <p class="mt-1 text-xs text-gray-500">
-                Stewards review the project repository for the changes you describe.
+                {m.esub_stewards_review_hint()}
               </p>
             {/if}
           </div>
         {/if}
         <div class="mb-6">
           <label for="contribution_date" class="block text-sm font-medium text-gray-700 mb-2">
-            Contribution Date <span class="text-red-500">*</span>
+            {m.esub_contribution_date_label()} <span class="text-red-500">*</span>
           </label>
           <input
             type="date"
@@ -816,7 +815,7 @@
         
         <div class="mb-6">
           <label for="title" class="block text-sm font-medium text-gray-700 mb-2">
-            Title <span class="text-gray-400 font-normal">(optional)</span>
+            {m.esub_title_label()} <span class="text-gray-400 font-normal">{m.esub_optional()}</span>
           </label>
           <input
             type="text"
@@ -824,16 +823,16 @@
             bind:value={formData.title}
             maxlength="200"
             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-            placeholder="Give your contribution a title..."
+            placeholder={m.esub_title_placeholder()}
           />
         </div>
 
         <div class="mb-6">
           <label for="notes" class="block text-sm font-medium text-gray-700 mb-2">
             {#if isMilestoneSubmission}
-              Changes & Improvements <span class="text-red-500">*</span>
+              {m.esub_changes_improvements_label()} <span class="text-red-500">*</span>
             {:else}
-              Notes / Description
+              {m.esub_notes_label()}
             {/if}
           </label>
           <textarea
@@ -842,8 +841,8 @@
             rows="6"
             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             placeholder={isMilestoneSubmission
-              ? "Explain the changes and improvements in this milestone..."
-              : "Update your contribution description based on the staff feedback..."}
+              ? m.esub_milestone_notes_placeholder()
+              : m.esub_notes_placeholder()}
             required={isMilestoneSubmission}
           ></textarea>
         </div>
@@ -851,14 +850,14 @@
         <div class="mb-6">
           <div class="flex justify-between items-center mb-2">
             <label class="block text-sm font-medium text-gray-700">
-              Evidence & Supporting Information
+              {m.esub_evidence_section_label()}
             </label>
             <button
               type="button"
               onclick={addEvidenceSlot}
               class="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
             >
-              + Add Evidence
+              {m.esub_add_evidence()}
             </button>
           </div>
 
@@ -878,13 +877,13 @@
                 </svg>
               {/if}
               <div class="text-sm">
-                <span class="font-semibold">Required evidence:</span>
-                at least one URL must be one of
+                <span class="font-semibold">{m.esub_required_evidence_label()}</span>
+                {m.esub_required_evidence_one_of()}
                 <span class="font-medium">{requiredEvidenceLabel}</span>.
                 {#if requiredEvidenceSatisfied}
-                  <span class="text-green-700">Requirement satisfied.</span>
+                  <span class="text-green-700">{m.esub_requirement_satisfied()}</span>
                 {:else}
-                  <span class="text-amber-700">Not yet satisfied.</span>
+                  <span class="text-amber-700">{m.esub_requirement_not_satisfied()}</span>
                 {/if}
               </div>
             </div>
@@ -892,7 +891,7 @@
 
           {#if evidenceSlots.length === 0}
             <div class="bg-gray-50 p-4 rounded text-center text-gray-500">
-              No evidence added yet. Click "Add Evidence" to include supporting information.
+              {m.esub_no_evidence_yet()}
             </div>
           {:else}
             <div class="space-y-4">
@@ -901,7 +900,7 @@
                   <!-- URL field (primary input) -->
                   <div class="pr-[60px] mb-3">
                     <label class="block text-xs font-medium text-gray-700 mb-1">
-                      URL
+                      {m.esub_url_label()}
                     </label>
                     <input
                       type="url"
@@ -920,11 +919,11 @@
                           <svg class="w-3 h-3 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
                           </svg>
-                          {slot.selectedType.is_generic ? 'Other' : slot.selectedType.name}
+                          {slot.selectedType.is_generic ? m.esub_evidence_type_other() : slot.selectedType.name}
                         </span>
                       {:else}
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-50 text-gray-400">
-                          Paste a URL to auto-detect type
+                          {m.esub_paste_url_hint()}
                         </span>
                       {/if}
                       {#if acceptedEvidenceTypes.length > 1}
@@ -933,10 +932,10 @@
                           onchange={(e) => handleEvidenceTypeChange(index, e.target.value)}
                           class="text-xs text-gray-500 bg-transparent border-none underline decoration-dotted underline-offset-2 cursor-pointer focus:outline-none appearance-none"
                         >
-                          <option value="" disabled>Change type</option>
+                          <option value="" disabled>{m.esub_change_type()}</option>
                           {#each acceptedEvidenceTypes as urlType}
                             {#if urlType.is_generic}
-                              <option value={urlType.slug}>Other</option>
+                              <option value={urlType.slug}>{m.esub_evidence_type_other()}</option>
                             {:else}
                               <option value={urlType.slug}>{urlType.name}</option>
                             {/if}
@@ -946,7 +945,7 @@
                     </div>
                     {#if slot.url && slot.selectedType && !slot.selectedType.is_generic && !urlMatchesType(slot.url, slot.selectedType)}
                       <p class="text-xs text-red-500 mt-1 pl-0.5">
-                        This URL doesn't match the expected format for {slot.selectedType.name}.
+                        {m.esub_url_mismatch_inline({ type: slot.selectedType.name })}
                       </p>
                     {/if}
                   {/if}
@@ -957,7 +956,7 @@
                       onclick={() => removeEvidenceSlot(index)}
                       class="text-red-500 hover:text-red-700 text-sm"
                     >
-                      Remove
+                      {m.common_remove()}
                     </button>
                   </div>
                 </div>
@@ -966,13 +965,13 @@
           {/if}
           
           <p class="text-xs text-gray-500 mt-2">
-            Add additional URLs and descriptions to support your contribution claim. Provide links to GitHub, Twitter, blog posts, or other evidence.
+            {m.esub_evidence_help()}
           </p>
 
           {#if evidenceRequiredAccounts.length > 0}
             <div class="mt-3 bg-gray-50 border border-gray-200 rounded-lg p-4 flex flex-col gap-3">
               <p class="text-sm text-gray-500">
-                Your selected evidence type requires account verification to confirm ownership.
+                {m.esub_evidence_ownership_hint()}
               </p>
               <div class="flex flex-wrap gap-3">
                 {#each evidenceRequiredAccounts as account}
@@ -999,7 +998,7 @@
             disabled={submitting || evidenceRequiredAccounts.length > 0 || hasEvidencePatternMismatch}
             class="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {submitting ? 'Saving...' : 'Save'}
+            {submitting ? m.common_saving() : m.common_save()}
           </button>
 
           <button
@@ -1008,7 +1007,7 @@
             disabled={submitting}
             class="px-6 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 disabled:opacity-50"
           >
-            Cancel
+            {m.common_cancel()}
           </button>
 
           <button
@@ -1017,7 +1016,7 @@
             disabled={submitting}
             class="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Remove Submission
+            {m.esub_remove_submission()}
           </button>
         </div>
         {/if}
@@ -1028,10 +1027,10 @@
 
 <ConfirmDialog
   isOpen={showDeleteDialog}
-  title="Remove Submission"
-  message="Are you sure you want to remove this submission? It will be marked as canceled."
-  confirmText="Remove"
-  cancelText="Cancel"
+  title={m.esub_remove_submission()}
+  message={m.esub_remove_confirm_message()}
+  confirmText={m.common_remove()}
+  cancelText={m.common_cancel()}
   onConfirm={confirmDelete}
   onCancel={cancelDelete}
 />

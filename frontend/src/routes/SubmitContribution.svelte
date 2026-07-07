@@ -3,6 +3,7 @@
   import { authState } from "../lib/auth.js";
   import { onMount } from "svelte";
   import { setConnectWalletIntent } from "../lib/analytics.js";
+  import { m } from "../lib/paraglide/messages.js";
   import SubmitContributionForm from "../components/portal/submit-contribution/SubmitContribution.svelte";
 
   let authChecked = $state(false);
@@ -54,10 +55,10 @@
           />
         </svg>
         <h3 class="text-lg font-semibold text-black mb-2 font-['Switzer']">
-          Authentication Required
+          {m.common_auth_required()}
         </h3>
         <p class="text-[14px] text-[#6b6b6b] mb-5 font-['Switzer']">
-          Please connect your wallet to submit contributions.
+          {m.subform_connect_wallet_prompt()}
         </p>
         <button
           onclick={() => {
@@ -69,7 +70,7 @@
           }}
           class="bg-[#9e4bf6] text-white px-[20px] h-[40px] rounded-[20px] font-['Switzer'] font-medium text-[14px] hover:bg-[#8b3ced] transition-colors"
         >
-          Connect Wallet
+          {m.auth_connect_wallet()}
         </button>
       </div>
     </div>

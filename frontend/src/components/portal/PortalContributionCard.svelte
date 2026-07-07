@@ -1,6 +1,8 @@
 <script>
   import { push } from 'svelte-spa-router';
   import { format } from 'date-fns';
+  import { dateFnsLocale } from '../../lib/i18n.js';
+  import { m } from '../../lib/paraglide/messages.js';
 
   let { contribution, category = null, height = 180, pathPrefix = '/contribution' } = $props();
 
@@ -28,7 +30,7 @@
   function formatDate(dateString) {
     if (!dateString) return '';
     try {
-      return format(new Date(dateString), 'MMM d, yyyy');
+      return format(new Date(dateString), 'MMM d, yyyy', { locale: dateFnsLocale() });
     } catch {
       return dateString;
     }
@@ -41,7 +43,7 @@
   let typeName = $derived(
     contribution?.contribution_type_name ||
     contribution?.contribution_type_details?.name ||
-    'Contribution'
+    m.pcard_contribution()
   );
   let typeId = $derived(
     contribution?.contribution_type_details?.id ||
@@ -101,7 +103,7 @@
         style="color: #bbb;"
         onclick={(e) => { e.stopPropagation(); if (user?.address) push(`/participant/${user.address}`); }}
       >
-        {user?.name || (user?.address ? `${user.address.slice(0, 6)}...` : 'Anonymous')}
+        {user?.name || (user?.address ? `${user.address.slice(0, 6)}...` : m.common_anonymous())}
       </button>
     </div>
     <div class="flex items-center gap-2 flex-shrink-0">
@@ -109,7 +111,7 @@
         class="text-xs font-medium px-2 py-0.5 rounded-full"
         style="background: {colors.pillBg}; color: {colors.pillText};"
       >
-        {points} pts
+        {m.common_points_pts({ points })}
       </span>
       {#if hasHighlight}
         <div class="relative w-[32px] h-[32px] flex-shrink-0">
@@ -140,7 +142,7 @@
       {:else if contribution?.notes}
         {contribution.notes}
       {:else}
-        {typeName} contribution
+        {m.pcard_type_contribution({ type: typeName })}
       {/if}
     </p>
   </div>

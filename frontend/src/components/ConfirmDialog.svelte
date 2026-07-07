@@ -1,10 +1,12 @@
 <script>
+  import { m } from '../lib/paraglide/messages.js';
+
   let {
     isOpen = false,
-    title = "Confirm",
-    message = "Are you sure?",
-    confirmText = "Confirm",
-    cancelText = "Cancel",
+    title = m.confirm_confirm(),
+    message = m.confirm_are_you_sure(),
+    confirmText = m.confirm_confirm(),
+    cancelText = m.common_cancel(),
     onConfirm = () => {},
     onCancel = () => {}
   } = $props();

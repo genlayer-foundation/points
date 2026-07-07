@@ -4,6 +4,7 @@
   import { resolvePortalLink } from '../../lib/links.js';
   import CategoryIcon from '../portal/CategoryIcon.svelte';
   import RoleLandingVideo from './RoleLandingVideo.svelte';
+  import { m } from '../../lib/paraglide/messages.js';
 
   let { state: roleState = 'unauthenticated', starting = false, onStart = () => {} } = $props();
 
@@ -23,12 +24,12 @@
   const isUnauthenticated = $derived(roleState === 'unauthenticated');
   const primaryDisabled = $derived(starting);
   const primaryLabel = $derived(
-    starting ? 'Starting Journey...' : 'Become a Builder'
+    starting ? m.bl_cta_starting() : m.bl_cta_become_builder()
   );
   const ctaHint = $derived(
     isUnauthenticated
-      ? 'Connect to unlock builder tasks, points, and your first contribution.'
-      : 'Start your builder journey: GitHub, boilerplate star, first contribution.'
+      ? m.bl_cta_hint_unauthenticated()
+      : m.bl_cta_hint_authenticated()
   );
 
   const githubStarsDisplay = $derived(formatCompactStars(boilerplateStars));
@@ -36,30 +37,30 @@
   const features = [
     {
       icon: 'globe',
-      title: 'Native Web Access',
-      body: 'Read APIs, websites, and live events directly during contract execution.',
+      title: m.bl_feature_web_title(),
+      body: m.bl_feature_web_body(),
     },
     {
       icon: 'translate',
-      title: 'Natural Language Logic',
-      body: 'Write rules in plain language and let validators evaluate the meaning.',
+      title: m.bl_feature_language_title(),
+      body: m.bl_feature_language_body(),
     },
     {
       icon: 'scales',
-      title: 'Subjective Resolution',
-      body: 'Resolve outcomes that require judgment, evidence, and context.',
+      title: m.bl_feature_resolution_title(),
+      body: m.bl_feature_resolution_body(),
     },
     {
       icon: 'bolt',
-      title: 'Machine-Speed Finality',
-      body: 'Settle disputes in minutes with on-chain finality for agent workflows.',
+      title: m.bl_feature_finality_title(),
+      body: m.bl_feature_finality_body(),
     },
   ];
 
   const stats = $derived([
-    { title: 'The Codebase', value: githubStarsDisplay, suffix: 'K+', label: 'GitHub Stars' },
-    { title: 'The Core Team', value: '1', center: ':', suffix: '1', label: 'Access to the builders of GenLayer' },
-    { title: 'The Distribution', value: '100', suffix: 'K+', label: 'Community Reach' },
+    { title: m.bl_stat_codebase_title(), value: githubStarsDisplay, suffix: 'K+', label: m.bl_stat_codebase_label() },
+    { title: m.bl_stat_team_title(), value: '1', center: ':', suffix: '1', label: m.bl_stat_team_label() },
+    { title: m.bl_stat_distribution_title(), value: '100', suffix: 'K+', label: m.bl_stat_distribution_label() },
   ]);
 
   /**
@@ -114,7 +115,7 @@
 </script>
 
 <svelte:head>
-  <title>Builders | GenLayer Portal</title>
+  <title>{m.bl_page_title()}</title>
 </svelte:head>
 
 <div class="builder-landing">
@@ -122,12 +123,11 @@
     <div class="hero-copy">
       <div class="role-badge">
         <CategoryIcon category="builder" mode="hexagon" size={40} />
-        <span>Builders</span>
+        <span>{m.bl_role_badge()}</span>
       </div>
-      <h1 id="builder-hero-title">Build Contracts<br />That Can Think</h1>
+      <h1 id="builder-hero-title">{m.bl_hero_line1()}<br />{m.bl_hero_line2()}</h1>
       <p>
-        Smart contracts execute. Intelligent Contracts reason: they read the web,
-        understand natural language, and resolve disputes no if/else ever could.
+        {m.bl_hero_description()}
       </p>
       <div class="cta-cluster">
         <div class="button-row">
@@ -142,7 +142,7 @@
             <img src="/assets/icons/arrow-right-line-white.svg" alt="" />
           </button>
           <a class="landing-button landing-button-secondary" href={docsUrl} target="_blank" rel="noopener noreferrer">
-            Read the Docs
+            {m.common_read_the_docs()}
           </a>
         </div>
         <p class="cta-hint">{ctaHint}</p>
@@ -150,15 +150,15 @@
     </div>
     <RoleLandingVideo
       variant="builder"
-      eyebrow="Builder Preview"
-      title="Contracts that reason"
-      description="A short look at the portal path from first action to intelligent contract launch."
+      eyebrow={m.bl_video_eyebrow()}
+      title={m.bl_video_title()}
+      description={m.bl_video_description()}
     />
   </section>
 
   <section class="capability-section" aria-labelledby="builder-capabilities-title">
     <h2 id="builder-capabilities-title">
-      What you can build here that<br />you can't build anywhere else.
+      {m.bl_capabilities_line1()}<br />{m.bl_capabilities_line2()}
     </h2>
     <div class="feature-grid">
       {#each features as feature}
@@ -183,24 +183,21 @@
     </div>
   </section>
 
-  <section class="statement-section" aria-label="GenLayer statement">
+  <section class="statement-section" aria-label={m.bl_statement_aria()}>
     <h2>
-      Oracles verify facts.<br />
-      <span>GenLayer</span> adjudicates meaning.
+      {m.bl_statement_line1()}<br />
+      <span>GenLayer</span> {m.bl_statement_line2()}
     </h2>
   </section>
 
   <section class="category-section" aria-labelledby="builder-category-title">
     <div class="category-header">
-      <h2 id="builder-category-title">An entire category, wide open.</h2>
+      <h2 id="builder-category-title">{m.bl_category_title()}</h2>
       <p>
-        Performance-based contracts, agent marketplaces, prediction markets,
-        parametric insurance, autonomous finance: every vertical on GenLayer is
-        unclaimed territory. The builders shipping today are defining the category,
-        not competing in it.
+        {m.bl_category_description()}
       </p>
     </div>
-    <div class="project-chip-row" aria-label="Featured builder projects">
+    <div class="project-chip-row" aria-label={m.bl_projects_aria()}>
       {#each projects as project}
         <a
           href={project.href}
@@ -215,24 +212,22 @@
 
   <section class="earn-banner" aria-labelledby="builder-earn-title">
     <div class="earn-copy">
-      <h2 id="builder-earn-title">Don't just deploy. Earn.</h2>
+      <h2 id="builder-earn-title">{m.bl_earn_title()}</h2>
       <p>
-        Earn up to 20% of the fees from every transaction your project generates,
-        and win GenLayer Points for all your daily actions. On GenLayer, your app
-        is a revenue stream from day one.
+        {m.bl_earn_description()}
       </p>
     </div>
     <div class="earn-stat">
       <div class="earn-stat-value">
-        <span class="earn-stat-prefix">Up to</span>
+        <span class="earn-stat-prefix">{m.bl_earn_stat_prefix()}</span>
         <strong>20%</strong>
       </div>
-      <span class="earn-stat-label">Of transaction fees, back to you</span>
+      <span class="earn-stat-label">{m.bl_earn_stat_label()}</span>
     </div>
   </section>
 
   <section class="stack-section" aria-labelledby="builder-stack-title">
-    <h2 id="builder-stack-title">A full stack behind you.</h2>
+    <h2 id="builder-stack-title">{m.bl_stack_title()}</h2>
     <div class="stack-grid">
       {#each stats as stat}
         <article class="stack-card">
@@ -247,7 +242,7 @@
   </section>
 
   <section class="final-cta" aria-labelledby="builder-final-title">
-    <h2 id="builder-final-title">Ship your first<br />Intelligent Contract.</h2>
+    <h2 id="builder-final-title">{m.bl_final_line1()}<br />{m.bl_final_line2()}</h2>
     <div class="cta-cluster cta-cluster-centered">
       <div class="button-row">
         <button
@@ -261,7 +256,7 @@
           <img src="/assets/icons/arrow-right-line-white.svg" alt="" />
         </button>
         <a class="landing-button landing-button-secondary" href={docsUrl} target="_blank" rel="noopener noreferrer">
-          Read the Docs
+          {m.common_read_the_docs()}
         </a>
       </div>
     </div>

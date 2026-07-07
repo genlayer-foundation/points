@@ -5,6 +5,7 @@
   import { getCurrentUser, socialAPI, journeyAPI } from '../lib/api';
   import { showSuccess, showError } from '../lib/toastStore';
   import { getAnalyticsContext, setConnectWalletIntent, trackEvent } from '../lib/analytics.js';
+  import { m } from '../lib/paraglide/messages.js';
 
   let {
     platform = '',
@@ -163,13 +164,13 @@
             const previousUsername = connection?.platform_username || '';
             showSuccess(
               username && previousUsername && username !== previousUsername
-                ? `${platformLabel} username updated to ${username}`
-                : `${platformLabel} username is already up to date`
+                ? m.social_username_updated({ platform: platformLabel, username })
+                : m.social_username_up_to_date({ platform: platformLabel })
             );
           } else if (rewardFailed) {
-            showError('GitHub account linked, but we could not record the contribution. Please try again.');
+            showError(m.social_github_linked_reward_failed());
           } else {
-            showSuccess(`${platformLabel} account linked successfully!${username ? ` (@${username})` : ''}`);
+            showSuccess(`${m.social_account_linked({ platform: platformLabel })}${username ? ` (@${username})` : ''}`);
           }
         }
         onLinked(finalUser);
@@ -179,8 +180,8 @@
         if (shouldToast) {
           showSuccess(
             wasRefreshing
-              ? `${platformLabel} username refreshed! Please reload to see changes.`
-              : `${platformLabel} account linked! Please refresh to see changes.`
+              ? m.social_username_refreshed_reload({ platform: platformLabel })
+              : m.social_account_linked_refresh({ platform: platformLabel })
           );
         }
         isLinking = false;
@@ -191,18 +192,18 @@
         if (oauthError === 'already_linked') {
           showError(
             wasRefreshing
-              ? `This ${platformLabel} account is linked to another user`
-              : `This ${platformLabel} account is already linked to another user`
+              ? m.social_account_linked_other_user({ platform: platformLabel })
+              : m.social_account_already_linked_other_user({ platform: platformLabel })
           );
         } else if (oauthError === 'account_mismatch') {
-          showError(`This ${platformLabel} account does not match the account already linked`);
+          showError(m.social_account_mismatch({ platform: platformLabel }));
         } else if (oauthError === 'authorization_failed') {
-          showError(`${platformLabel} authorization was cancelled or failed`);
+          showError(m.social_authorization_cancelled({ platform: platformLabel }));
         } else {
           showError(
             wasRefreshing
-              ? `Failed to refresh ${platformLabel} username. Please try again.`
-              : `Failed to link ${platformLabel} account. Please try again.`
+              ? m.social_refresh_failed({ platform: platformLabel })
+              : m.social_link_failed({ platform: platformLabel })
           );
         }
       }
@@ -280,12 +281,12 @@
   let compactTitle = $derived.by(() => {
     if (platform !== 'discord' || !connection) return undefined;
     const stats = [];
-    if (hasDiscordLevel) stats.push(`level ${formatNumber(connection.mee6_level)}`);
-    if (hasDiscordRank) stats.push(`rank #${formatNumber(connection.mee6_rank)}`);
+    if (hasDiscordLevel) stats.push(m.social_stat_level({ value: formatNumber(connection.mee6_level) }));
+    if (hasDiscordRank) stats.push(m.social_stat_rank({ value: formatNumber(connection.mee6_rank) }));
     const roles = discordRoles.length > 0
-      ? `Discord roles: ${discordRoles.map((role) => role.name).join(', ')}`
-      : 'Discord roles not synced yet';
-    return stats.length ? `Discord ${stats.join(', ')}. ${roles}` : roles;
+      ? m.social_discord_roles_list({ roles: discordRoles.map((role) => role.name).join(', ') })
+      : m.social_discord_roles_not_synced();
+    return stats.length ? m.social_discord_stats_summary({ stats: stats.join(', '), roles }) : roles;
   });
 
   function getDiscordRoleColor(role) {
@@ -424,12 +425,12 @@
       const username = updatedConnection?.platform_username || connection.platform_username;
       showSuccess(
         response.data?.changed
-          ? `${platformLabel} username updated to ${username}`
-          : `${platformLabel} username is already up to date`
+          ? m.social_username_updated({ platform: platformLabel, username })
+          : m.social_username_up_to_date({ platform: platformLabel })
       );
       onLinked(updatedUser);
     } catch (error) {
-      const message = error?.response?.data?.error || `Failed to refresh ${platformLabel} username. Please try again.`;
+      const message = error?.response?.data?.error || m.social_refresh_failed({ platform: platformLabel });
       showError(message);
     } finally {
       isRefreshing = false;
@@ -468,19 +469,19 @@
               <div class="discord-xp-summary">
                 {#if hasDiscordLevel}
                   <div class="discord-xp-stat">
-                    <span class="discord-xp-label">Level</span>
+                    <span class="discord-xp-label">{m.social_level_label()}</span>
                     <span class="discord-xp-value">{formatNumber(connection.mee6_level)}</span>
                   </div>
                 {/if}
                 {#if hasDiscordRank}
                   <div class="discord-xp-stat">
-                    <span class="discord-xp-label">Rank</span>
+                    <span class="discord-xp-label">{m.social_rank_label()}</span>
                     <span class="discord-xp-value">#{formatNumber(connection.mee6_rank)}</span>
                   </div>
                 {/if}
               </div>
             {/if}
-            <span class="discord-role-heading">Roles</span>
+            <span class="discord-role-heading">{m.social_roles_heading()}</span>
             {#if discordRoles.length > 0}
               <div class="discord-role-list">
                 {#each discordRoles as role}
@@ -491,7 +492,7 @@
                 {/each}
               </div>
             {:else}
-              <span class="discord-role-empty">Roles not synced yet</span>
+              <span class="discord-role-empty">{m.social_roles_not_synced()}</span>
             {/if}
           </div>
         {/if}
@@ -511,7 +512,7 @@
         </svg>
       {:else}
         <span class="social-pill-icon">{@html config.icon}</span>
-        <span class="social-pill-prefix">Link</span>
+        <span class="social-pill-prefix">{m.social_link()}</span>
         <span class="social-pill-name">{platformLabel}</span>
       {/if}
     </button>
@@ -533,8 +534,8 @@
           class="social-refresh-btn"
           onclick={refreshAccount}
           disabled={isRefreshing}
-          title="Refresh {platformLabel} username"
-          aria-label="Refresh {platformLabel} username"
+          title={m.social_refresh_username_title({ platform: platformLabel })}
+          aria-label={m.social_refresh_username_title({ platform: platformLabel })}
         >
           {#if isRefreshing}
             <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -554,7 +555,7 @@
     </div>
     {#if connection.linked_at}
       <p class="text-xs text-gray-400 mt-1">
-        Linked on {new Date(connection.linked_at).toLocaleDateString()}
+        {m.social_linked_on({ date: new Date(connection.linked_at).toLocaleDateString() })}
       </p>
     {/if}
   {:else}
@@ -569,10 +570,10 @@
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
-        <span>Connecting...</span>
+        <span>{m.common_connecting()}</span>
       {:else}
         <span class="flex-shrink-0">{@html config.icon}</span>
-        <span>Connect {platformLabel}</span>
+        <span>{m.social_connect({ platform: platformLabel })}</span>
       {/if}
     </button>
   {/if}

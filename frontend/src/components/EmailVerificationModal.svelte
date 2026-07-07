@@ -4,6 +4,7 @@
   import { confirmEmailVerification, resendEmailVerification, startEmailVerification } from '../lib/auth';
   import { showError } from '../lib/toastStore';
   import { userStore } from '../lib/userStore';
+  import { m } from '../lib/paraglide/messages.js';
 
   const FOCUSABLE_SELECTOR = [
     'a[href]',
@@ -158,11 +159,11 @@
   async function sendCode() {
     if (cooldownRemaining > 0 || sending) return;
     if (!isValidEmail(email)) {
-      showError('Enter a valid email address');
+      showError(m.everify_enter_valid_email());
       return;
     }
     if (!turnstileToken) {
-      showError('Complete verification first');
+      showError(m.everify_complete_verification_first());
       return;
     }
 
@@ -180,7 +181,7 @@
       turnstileWidget?.reset?.();
     } catch (err) {
       startCooldownFromData(err.response?.data);
-      showError(extractError(err, 'Failed to send verification code'));
+      showError(extractError(err, m.everify_failed_send_code()));
       turnstileToken = '';
       turnstileWidget?.reset?.();
     } finally {
@@ -208,7 +209,7 @@
       turnstileWidget?.reset?.();
     } catch (err) {
       startCooldownFromData(err.response?.data);
-      showError(extractError(err, 'Could not resend verification code'));
+      showError(extractError(err, m.everify_could_not_resend_code()));
       turnstileToken = '';
       turnstileWidget?.reset?.();
     } finally {
@@ -233,7 +234,7 @@
   async function verifyCode() {
     const normalized = normalizeCode(code);
     if (normalized.length !== 6) {
-      showError('Enter the 6-digit code from your email');
+      showError(m.everify_enter_six_digit_code());
       return;
     }
 
@@ -253,7 +254,7 @@
         onVerified(updated);
       }
     } catch (err) {
-      showError(extractError(err, 'Invalid or expired verification code'));
+      showError(extractError(err, m.everify_invalid_or_expired_code()));
     } finally {
       verifying = false;
     }
@@ -274,7 +275,7 @@
       <button
         type="button"
         class="modal-close"
-        aria-label="Close email verification"
+        aria-label={m.everify_close_aria()}
         onclick={onClose}
         disabled={sending || verifying || resending}
       >
@@ -283,15 +284,15 @@
         </svg>
       </button>
       <h2 id="email-verification-title">
-        {verified ? 'Email verified' : codeSent ? 'Enter your code' : 'Verify your email'}
+        {verified ? m.everify_title_verified() : codeSent ? m.everify_title_enter_code() : m.everify_title_verify_email()}
       </h2>
       <p>
         {#if verified}
-          Your Portal identity now has a verified email.
+          {m.everify_subtitle_verified()}
         {:else if codeSent}
-          Paste the one-time code we sent to keep this flow in the Portal.
+          {m.everify_subtitle_code_sent()}
         {:else}
-          Add the email address you want tied to your Portal account.
+          {m.everify_subtitle_add_email()}
         {/if}
       </p>
     </div>
@@ -304,13 +305,13 @@
               <path class="success-check" pathLength="1" d="m5 12.5 4.2 4.2L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
           </div>
-          <p>{email.trim()} is now verified.</p>
+          <p>{m.everify_email_now_verified({ email: email.trim() })}</p>
         </div>
-        <button bind:this={doneButton} type="button" class="primary-action" onclick={onClose}>Done</button>
+        <button bind:this={doneButton} type="button" class="primary-action" onclick={onClose}>{m.common_done()}</button>
       {:else if codeSent}
         <label for="email-verification-code" class="code-label">
-          <span>Verification code</span>
-          <span class="sent-to">Sent to {email.trim()}</span>
+          <span>{m.everify_verification_code_label()}</span>
+          <span class="sent-to">{m.everify_sent_to({ email: email.trim() })}</span>
         </label>
         <input
           id="email-verification-code"
@@ -328,11 +329,11 @@
         <div class="resend-row" role="status" aria-live="polite">
           <span class="resend-hint">
             {#if cooldownRemaining > 0}
-              New code available in <strong>{formatCooldown(cooldownRemaining)}</strong>
+              {m.everify_new_code_in({ time: formatCooldown(cooldownRemaining) })}
             {:else if resendRequested && !resending}
-              Complete verification below to resend.
+              {m.everify_complete_verification_resend()}
             {:else}
-              Didn't get the email?
+              {m.everify_didnt_get_email()}
             {/if}
           </span>
           <button
@@ -341,7 +342,7 @@
             onclick={requestResendCode}
             disabled={verifying || resending || cooldownRemaining > 0 || resendRequested}
           >
-            {resending ? 'Sending...' : 'Resend code'}
+            {resending ? m.common_sending() : m.everify_resend_code()}
           </button>
         </div>
         {#if resendRequested}
@@ -361,10 +362,10 @@
           onclick={verifyCode}
           disabled={verifying || resending || code.length !== 6}
         >
-          {verifying ? 'Verifying...' : 'Verify code'}
+          {verifying ? m.common_verifying() : m.everify_verify_code()}
         </button>
       {:else}
-        <label for="email-verification-email">Email address</label>
+        <label for="email-verification-email">{m.everify_email_address_label()}</label>
         <input
           id="email-verification-email"
           bind:this={emailInput}
@@ -389,7 +390,7 @@
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
-            <span>You can request another code in {formatCooldown(cooldownRemaining)}.</span>
+            <span>{m.everify_request_another_in({ time: formatCooldown(cooldownRemaining) })}</span>
           </div>
         {/if}
 
@@ -400,11 +401,11 @@
           disabled={sending || cooldownRemaining > 0 || !email.trim() || !turnstileToken}
         >
           {#if sending}
-            Sending...
+            {m.common_sending()}
           {:else if cooldownRemaining > 0}
-            Send in {formatCooldown(cooldownRemaining)}
+            {m.everify_send_in({ time: formatCooldown(cooldownRemaining) })}
           {:else}
-            Send verification code
+            {m.everify_send_verification_code()}
           {/if}
         </button>
       {/if}

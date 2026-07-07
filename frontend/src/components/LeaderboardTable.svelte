@@ -3,14 +3,15 @@
   import { push } from 'svelte-spa-router';
   import Avatar from './Avatar.svelte';
   import { currentCategory } from '../stores/category.js';
+  import { m } from '../lib/paraglide/messages.js';
 
   let {
     entries = [],
     loading = false,
     error = null,
     showHeader = true,
-    title = 'Leaderboard',
-    subtitle = 'Top contributors ranked by points',
+    title = m.nav_leaderboard(),
+    subtitle = m.lbt_subtitle_default(),
     compact = false,
     hideAddress = false,
     embedded = false
@@ -24,7 +25,7 @@
     return 'bg-[#f8fafc] text-[#506078]';
   }
 
-  let pointsLabel = $derived($currentCategory === 'community' ? 'Community Points' : 'Points');
+  let pointsLabel = $derived($currentCategory === 'community' ? m.lbt_community_points() : m.lbt_points());
 </script>
 
 {#if loading}
@@ -33,11 +34,11 @@
   </div>
 {:else if error}
   <div class="p-6 text-center text-red-500">
-    Failed to load leaderboard: {error}
+    {m.lbt_failed_load({ error })}
   </div>
 {:else if entries.length === 0}
   <div class="bg-gray-50 rounded-lg p-6 text-center">
-    <p class="text-gray-500">No entries found on the leaderboard yet.</p>
+    <p class="text-gray-500">{m.lbt_no_entries()}</p>
   </div>
 {:else}
   <div class={embedded ? 'overflow-hidden' : 'overflow-hidden rounded-[8px] border border-[#e8ebf2] bg-white shadow-[0_8px_18px_rgba(31,42,68,0.07)]'}>
@@ -57,17 +58,17 @@
         <thead class="bg-[#f8fafc]">
           <tr>
             <th scope="col" class="w-[56px] px-2 py-3 text-left text-[11px] font-semibold uppercase text-[#7b8798] sm:w-[88px] sm:px-6" style="letter-spacing: 0.8px;">
-              Rank
+              {m.lbt_rank()}
             </th>
             <th scope="col" class="px-2 py-3 text-left text-[11px] font-semibold uppercase text-[#7b8798] sm:px-6" style="letter-spacing: 0.8px;">
-              Participant
+              {m.lbt_participant()}
             </th>
             <th scope="col" class="w-[78px] px-2 py-3 text-right text-[11px] font-semibold uppercase text-[#7b8798] sm:w-[120px] sm:px-6 sm:text-left" style="letter-spacing: 0.8px;">
               {pointsLabel}
             </th>
             {#if $currentCategory === 'validator'}
               <th scope="col" class="hidden px-3 py-3 text-left text-[11px] font-semibold uppercase text-[#7b8798] sm:table-cell sm:w-[150px] sm:px-6" style="letter-spacing: 0.8px;">
-                Active Validators
+                {m.lbt_active_validators()}
               </th>
             {/if}
           </tr>
@@ -107,7 +108,7 @@
                       <div class="mt-1 sm:hidden">
                         {#if entry.active_validators_count === null}
                           <span class="inline-flex max-w-full items-center rounded-full bg-[#f3f5f9] px-2 py-1 text-[11px] font-semibold text-[#7b8798]">
-                            No validator
+                            {m.lbt_no_validator()}
                           </span>
                         {:else}
                           <a
@@ -115,7 +116,7 @@
                             onclick={(e) => { e.preventDefault(); push('/validators/participants'); }}
                             class="inline-flex max-w-full items-center rounded-full bg-[#eef4ff] px-2 py-1 text-[11px] font-semibold text-[#387de8] transition-colors hover:bg-[#e0ebff]"
                           >
-                            {entry.active_validators_count} active
+                            {m.lbt_n_active({ count: entry.active_validators_count })}
                           </a>
                         {/if}
                       </div>
@@ -130,7 +131,7 @@
                 <td class="hidden px-3 py-4 align-top sm:table-cell sm:px-6">
                   {#if entry.active_validators_count === null}
                     <span class="inline-block rounded-full bg-[#f3f5f9] px-2.5 py-1.5 text-xs font-semibold text-[#7b8798]">
-                      No validator
+                      {m.lbt_no_validator()}
                     </span>
                   {:else}
                     <a
@@ -138,7 +139,7 @@
                       onclick={(e) => { e.preventDefault(); push('/validators/participants'); }}
                       class="inline-block cursor-pointer rounded-full bg-[#eef4ff] px-2.5 py-1.5 text-xs font-semibold text-[#387de8] transition-colors hover:bg-[#e0ebff]"
                     >
-                      {entry.active_validators_count} active
+                      {m.lbt_n_active({ count: entry.active_validators_count })}
                     </a>
                   {/if}
                 </td>

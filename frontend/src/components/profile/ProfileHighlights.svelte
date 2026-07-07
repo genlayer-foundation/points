@@ -2,7 +2,9 @@
     import { onMount } from "svelte";
     import { push } from "svelte-spa-router";
     import { format } from "date-fns";
+  import { dateFnsLocale } from '../../lib/i18n.js';
     import { usersAPI, contributionsAPI } from "../../lib/api.js";
+    import { m } from "../../lib/paraglide/messages.js";
 
     let {
         userId = null,
@@ -17,7 +19,7 @@
 
     const formatDate = (dateString) => {
         try {
-            return format(new Date(dateString), "MMM d, yyyy");
+            return format(new Date(dateString), "MMM d, yyyy", { locale: dateFnsLocale() });
         } catch (e) {
             return dateString;
         }
@@ -59,7 +61,7 @@
 
             highlights = response.data || [];
         } catch (err) {
-            error = err.message || "Failed to load highlights";
+            error = err.message || m.phigh_failed_load();
         } finally {
             loading = false;
         }
@@ -83,8 +85,8 @@
         <div
             class="w-full rounded-[12px] bg-white border border-[#e5e5e5] py-6 px-4 flex flex-col items-center justify-center gap-1"
         >
-            <span class="text-[14px] text-[#999]">No contributions yet.</span>
-            <span class="text-[14px] text-[#999]">Submit your first to start earning points.</span>
+            <span class="text-[14px] text-[#999]">{m.phigh_no_contributions_yet()}</span>
+            <span class="text-[14px] text-[#999]">{m.phigh_submit_first()}</span>
         </div>
     {:else}
         <div
@@ -133,7 +135,7 @@
                                 class="text-xs font-medium px-2 py-0.5 rounded-full"
                                 style="background: {colors.pillBg}; color: {colors.pillText};"
                             >
-                                {highlight.contribution_points} pts
+                                {m.common_points_pts({ points: highlight.contribution_points })}
                             </span>
                             <div class="relative w-[32px] h-[32px] flex-shrink-0">
                                 <img src="/assets/icons/hexagon-highlight.svg" alt="" class="w-full h-full" />
@@ -148,7 +150,7 @@
                     <!-- Middle: title + description -->
                     <div class="flex-1 min-h-0 overflow-hidden">
                         <h3 class="text-sm font-medium text-black truncate">
-                            {highlight.title || highlight.contribution_type_name || "Contribution"}
+                            {highlight.title || highlight.contribution_type_name || m.phigh_contribution_fallback()}
                         </h3>
                         <p
                             class="text-xs mt-1 line-clamp-3"
@@ -165,7 +167,7 @@
                             style="border: 1px solid {colors.tagBorder}; color: {colors.tagText};"
                         >
                             {highlight.contribution_type_name ||
-                                "Contribution"}
+                                m.phigh_contribution_fallback()}
                         </span>
                         <span class="text-xs" style="color: #bababa;">
                             {formatDate(highlight.contribution_date)}

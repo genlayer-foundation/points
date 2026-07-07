@@ -5,6 +5,7 @@
     import { showError, showSuccess } from "../../lib/toastStore";
     import { buildReferralLink, referralCodeFromSources } from "../../lib/referrals.js";
     import { userStore } from "../../lib/userStore.js";
+    import { m } from "../../lib/paraglide/messages.js";
 
     let {
         participant = null,
@@ -42,12 +43,12 @@
     function copyReferralLink() {
         const referralLink = buildReferralLink(referralCode);
         if (!referralLink) {
-            showError("Referral code is still loading. Try again in a moment.");
+            showError(m.common_referral_code_loading());
             return;
         }
 
         navigator.clipboard.writeText(referralLink);
-        showSuccess("Referral link copied!");
+        showSuccess(m.common_referral_link_copied());
     }
 
     function shortAddress(addr) {
@@ -96,14 +97,14 @@
                 class="text-[20px] font-semibold text-black"
                 style="letter-spacing: 0.4px;"
             >
-                Referrals
+                {m.pref_referrals()}
             </h2>
         </div>
         <button
             onclick={() => push("/referral-program")}
             class="flex items-center gap-[4px] text-[12px] font-medium text-black tracking-[0.24px] leading-[16px] hover:opacity-70 transition-opacity"
         >
-            Referral Program
+            {m.pref_referral_program()}
             <img
                 src="/assets/icons/arrow-right-up-line.svg"
                 alt=""
@@ -124,14 +125,12 @@
                     <p
                         class="font-['Switzer'] font-semibold text-[20px] text-white leading-[25px] tracking-[0.4px]"
                     >
-                        Invite and earn, forever.
+                        {m.pref_invite_earn()}
                     </p>
                     <p
                         class="font-['Switzer'] text-[14px] text-[#b0b0b0] leading-[21px] tracking-[0.28px]"
                     >
-                        For each builder or validator you refer who submits at
-                        least one contribution, you receive 10% of the points
-                        they earn permanently.
+                        {m.pref_invite_earn_desc()}
                     </p>
                 </div>
                 <button
@@ -147,7 +146,7 @@
                     <span
                         class="font-['Switzer'] font-medium text-[14px] text-[#1a1c1d] leading-[21px] tracking-[0.28px] whitespace-nowrap"
                     >
-                        Copy Referral Link
+                        {m.pref_copy_referral_link()}
                     </span>
                 </button>
             </div>
@@ -198,7 +197,7 @@
                             <p
                                 class="text-[13px] leading-[15px] tracking-[0.24px] text-[#6b6b6b] mt-1"
                             >
-                                Total Referrals
+                                {m.pref_total_referrals()}
                             </p>
                         </div>
                     </div>
@@ -262,8 +261,7 @@
                                     <div
                                         class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 w-[240px] text-center"
                                     >
-                                        10% of your referrals' eligible builder
-                                        and validator contributions.
+                                        {m.pref_points_tooltip()}
                                     </div>
                                 </div>
                             </div>
@@ -271,7 +269,7 @@
                                 <span
                                     class="text-[13px] leading-[15px] tracking-[0.24px] text-[#6b6b6b]"
                                 >
-                                    Total Referral Points
+                                    {m.pref_total_referral_points()}
                                 </span>
                                 {#if builderReferralPoints > 0 || validatorReferralPoints > 0}
                                     <div class="flex items-center gap-2">
@@ -315,10 +313,10 @@
                             class="font-semibold text-[16px] text-black"
                             style="letter-spacing: 0.32px;"
                         >
-                            Top Referrals
+                            {m.pref_top_referrals()}
                         </h3>
                         <p class="text-[13px] text-[#999] mt-1">
-                            Your highest earning referrals
+                            {m.pref_top_referrals_desc()}
                         </p>
                     </div>
                     {#if isOwnProfile}
@@ -327,7 +325,7 @@
                             class="flex items-center gap-[4px] text-[14px] text-[#6b6b6b] hover:text-black transition-colors"
                             style="letter-spacing: 0.28px;"
                         >
-                            View all referrals
+                            {m.pref_view_all_referrals()}
                             <img
                                 src="/assets/icons/arrow-right-line.svg"
                                 alt=""
@@ -358,7 +356,7 @@
                                             class="text-[14px] font-medium text-black truncate max-w-[200px]"
                                             style="letter-spacing: 0.2px;"
                                         >
-                                            {referral.name || "Anonymous"}
+                                            {referral.name || m.common_anonymous()}
                                         </span>
                                         <span
                                             class="text-[12px] text-[#999] leading-[14px]"

@@ -15,6 +15,7 @@
     trackEvent,
   } from '../lib/analytics.js';
   import { showError } from '../lib/toastStore.js';
+  import { m } from '../lib/paraglide/messages.js';
   import Turnstile from './Turnstile.svelte';
 
   // Form state
@@ -41,27 +42,27 @@
   const ROLE_OPTIONS = [
     {
       value: 'builder',
-      label: 'Builder',
-      eyebrow: 'Build',
-      description: 'Ship Intelligent Contracts and ecosystem projects.',
+      label: m.role_builder(),
+      eyebrow: m.guard_role_eyebrow_builder(),
+      description: m.guard_role_desc_builder(),
       icon: '/assets/illustrations/builder-badge-small.svg',
       accent: '#ee8521',
       accentRgb: '238, 133, 33',
     },
     {
       value: 'validator',
-      label: 'Validator',
-      eyebrow: 'Reason',
-      description: 'Run infrastructure and adjudicate protocol decisions.',
+      label: m.role_validator(),
+      eyebrow: m.guard_role_eyebrow_validator(),
+      description: m.guard_role_desc_validator(),
       icon: '/assets/illustrations/validator-badge-small.svg',
       accent: '#387de8',
       accentRgb: '56, 125, 232',
     },
     {
       value: 'community',
-      label: 'Community',
-      eyebrow: 'Connect',
-      description: 'Create content, test flows, and expand the network.',
+      label: m.role_community(),
+      eyebrow: m.guard_role_eyebrow_community(),
+      description: m.guard_role_desc_community(),
       icon: '/assets/illustrations/community-badge-small.svg',
       accent: '#7f52e1',
       accentRgb: '127, 82, 225',
@@ -224,7 +225,7 @@
       await logout();
       push('/');
     } catch {
-      showError('Could not disconnect. Please try again.');
+      showError(m.guard_error_disconnect());
     } finally {
       dismissingProfile = false;
     }
@@ -239,7 +240,7 @@
     };
   }
 
-  function extractProfileError(err, fallback = 'Failed to update profile') {
+  function extractProfileError(err, fallback = m.guard_error_update_profile()) {
     let nextError = err.message || fallback;
     if (err.response?.data) {
       const data = err.response.data;
@@ -277,7 +278,7 @@
       turnstileWidget?.reset?.();
     } catch (err) {
       startEmailCooldownFromData(err.response?.data);
-      const nextError = extractProfileError(err, 'Could not resend verification code');
+      const nextError = extractProfileError(err, m.guard_error_resend_code());
       showError(nextError);
       turnstileToken = '';
       turnstileWidget?.reset?.();
@@ -340,7 +341,7 @@
         surface: 'profile_completion',
         error_stage: startErr.response?.status ? 'backend' : 'network',
       }));
-      showError('Could not start your journey yet. We will retry on the journey page.');
+      showError(m.guard_error_journey_start());
       // Best-effort; each journey route also marks itself started.
     }
 
@@ -364,8 +365,8 @@
         error_stage: 'validation',
       }));
       showError($authState.pendingSignup
-        ? 'Please provide both email and display name'
-        : 'Please provide a display name');
+        ? m.guard_error_email_name_required()
+        : m.guard_error_name_required());
       return;
     }
 
@@ -374,7 +375,7 @@
         selected_role: selectedRole,
         error_stage: 'validation',
       }));
-      showError('Please enter a valid email address');
+      showError(m.guard_error_invalid_email());
       return;
     }
 
@@ -386,7 +387,7 @@
         if (pendingCodeSent) {
           const code = normalizeVerificationCode(verificationCode);
           if (code.length !== 6) {
-            showError('Enter the 6-digit code from your email');
+            showError(m.guard_error_code_length());
             return;
           }
           const response = await confirmPendingSignupEmail(code);
@@ -395,7 +396,7 @@
         }
 
         if (!turnstileToken) {
-          showError('Please complete verification first');
+          showError(m.guard_error_verification_required());
           return;
         }
 
@@ -450,7 +451,7 @@
         <button
           type="button"
           class="profile-guard-close"
-          aria-label="Disconnect wallet and close"
+          aria-label={m.guard_close_aria()}
           onclick={closeProfileCompletion}
           disabled={submittingProfile || resendingCode || dismissingProfile}
         >
@@ -458,8 +459,8 @@
             <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
           </svg>
         </button>
-        <h2 id="profile-guard-title" class="profile-guard-title">Set up your Portal identity</h2>
-        <p>Choose how creators, builders, and validators will recognize you across the Portal.</p>
+        <h2 id="profile-guard-title" class="profile-guard-title">{m.guard_title()}</h2>
+        <p>{m.guard_subtitle()}</p>
       </div>
 
       <div class="profile-guard-body">
@@ -467,9 +468,9 @@
           <div class="identity-grid">
             <div class="form-group">
               <label for="name" class="form-label">
-                <span>Username</span>
+                <span>{m.guard_label_username()}</span>
                 {#if hasExistingName}
-                  <span class="field-state">Already set</span>
+                  <span class="field-state">{m.guard_field_already_set()}</span>
                 {/if}
               </label>
               <div class="input-shell" class:is-complete={hasExistingName}>
@@ -480,20 +481,20 @@
                   id="name"
                   type="text"
                   bind:value={name}
-                  placeholder="Your public name"
+                  placeholder={m.guard_placeholder_name()}
                   class="form-input"
                   disabled={submittingProfile || pendingCodeSent}
                 />
               </div>
-              <p>Shown on your profile, submissions, and contribution history.</p>
+              <p>{m.guard_help_name()}</p>
             </div>
 
             {#if $authState.pendingSignup}
             <div class="form-group">
               <label for="email" class="form-label">
-                <span>Email</span>
+                <span>{m.guard_label_email()}</span>
                 {#if hasExistingEmail}
-                  <span class="field-state">Already set</span>
+                  <span class="field-state">{m.guard_field_already_set()}</span>
                 {/if}
               </label>
               <div class="input-shell" class:is-complete={hasExistingEmail}>
@@ -509,7 +510,7 @@
                   disabled={submittingProfile || pendingCodeSent}
                 />
               </div>
-              <p>Used for important updates about submissions and rewards.</p>
+              <p>{m.guard_help_email()}</p>
             </div>
             {/if}
           </div>
@@ -518,8 +519,8 @@
             <div class="form-group">
               {#if pendingCodeSent}
                 <label for="signup-verification-code" class="form-label">
-                  <span>Verification code</span>
-                  <span class="field-state sent-to">Sent to {email.trim()}</span>
+                  <span>{m.guard_label_verification_code()}</span>
+                  <span class="field-state sent-to">{m.guard_sent_to({ email: email.trim() })}</span>
                 </label>
                 <input
                   id="signup-verification-code"
@@ -536,11 +537,11 @@
                 <div class="resend-row" role="status" aria-live="polite">
                   <span class="resend-hint">
                     {#if emailCooldownRemaining > 0}
-                      New code available in <strong>{formatCooldown(emailCooldownRemaining)}</strong>
+                      {m.guard_resend_cooldown_prefix()} <strong>{formatCooldown(emailCooldownRemaining)}</strong>
                     {:else if resendRequested && !resendingCode}
-                      Complete verification below to resend.
+                      {m.guard_resend_verify_hint()}
                     {:else}
-                      Didn't get the email?
+                      {m.guard_resend_question()}
                     {/if}
                   </span>
                   <button
@@ -549,7 +550,7 @@
                     onclick={requestResendCode}
                     disabled={submittingProfile || resendingCode || emailCooldownRemaining > 0 || resendRequested}
                   >
-                    {resendingCode ? 'Sending...' : 'Resend code'}
+                    {resendingCode ? m.common_sending() : m.guard_resend_button()}
                   </button>
                 </div>
                 {#if resendRequested}
@@ -574,7 +575,7 @@
                     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                       <path d="M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
-                    <span>You can request another code in {formatCooldown(emailCooldownRemaining)}.</span>
+                    <span>{m.guard_cooldown_notice({ time: formatCooldown(emailCooldownRemaining) })}</span>
                   </div>
                 {/if}
               {/if}
@@ -582,7 +583,7 @@
           {/if}
 
           <div class="form-group">
-            <span class="form-label role-label">Choose your first journey</span>
+            <span class="form-label role-label">{m.guard_choose_journey()}</span>
             <div class="role-options">
               {#each ROLE_OPTIONS as option}
                 <button
@@ -619,18 +620,18 @@
           >
             {#if submittingProfile}
               <div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-              {pendingCodeSent ? 'Verifying...' : 'Sending...'}
+              {pendingCodeSent ? m.common_verifying() : m.common_sending()}
             {:else}
               {#if $authState.pendingSignup}
                 {#if pendingCodeSent}
-                  Verify code and continue
+                  {m.guard_submit_verify_continue()}
                 {:else if emailCooldownRemaining > 0}
-                  Send in {formatCooldown(emailCooldownRemaining)}
+                  {m.guard_submit_send_in({ time: formatCooldown(emailCooldownRemaining) })}
                 {:else}
-                  Send verification code
+                  {m.guard_submit_send_code()}
                 {/if}
               {:else}
-                Continue
+                {m.guard_submit_continue()}
               {/if}
             {/if}
           </button>

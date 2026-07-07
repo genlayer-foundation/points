@@ -17,6 +17,7 @@
   import ValidatorLanding from './ValidatorLanding.svelte';
   import CommunityLanding from './CommunityLanding.svelte';
   import AuthenticatedRoleLanding from './AuthenticatedRoleLanding.svelte';
+  import { m } from '../../lib/paraglide/messages.js';
 
   let { category = 'community', state: roleState = 'unauthenticated' } = $props();
 
@@ -104,7 +105,7 @@
         surface: 'role_landing',
         error_stage: err.response?.status ? 'backend' : 'network',
       }));
-      showError('Could not start this journey. Please try again.');
+      showError(m.rl_error_start_journey());
     } finally {
       starting = false;
     }

@@ -2,6 +2,7 @@
   import Pagination from './Pagination.svelte';
   import ContributionCard from './ContributionCard.svelte';
   import { contributionsAPI } from '../lib/api';
+  import { m } from '../lib/paraglide/messages.js';
 
   const {
     contributions = [],
@@ -53,7 +54,7 @@
       totalCount = res.data.count || 0;
       localContributions = res.data.results || [];
     } catch (err) {
-      localError = err.message || 'Failed to load contributions';
+      localError = err.message || m.clist_failed_load_generic();
     } finally {
       localLoading = false;
     }
@@ -71,11 +72,11 @@
     </div>
   {:else if localError}
     <div class="p-6 text-center text-red-500">
-      Failed to load contributions: {localError}
+      {m.clist_failed_load({ error: localError })}
     </div>
   {:else if localContributions.length === 0}
     <div class="p-6 text-center text-gray-500">
-      No contributions found.
+      {m.clist_no_contributions()}
     </div>
   {:else}
     <div class="space-y-3">

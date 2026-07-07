@@ -1,8 +1,10 @@
 <script>
   import { push } from 'svelte-spa-router';
   import { format } from 'date-fns';
+  import { dateFnsLocale } from '../../lib/i18n.js';
   import Avatar from '../Avatar.svelte';
   import { parseMarkdown } from '../../lib/markdownLoader.js';
+  import { m } from '../../lib/paraglide/messages.js';
 
   let { highlight, height = 180 } = $props();
 
@@ -30,7 +32,7 @@
   function formatDate(dateString) {
     if (!dateString) return '';
     try {
-      return format(new Date(dateString), 'MMM d, yyyy');
+      return format(new Date(dateString), 'MMM d, yyyy', { locale: dateFnsLocale() });
     } catch {
       return dateString;
     }
@@ -80,7 +82,7 @@
         class="text-sm font-medium text-black truncate hover:underline"
         onclick={(e) => { e.stopPropagation(); push(`/participant/${user.address || ''}`); }}
       >
-        {user.name || (user.address ? `${user.address.slice(0, 6)}...${user.address.slice(-4)}` : 'Anonymous')}
+        {user.name || (user.address ? `${user.address.slice(0, 6)}...${user.address.slice(-4)}` : m.common_anonymous())}
       </button>
     </div>
     <div class="flex items-center gap-2 flex-shrink-0">
@@ -88,7 +90,7 @@
         class="text-xs font-medium px-2 py-0.5 rounded-full"
         style="background: {colors.pillBg}; color: {colors.pillText};"
       >
-        {highlight.contribution_points} pts
+        {m.common_points_pts({ points: highlight.contribution_points })}
       </span>
       <div class="relative w-[32px] h-[32px] flex-shrink-0">
         <img src="/assets/icons/hexagon-highlight.svg" alt="" class="w-full h-full" />
@@ -103,7 +105,7 @@
   <!-- Middle: title + description -->
   <div class="flex-1 min-h-0 overflow-hidden">
     <h3 class="text-sm font-medium text-black truncate">
-      {highlight.title || highlight.contribution_type_name || 'Contribution'}
+      {highlight.title || highlight.contribution_type_name || m.hcard_contribution()}
     </h3>
     {#if highlight.description}
       <div class="markdown-content text-xs mt-1 line-clamp-3" style="color: #6b6b6b;">
@@ -119,7 +121,7 @@
       style="border: 1px solid {colors.tagBorder}; color: {colors.tagText};"
       onclick={(e) => { e.stopPropagation(); push(`/contribution-type/${highlight.contribution_type}`); }}
     >
-      {highlight.contribution_type_name || 'Contribution'}
+      {highlight.contribution_type_name || m.hcard_contribution()}
     </button>
     <span class="text-xs whitespace-nowrap" style="color: #bababa;">
       {formatDate(highlight.contribution_date)}

@@ -9,6 +9,7 @@
   import { getCategoryAccent, getCategoryPillColors } from '../lib/categoryColors.js';
   import { rgbaFromHex } from '../lib/categoryPresentation.js';
   import { isInteractiveTarget, stripPreviewMedia } from '../lib/domHelpers.js';
+  import { m } from '../lib/paraglide/messages.js';
 
   let missions = $state([]);
   let loading = $state(true);
@@ -44,7 +45,7 @@
 
       updateCountdowns();
     } catch (err) {
-      showError('Failed to load missions. Please refresh the page.');
+      showError(m.missions_failed_load());
       missions = [];
     } finally {
       loading = false;
@@ -68,23 +69,23 @@
     const end = new Date(endDate);
     const diffMs = end - now;
 
-    if (diffMs <= 0) return 'Ended';
+    if (diffMs <= 0) return m.missions_ended();
 
     const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
 
     if (days > 0) {
-      return `${days}d ${hours}h`;
+      return m.missions_countdown_dh({ days, hours });
     } else if (hours > 0) {
-      return `${hours}h ${minutes}m`;
+      return m.missions_countdown_hm({ hours, minutes });
     } else {
-      return `${minutes}m`;
+      return m.missions_countdown_m({ minutes });
     }
   }
 
   function spotsLeftLabel(count) {
-    return `${count} ${Number(count) === 1 ? 'spot' : 'spots'} left`;
+    return Number(count) === 1 ? m.missions_spots_left_one({ count }) : m.missions_spots_left_other({ count });
   }
 
   function formatNumber(value) {
@@ -104,9 +105,9 @@
   }
 
   function missionCapacityLabel(mission, parentType) {
-    if (mission?.user_is_full === true) return 'Your limit reached';
-    if (isFull(mission)) return 'Full';
-    if (isFull(parentType)) return 'Submissions closed';
+    if (mission?.user_is_full === true) return m.missions_your_limit_reached();
+    if (isFull(mission)) return m.missions_full();
+    if (isFull(parentType)) return m.missions_submissions_closed();
     if (mission?.max_submissions != null && mission?.submissions_remaining != null) {
       return spotsLeftLabel(mission.submissions_remaining);
     }
@@ -121,7 +122,7 @@
     const multiplier = Number(type.current_multiplier || 1);
     const min = Math.round(Number(type.min_points || 0) * multiplier);
     const max = Math.round(Number(type.max_points || 0) * multiplier);
-    return min === max ? `${min} pts` : `${min}-${max} pts`;
+    return min === max ? m.common_points_pts({ points: min }) : m.common_points_pts({ points: `${min}-${max}` });
   }
 
   function renderMarkdown(text) {
@@ -130,10 +131,10 @@
   }
 
   function submitLabel(mission, parentType) {
-    if (mission?.user_is_full === true) return 'Limit reached';
-    if (isFull(mission)) return 'Full';
-    if (isFull(parentType)) return 'Closed';
-    return 'Submit';
+    if (mission?.user_is_full === true) return m.missions_limit_reached();
+    if (isFull(mission)) return m.missions_full();
+    if (isFull(parentType)) return m.missions_closed();
+    return m.common_submit();
   }
 
   function cardGradientStyle(category = activeCategory) {
@@ -211,14 +212,14 @@
       <div>
         <div class="flex flex-wrap items-center gap-2">
           <h2 class="text-[22px] sm:text-[25px] font-semibold font-display text-black leading-none">
-            Missions
+            {m.missions_title()}
           </h2>
           <span class="inline-flex h-6 items-center rounded-full border border-[#e8ebf2] bg-white px-4 text-[12px] font-semibold text-[#506078]">
-            {missions.length} {missions.length === 1 ? 'mission' : 'missions'}
+            {missions.length === 1 ? m.missions_count_one({ count: missions.length }) : m.missions_count_other({ count: missions.length })}
           </span>
         </div>
         <p class="mt-2 text-[13px] sm:text-[14px] text-[#506078]">
-          Time-limited opportunities to earn extra points and climb the leaderboard.
+          {m.missions_subtitle()}
         </p>
       </div>
 
@@ -230,7 +231,7 @@
         {@const submissionClosed = mission.user_is_full === true || isFull(mission) || isFull(parentType)}
         {@const capacityLabel = missionCapacityLabel(mission, parentType)}
         {@const pointsLabel = formatPoints(parentType)}
-        {@const countdownLabel = mission.end_date && countdowns[mission.id] ? countdowns[mission.id] : 'Ongoing'}
+        {@const countdownLabel = mission.end_date && countdowns[mission.id] ? countdowns[mission.id] : m.missions_ongoing()}
         {@const missionAccentStyle = cardGradientStyle(parentType?.category)}
         {@const missionTitleAccentStyle = missionTitleStyle(parentType?.category)}
 
@@ -250,7 +251,7 @@
 
               <span
                 class="inline-flex h-6 items-center rounded-full px-2 text-[12px] font-semibold"
-                style="background: {countdownLabel === 'Ended' ? '#f2f4f7' : pillColors.pillBg}; color: {countdownLabel === 'Ended' ? '#667085' : pillColors.pillText};"
+                style="background: {countdownLabel === m.missions_ended() ? '#f2f4f7' : pillColors.pillBg}; color: {countdownLabel === m.missions_ended() ? '#667085' : pillColors.pillText};"
               >
                 {countdownLabel}
               </span>
@@ -284,7 +285,7 @@
               </div>
             {:else}
               <p class="mt-2 text-[13px] leading-5 text-[#98a2b3]">
-                No description available.
+                {m.missions_no_description()}
               </p>
             {/if}
           </div>
@@ -292,15 +293,15 @@
           <div class="grid gap-2 border-t border-[#eef1f6] pt-4 sm:w-[300px] sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
             <div class="grid grid-cols-3 gap-2">
               <div class="rounded-[8px] border border-[#eef1f6] bg-[#fafafa] px-2 py-2">
-                <p class="text-[10px] font-semibold uppercase text-[#98a2b3]">Accepted</p>
+                <p class="text-[10px] font-semibold uppercase text-[#98a2b3]">{m.status_accepted()}</p>
                 <p class="mt-0.5 text-[13px] font-semibold text-black">{formatNumber(mission.contributions_count)}</p>
               </div>
               <div class="rounded-[8px] border border-[#eef1f6] bg-[#fafafa] px-2 py-2">
-                <p class="text-[10px] font-semibold uppercase text-[#98a2b3]">Earned</p>
-                <p class="mt-0.5 text-[13px] font-semibold text-black">{formatNumber(mission.points_earned)} pts</p>
+                <p class="text-[10px] font-semibold uppercase text-[#98a2b3]">{m.missions_earned()}</p>
+                <p class="mt-0.5 text-[13px] font-semibold text-black">{m.common_points_pts({ points: formatNumber(mission.points_earned) })}</p>
               </div>
               <div class="rounded-[8px] border border-[#eef1f6] bg-[#fafafa] px-2 py-2">
-                <p class="text-[10px] font-semibold uppercase text-[#98a2b3]">Contributors</p>
+                <p class="text-[10px] font-semibold uppercase text-[#98a2b3]">{m.missions_contributors()}</p>
                 <p class="mt-0.5 text-[13px] font-semibold text-black">{formatNumber(mission.unique_users)}</p>
               </div>
             </div>
@@ -312,7 +313,7 @@
                   onclick={(event) => { event.stopPropagation(); push(`/mission/${mission.id}`); }}
                   class="inline-flex h-8 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white px-2 text-[12px] font-semibold text-[#506078] transition hover:border-black hover:text-black"
                 >
-                  Details
+                  {m.common_details()}
                 </button>
                 <button
                   type="button"

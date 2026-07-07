@@ -1,6 +1,7 @@
 <script>
   // @ts-nocheck
   import HighlightCard from './HighlightCard.svelte';
+  import { m } from '../../lib/paraglide/messages.js';
 
   let {
     highlights = [],
@@ -8,8 +9,8 @@
     cardWidth = 300,
     cardHeight = 180,
     skeletonCount = 5,
-    emptyTitle = 'No highlights yet',
-    emptyMessage = 'Submit impactful or pioneering work and a steward may highlight it.',
+    emptyTitle = m.hslider_no_highlights(),
+    emptyMessage = m.common_highlight_hint(),
     emptyAction = undefined, // optional snippet (e.g., a CTA button)
   } = $props();
 
@@ -107,7 +108,7 @@
       <button
         type="button"
         onclick={() => scrollBy(-1)}
-        aria-label="Scroll left"
+        aria-label={m.common_scroll_left()}
         class="absolute left-0 top-1/2 z-10 hidden h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-[#e6e6e6] bg-white shadow-md transition-all hover:bg-[#fafafa] hover:shadow-lg sm:flex"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-black">
@@ -119,7 +120,7 @@
       <button
         type="button"
         onclick={() => scrollBy(1)}
-        aria-label="Scroll right"
+        aria-label={m.common_scroll_right()}
         class="absolute right-0 top-1/2 z-10 hidden h-11 w-11 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-[#e6e6e6] bg-white shadow-md transition-all hover:bg-[#fafafa] hover:shadow-lg sm:flex"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-black">

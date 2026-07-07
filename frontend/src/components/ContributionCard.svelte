@@ -5,6 +5,7 @@
   import Icons from './Icons.svelte';
   import { parseMarkdown, parseUserMarkdown } from '../lib/markdownLoader.js';
   import { isSafeHttpUrl } from '../lib/urlSafety.js';
+  import { m } from '../lib/paraglide/messages.js';
 
   let {
     contribution,
@@ -32,7 +33,7 @@
   // mission name so past submissions keep their mission identity after the
   // mission ends (the mission FK is preserved on the Contribution record).
   let typeName = $derived(
-    contribution?.contribution_type_details?.name || contribution?.contribution_type_name || 'Contribution'
+    contribution?.contribution_type_details?.name || contribution?.contribution_type_name || m.ccard_contribution()
   );
   let typeSlug = $derived(contribution?.contribution_type_details?.slug);
   let isMilestone = $derived(typeSlug === 'milestones');
@@ -101,7 +102,7 @@
           </h3>
           
           {#if submission?.evidence_items?.length > 0}
-            <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" title="{submission.evidence_items.length} evidence item{submission.evidence_items.length > 1 ? 's' : ''}">
+            <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" title={submission.evidence_items.length === 1 ? m.ccard_evidence_items_one({ count: submission.evidence_items.length }) : m.ccard_evidence_items_other({ count: submission.evidence_items.length })}>
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
             </svg>
           {/if}
@@ -111,7 +112,7 @@
               type="button"
               onclick={() => isExpanded = !isExpanded}
               class="{categoryColors.text} {categoryColors.hoverText} p-1 ml-auto"
-              title="{isExpanded ? 'Hide' : 'Show'} details"
+              title={isExpanded ? m.ccard_hide_details() : m.ccard_show_details()}
             >
               <svg 
                 class="w-4 h-4 transition-transform {isExpanded ? 'rotate-180' : ''}" 
@@ -137,7 +138,7 @@
                 class="{categoryColors.text} {categoryColors.hoverText} font-medium"
                 onclick={() => push(`/participant/${contribution.users[0].address || ''}`)}
               >
-                {contribution.users[0].name || `${contribution.users[0].address?.slice(0, 6)}...${contribution.users[0].address?.slice(-4)}` || 'Anonymous'}
+                {contribution.users[0].name || `${contribution.users[0].address?.slice(0, 6)}...${contribution.users[0].address?.slice(-4)}` || m.common_anonymous()}
               </button>
             {:else}
               <div class="flex -space-x-2">
@@ -151,7 +152,7 @@
                 {/each}
               </div>
               <span class="{categoryColors.text} font-medium">
-                {contribution.users.length} participants
+                {contribution.users.length === 1 ? m.ccard_participants_one({ count: contribution.users.length }) : m.ccard_participants_other({ count: contribution.users.length })}
               </span>
             {/if}
             <span class="text-gray-400">•</span>
@@ -165,7 +166,7 @@
               class="{categoryColors.text} {categoryColors.hoverText} font-medium"
               onclick={() => push(`/participant/${contribution.user_details.address || ''}`)}
             >
-              {contribution.user_details.name || `${contribution.user_details.address?.slice(0, 6)}...${contribution.user_details.address?.slice(-4)}` || 'Anonymous'}
+              {contribution.user_details.name || `${contribution.user_details.address?.slice(0, 6)}...${contribution.user_details.address?.slice(-4)}` || m.common_anonymous()}
             </button>
             <span class="text-gray-400">•</span>
           {/if}
@@ -185,7 +186,7 @@
       
       <div class="ml-3 flex-shrink-0">
         <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-          {contribution.frozen_global_points || 0} pts
+          {m.common_points_pts({ points: contribution.frozen_global_points || 0 })}
         </span>
       </div>
     </div>
@@ -194,14 +195,14 @@
       <div class="mt-3 pt-3 border-t {categoryColors.expandBorder} space-y-3">
         {#if submission?.notes}
           <div>
-            <h5 class="text-xs font-medium text-gray-700 mb-1">Notes</h5>
+            <h5 class="text-xs font-medium text-gray-700 mb-1">{m.ccard_notes()}</h5>
             <div class="markdown-content text-xs text-gray-600">{@html parseUserMarkdown(submission.notes)}</div>
           </div>
         {/if}
 
         {#if submission?.evidence_items?.length > 0}
           <div>
-            <h5 class="text-xs font-medium text-gray-700 mb-1">Evidence</h5>
+            <h5 class="text-xs font-medium text-gray-700 mb-1">{m.ccard_evidence()}</h5>
             <ul class="space-y-1">
               {#each submission.evidence_items as evidence}
                 <li class="text-xs text-gray-600">
@@ -210,12 +211,12 @@
                   {/if}
                   {#if isSafeHttpUrl(evidence.url)}
                     <a href={evidence.url} target="_blank" rel="noopener noreferrer" class="{categoryColors.text} underline ml-1">
-                      View URL
+                      {m.ccard_view_url()}
                     </a>
                   {/if}
                   {#if isSafeHttpUrl(evidence.file_url)}
                     <a href={evidence.file_url} target="_blank" rel="noopener noreferrer" class="{categoryColors.text} underline ml-1">
-                      View File
+                      {m.ccard_view_file()}
                     </a>
                   {/if}
                 </li>
@@ -235,7 +236,7 @@
           <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
         </svg>
         <div class="flex-1">
-          <h4 class="text-sm font-semibold text-yellow-900 mb-1">Highlighted: {contribution.highlight.title}</h4>
+          <h4 class="text-sm font-semibold text-yellow-900 mb-1">{m.ccard_highlighted_title({ title: contribution.highlight.title })}</h4>
           <div class="markdown-content text-sm text-yellow-800">{@html parseMarkdown(contribution.highlight.description)}</div>
         </div>
       </div>

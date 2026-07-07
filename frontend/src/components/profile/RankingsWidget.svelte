@@ -8,6 +8,7 @@
     import { showError, showWarning } from "../../lib/toastStore.js";
     import Avatar from "../Avatar.svelte";
     import CategoryIcon from "../portal/CategoryIcon.svelte";
+    import { m } from "../../lib/paraglide/messages.js";
 
     let {
         participant = null,
@@ -21,6 +22,12 @@
     let communityRank: number | null = $state(null);
     let communityRankLoaded = $state(false);
     const DEFAULT_TAB_ORDER = ["Builders", "Validators", "Community"];
+    // Internal tab ids stay English (used as logic keys); labels are translated at render.
+    const TAB_LABELS: Record<string, () => string> = {
+        Builders: m.prank_tab_builders,
+        Validators: m.prank_tab_validators,
+        Community: m.prank_tab_community,
+    };
     type RankStatus = "loading" | "ranked" | "unranked" | "unknown";
     const CTA_PREVIEW_ROWS: Record<string, any[]> = {
         Builders: [
@@ -153,20 +160,20 @@
 
     function getContributionCtaLabel(tab: string | null) {
         return tab === "Community"
-            ? `Reach ${COMMUNITY_RANKING_MIN_POINTS.toLocaleString()} community points`
-            : "Submit your first contribution";
+            ? m.prank_reach_community_points({ points: COMMUNITY_RANKING_MIN_POINTS.toLocaleString() })
+            : m.prank_submit_first_contribution();
     }
 
     function getContributionCtaTitle(tab: string | null) {
         return tab === "Community"
-            ? "Reach the community ranking"
-            : "Get your first contribution accepted";
+            ? m.prank_reach_community_ranking()
+            : m.prank_get_first_accepted();
     }
 
     function getContributionCtaBody(tab: string | null) {
         return tab === "Community"
-            ? `Earn ${COMMUNITY_RANKING_MIN_POINTS.toLocaleString()} community points to unlock your ranking.`
-            : "Accepted builder submissions unlock your ranking.";
+            ? m.prank_earn_points_unlock({ points: COMMUNITY_RANKING_MIN_POINTS.toLocaleString() })
+            : m.prank_builder_submissions_unlock();
     }
 
     function getContributionAccentClass(tab: string | null) {
@@ -332,9 +339,7 @@
                     } catch (err) {
                         if (!isCurrentRequest()) return;
                         console.warn("Could not load ranking context");
-                        showWarning(
-                            "Could not load this ranking; showing the top leaderboard.",
-                        );
+                        showWarning(m.prank_ranking_load_warning());
                     }
                 }
 
@@ -386,9 +391,9 @@
         } catch (err) {
             if (!isCurrentRequest()) return;
             console.warn("Failed to load leaderboard context");
-            showError("Failed to load leaderboard context");
+            showError(m.prank_leaderboard_error());
             setTabRankStatus(requestedTab, "unknown");
-            error = "Failed to load leaderboard context";
+            error = m.prank_leaderboard_error();
         } finally {
             if (isCurrentRequest()) {
                 loading = false;
@@ -457,7 +462,7 @@
             entry.user_address || entry.user_details?.address || entry.address;
         if (name) return name.length > 14 ? name.slice(0, 14) + "..." : name;
         if (addr) return addr.slice(0, 6) + "..." + addr.slice(-4);
-        return "Unknown";
+        return m.prank_unknown();
     }
 
     function formatPoints(pts: any) {
@@ -510,14 +515,14 @@
                 class="text-[20px] font-semibold text-black"
                 style="letter-spacing: 0.4px;"
             >
-                Ranking
+                {m.prank_ranking()}
             </h2>
             <button
                 onclick={() => push(getLeaderboardPath(activeTab))}
                 class="flex items-center gap-[4px] text-[14px] text-[#6b6b6b] hover:text-black transition-colors"
                 style="letter-spacing: 0.28px;"
             >
-                View all
+                {m.common_view_all()}
                 <img
                     src="/assets/icons/arrow-right-line.svg"
                     alt=""
@@ -541,7 +546,7 @@
                                 : 'text-[#6b6b6b] hover:text-black'}"
                             onclick={() => switchTab(tab)}
                         >
-                            {tab}
+                            {TAB_LABELS[tab] ? TAB_LABELS[tab]() : tab}
                             {#if activeTab === tab}
                                 <div
                                     class="absolute bottom-0 left-0 right-0 h-[2px] bg-black rounded-t-full"
@@ -669,7 +674,7 @@
                         </div>
                     {:else if activeList.length === 0}
                         <div class="text-sm text-gray-500 py-4 text-center">
-                            No ranked users found.
+                            {m.prank_no_ranked_users()}
                         </div>
                     {:else}
                         <div class="flex flex-col gap-[6px]">
@@ -805,7 +810,7 @@
                                         >{builderStats?.totalPoints || 0}</span
                                     >
                                     <span class="text-[12px] text-[#6b6b6b]"
-                                        >Builder Points</span
+                                        >{m.prank_builder_points()}</span
                                     >
                                 </div>
                             </div>
@@ -813,9 +818,9 @@
                                     class="text-[12px] font-medium text-[#6b6b6b] self-start mt-1"
                                 >
                                     {#if rightPanelStats.builder?.rank}
-                                        Rank #{rightPanelStats.builder.rank}
+                                        {m.prank_rank_number({ rank: rightPanelStats.builder.rank })}
                                     {:else}
-                                        Not ranked yet
+                                        {m.prank_not_ranked_yet()}
                                     {/if}
                                 </div>
                             {/if}
@@ -858,14 +863,14 @@
                                             0}</span
                                     >
                                     <span class="text-[12px] text-[#6b6b6b]"
-                                        >Validator Points</span
+                                        >{m.prank_validator_points()}</span
                                     >
                                 </div>
                             </div>
                             <div
                                 class="text-[12px] font-medium text-[#6b6b6b] self-start mt-1"
                             >
-                                Rank #{rightPanelStats.validator?.rank || "-"}
+                                {m.prank_rank_number({ rank: rightPanelStats.validator?.rank || "-" })}
                             </div>
                         {/if}
                     </div>
@@ -906,7 +911,7 @@
                                         >{userCommunityPoints}</span
                                     >
                                     <span class="text-[12px] text-[#6b6b6b]"
-                                        >Community Points</span
+                                        >{m.pcomm_community_points()}</span
                                     >
                                 </div>
                             </div>
@@ -914,9 +919,9 @@
                                     class="text-[12px] font-medium text-[#6b6b6b] self-start mt-1"
                                 >
                                     {#if communityRank}
-                                        Rank #{communityRank}
+                                        {m.prank_rank_number({ rank: communityRank })}
                                     {:else}
-                                        Not ranked yet
+                                        {m.prank_not_ranked_yet()}
                                     {/if}
                                 </div>
                             {/if}

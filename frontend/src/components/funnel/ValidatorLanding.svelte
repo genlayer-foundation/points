@@ -3,44 +3,45 @@
   import { validatorsAPI } from '../../lib/api.js';
   import CategoryIcon from '../portal/CategoryIcon.svelte';
   import RoleLandingVideo from './RoleLandingVideo.svelte';
+  import { m } from '../../lib/paraglide/messages.js';
 
   let { state: roleState = 'unauthenticated', starting = false, onStart = () => {} } = $props();
 
   const isWaitlisted = $derived(roleState === 'waitlisted');
-  const primaryLabel = $derived(starting ? 'Starting...' : 'Join the Waitlist');
+  const primaryLabel = $derived(starting ? m.vl_cta_starting() : m.vl_cta_join_waitlist());
   let professionalValidatorCount = $state(null);
 
   const comparisonCards = [
     {
       icon: 'attest',
-      title: 'Traditional validator',
-      value: 'Attest',
-      body: 'Passive infrastructure with capped single-digit yields.',
+      title: m.vl_card_traditional_title(),
+      value: m.vl_card_traditional_value(),
+      body: m.vl_card_traditional_body(),
     },
     {
       icon: 'genlayer',
-      title: 'GenLayer validator',
-      value: 'Reason',
-      body: 'Run an LLM-backed validator, evaluate evidence through Optimistic Democracy, and finalize accepted outcomes on-chain.',
+      title: m.vl_card_genlayer_title(),
+      value: m.vl_card_genlayer_value(),
+      body: m.vl_card_genlayer_body(),
     },
   ];
 
   const economics = [
-    'Paid per decision, with each decision recorded through 15+ on-chain transactions.',
-    'On mainnet, the same activity profile would already rank GenLayer Top-15 among all chains by daily fees.',
+    m.vl_economics_item1(),
+    m.vl_economics_item2(),
   ];
 
   const proofStats = $derived([
-    { value: '4,097', label: 'Peak-day decisions' },
-    { value: formatMetricNumber(professionalValidatorCount), label: 'Professional validators live' },
-    { value: 'Q4', suffix: '2026', label: 'Mainnet target' },
+    { value: '4,097', label: m.vl_stat_decisions_label() },
+    { value: formatMetricNumber(professionalValidatorCount), label: m.vl_stat_validators_label() },
+    { value: 'Q4', suffix: '2026', label: m.vl_stat_mainnet_label() },
   ]);
 
   const workflow = [
-    'Random selection assigns a proposer',
-    'Proposer runs an LLM-backed evaluation',
-    'Validators independently verify',
-    'Appeals settle disputes on-chain',
+    m.vl_workflow_step1(),
+    m.vl_workflow_step2(),
+    m.vl_workflow_step3(),
+    m.vl_workflow_step4(),
   ];
 
   function formatMetricNumber(value) {
@@ -66,7 +67,7 @@
 </script>
 
 <svelte:head>
-  <title>Validators | GenLayer Portal</title>
+  <title>{m.vl_page_title()}</title>
 </svelte:head>
 
 <div class="role-landing validator-landing">
@@ -79,7 +80,7 @@
           clip-rule="evenodd"
         />
       </svg>
-      You&apos;re on the waitlist
+      {m.vl_waitlist_badge()}
     </div>
   {/snippet}
 
@@ -87,12 +88,11 @@
     <div class="hero-copy">
       <div class="role-badge">
         <CategoryIcon category="validator" mode="hexagon" size={40} />
-        <span>Validators</span>
+        <span>{m.vl_role_badge()}</span>
       </div>
-      <h1 id="validator-landing-title">Don&apos;t Validate Blocks.<br />Adjudicate the Agentic Economy.</h1>
+      <h1 id="validator-landing-title">{m.vl_hero_line1()}<br />{m.vl_hero_line2()}</h1>
       <p>
-        GenLayer validators run LLM-backed nodes that inspect web data, evaluate
-        evidence, and commit accepted judgments on-chain.
+        {m.vl_hero_description()}
       </p>
       <div class="cta-cluster">
         <div class="button-row">
@@ -111,21 +111,21 @@
             </button>
           {/if}
         </div>
-        <p class="cta-hint">A selected validator proposes an answer, others verify it, and appeals resolve disagreements before finality.</p>
+        <p class="cta-hint">{m.vl_cta_hint()}</p>
       </div>
     </div>
 
     <RoleLandingVideo
       variant="validator"
-      eyebrow="Validator Preview"
-      title="Adjudication in motion"
-      description="Watch the flow for reasoning, verification, and finality before joining the validator path."
+      eyebrow={m.vl_video_eyebrow()}
+      title={m.vl_video_title()}
+      description={m.vl_video_description()}
     />
   </section>
 
   <section class="comparison-section" aria-labelledby="validator-comparison-title">
     <div class="section-header centered">
-      <h2 id="validator-comparison-title">From Passive Infrastructure to Active Judgment</h2>
+      <h2 id="validator-comparison-title">{m.vl_comparison_title()}</h2>
     </div>
     <div class="comparison-grid">
       {#each comparisonCards as card, index}
@@ -155,16 +155,16 @@
     </div>
   </section>
 
-  <section class="statement-section" aria-label="Validator statement">
+  <section class="statement-section" aria-label={m.vl_statement_aria()}>
     <h2>
-      Validators don&apos;t just secure GenLayer.<br />
-      <span>They adjudicate it.</span>
+      {m.vl_statement_line1()}<br />
+      <span>{m.vl_statement_line2()}</span>
     </h2>
   </section>
 
   <section class="earn-banner" id="validator-economics" aria-labelledby="validator-economics-title">
     <div class="earn-copy">
-      <h2 id="validator-economics-title">Higher Fees Per Transaction Than Anywhere Else</h2>
+      <h2 id="validator-economics-title">{m.vl_economics_title()}</h2>
     </div>
     <div class="economics-list">
       {#each economics as item}
@@ -177,7 +177,7 @@
   </section>
 
   <section class="stack-section" aria-labelledby="validator-demand-title">
-    <h2 id="validator-demand-title">On-chain activity and operator readiness.</h2>
+    <h2 id="validator-demand-title">{m.vl_demand_title()}</h2>
     <div class="stack-grid">
       {#each proofStats as stat}
         <article class="stack-card">
@@ -192,14 +192,12 @@
 
   <section class="workflow-section" aria-labelledby="validator-workflow-title">
     <div class="section-header centered">
-      <h2 id="validator-workflow-title">How It Works</h2>
+      <h2 id="validator-workflow-title">{m.vl_workflow_title()}</h2>
       <p>
-        A proposer produces a judgment with an LLM-backed validator. Other
-        validators verify independently, and appeals settle disagreements before
-        the result is finalized on-chain.
+        {m.vl_workflow_description()}
       </p>
     </div>
-    <div class="project-chip-row" aria-label="Validator workflow">
+    <div class="project-chip-row" aria-label={m.vl_workflow_aria()}>
       {#each workflow as step}
         <span>{step}</span>
       {/each}
@@ -207,8 +205,8 @@
   </section>
 
   <section class="final-cta" aria-labelledby="validator-final-title">
-    <h2 id="validator-final-title">Run the node that reasons.</h2>
-    <p>Join the validator path and prepare to resolve the agentic economy.</p>
+    <h2 id="validator-final-title">{m.vl_final_title()}</h2>
+    <p>{m.vl_final_description()}</p>
     {#if isWaitlisted}
       {@render waitlistBadge()}
     {:else}

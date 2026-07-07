@@ -1,11 +1,12 @@
 <script>
     import { format } from "date-fns";
     import CategoryIcon from "../portal/CategoryIcon.svelte";
+    import { m } from "../../lib/paraglide/messages.js";
 
     let { participant = null } = $props();
 
     let stewardRole = $derived(
-        participant?.working_groups?.length > 0 ? "Working Group Member" : "Admin"
+        participant?.working_groups?.length > 0 ? m.ph_working_group_member() : m.ph_admin()
     );
 
     let memberSinceDate = $derived(
@@ -42,7 +43,7 @@
             class="text-[20px] font-semibold text-black"
             style="letter-spacing: 0.4px;"
         >
-            Ecosystem Steward
+            {m.ph_ecosystem_steward()}
         </h2>
     </div>
 
@@ -69,7 +70,7 @@
                     <p
                         class="text-[13px] leading-[15px] tracking-[0.24px] text-[#6b6b6b] mt-1"
                     >
-                        Role
+                        {m.pstew_role()}
                     </p>
                 </div>
             </div>
@@ -109,7 +110,7 @@
                     <p
                         class="text-[13px] leading-[15px] tracking-[0.24px] text-[#6b6b6b] mt-1"
                     >
-                        Member Since
+                        {m.pstew_member_since()}
                     </p>
                 </div>
             </div>
@@ -123,7 +124,7 @@
                 class="font-semibold text-[20px] text-black mb-[20px]"
                 style="letter-spacing: 0.4px;"
             >
-                Member of
+                {m.pstew_member_of()}
             </h3>
             <div class="flex flex-col gap-3">
                 {#each participant.working_groups as wg}

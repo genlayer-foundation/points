@@ -1,6 +1,7 @@
 <script>
   import { push } from 'svelte-spa-router';
   import { format } from 'date-fns';
+  import { dateFnsLocale } from '../../lib/i18n.js';
   import { poapsAPI } from '../../lib/api.js';
   import { authState } from '../../lib/auth.js';
   import PoapCollectionWall from './PoapCollectionWall.svelte';
@@ -79,7 +80,7 @@
   function monthLabel(value) {
     const date = toDate(value);
     if (!date) return 'Unknown';
-    return format(date, 'MMM yyyy');
+    return format(date, 'MMM yyyy', { locale: dateFnsLocale() });
   }
 
   /** @param {string} value */

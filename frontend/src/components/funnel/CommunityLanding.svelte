@@ -1,64 +1,65 @@
 <script>
   import CategoryIcon from '../portal/CategoryIcon.svelte';
   import RoleLandingVideo from './RoleLandingVideo.svelte';
+  import { m } from '../../lib/paraglide/messages.js';
 
   let { state: roleState = 'unauthenticated', starting = false, onStart = () => {} } = $props();
 
-  const primaryLabel = $derived(starting ? 'Starting...' : 'Become a Creator');
+  const primaryLabel = $derived(starting ? m.cl_cta_starting() : m.cl_cta_become_creator());
   const isUnauthenticated = $derived(roleState === 'unauthenticated');
   const ctaHint = $derived(
     isUnauthenticated
-      ? 'Connect to start your creator journey, contributions, and points.'
-      : 'Start contributing across tasks, content, testing, and ecosystem growth.'
+      ? m.cl_cta_hint_unauthenticated()
+      : m.cl_cta_hint_authenticated()
   );
 
   const contributionCards = [
     {
       icon: 'protocol',
-      title: 'Test the protocol',
-      body: 'Try live flows, test project behavior, and help harden the network before mainnet.',
+      title: m.cl_card_protocol_title(),
+      body: m.cl_card_protocol_body(),
     },
     {
       icon: 'bug',
-      title: 'Surface bugs',
-      body: 'Catch edge cases, report issues, and turn product feedback into contribution credit.',
+      title: m.cl_card_bugs_title(),
+      body: m.cl_card_bugs_body(),
     },
     {
       icon: 'content',
-      title: 'Create content',
-      body: "Explain agentic commerce, teach new users, and expand GenLayer's reach.",
+      title: m.cl_card_content_title(),
+      body: m.cl_card_content_body(),
     },
     {
       icon: 'ecosystem',
-      title: 'Grow the ecosystem',
-      body: 'Bring builders, validators, and contributors into the network from day one.',
+      title: m.cl_card_ecosystem_title(),
+      body: m.cl_card_ecosystem_body(),
     },
   ];
 
   const pointsCards = [
     {
-      title: 'Onchain tasks',
-      body: 'Test projects and act across the ecosystem as the network comes online.',
+      title: m.cl_points_onchain_title(),
+      body: m.cl_points_onchain_body(),
     },
     {
-      title: 'Social tasks',
-      body: 'Take the project beyond its borders with content, distribution, and community action.',
+      title: m.cl_points_social_title(),
+      body: m.cl_points_social_body(),
     },
     {
-      title: 'Portal Passport',
-      body: 'Your passport records verified contributions across tasks, content, and ecosystem work.',
+      title: m.cl_points_passport_title(),
+      body: m.cl_points_passport_body(),
     },
   ];
 
   const stats = [
-    { value: '100', suffix: 'K+', label: 'Community reach' },
-    { value: '∞', label: 'Ways to contribute' },
-    { value: 'Q4', suffix: '2026', label: 'Mainnet target' },
+    { value: '100', suffix: 'K+', label: m.cl_stat_reach_label() },
+    { value: '∞', label: m.cl_stat_ways_label() },
+    { value: 'Q4', suffix: '2026', label: m.cl_stat_mainnet_label() },
   ];
 </script>
 
 <svelte:head>
-  <title>Creators | GenLayer Portal</title>
+  <title>{m.cl_page_title()}</title>
 </svelte:head>
 
 <div class="role-landing community-landing">
@@ -66,12 +67,11 @@
     <div class="hero-copy">
       <div class="role-badge">
         <CategoryIcon category="community" mode="hexagon" size={40} />
-        <span>Creators</span>
+        <span>{m.cl_role_badge()}</span>
       </div>
-      <h1 id="community-landing-title">+100,000 Strong.<br />Building the Adjudication Layer for Agentic Commerce.</h1>
+      <h1 id="community-landing-title">{m.cl_hero_line1()}<br />{m.cl_hero_line2()}</h1>
       <p>
-        Join the creators pushing the adjudication layer for agentic commerce
-        and get rewarded for every contribution.
+        {m.cl_hero_description()}
       </p>
       <div class="cta-cluster">
         <div class="button-row">
@@ -92,15 +92,15 @@
 
     <RoleLandingVideo
       variant="community"
-      eyebrow="Creator Preview"
-      title="Contribution becomes reputation"
-      description="See how community actions, tasks, and verified work show up inside the Portal."
+      eyebrow={m.cl_video_eyebrow()}
+      title={m.cl_video_title()}
+      description={m.cl_video_description()}
     />
   </section>
 
   <section class="feature-section" aria-labelledby="community-contribution-title">
     <div class="section-header centered">
-      <h2 id="community-contribution-title">This Isn&apos;t a Spectator Community</h2>
+      <h2 id="community-contribution-title">{m.cl_feature_title()}</h2>
     </div>
     <div class="feature-grid">
       {#each contributionCards as card}
@@ -125,19 +125,18 @@
     </div>
   </section>
 
-  <section class="statement-section" aria-label="Community statement">
+  <section class="statement-section" aria-label={m.cl_statement_aria()}>
     <h2>
-      You&apos;re a contributor,<br />
-      <span>not an audience.</span>
+      {m.cl_statement_line1()}<br />
+      <span>{m.cl_statement_line2()}</span>
     </h2>
   </section>
 
   <section class="points-banner" id="community-points" aria-labelledby="community-points-title">
     <div class="points-copy">
-      <h2 id="community-points-title">Join the Community, Then Earn Through Tasks</h2>
+      <h2 id="community-points-title">{m.cl_points_title()}</h2>
       <p>
-        Complete the community journey to activate your Portal Passport. From
-        there, verified tasks earn GenLayer Points tied to the work you did.
+        {m.cl_points_description()}
       </p>
     </div>
     <div class="points-grid">
@@ -152,10 +151,9 @@
 
   <section class="why-section" aria-labelledby="community-why-title">
     <div class="section-header">
-      <h2 id="community-why-title">The next revolution of the internet is being built.</h2>
+      <h2 id="community-why-title">{m.cl_why_title()}</h2>
       <p>
-        Early contributors are shaping agentic commerce, reputation, and dispute
-        resolution before mainnet arrives.
+        {m.cl_why_description()}
       </p>
     </div>
     <div class="stack-grid">
@@ -171,7 +169,7 @@
   </section>
 
   <section class="final-cta" aria-labelledby="community-final-title">
-    <h2 id="community-final-title">Join the Community</h2>
+    <h2 id="community-final-title">{m.cl_final_title()}</h2>
     <button
       type="button"
       class="landing-button landing-button-primary"

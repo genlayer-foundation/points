@@ -5,6 +5,7 @@
   import { notificationStore } from '../lib/notificationStore.js';
   import { followNotificationLink } from '../lib/notificationUtils.js';
   import { relativeTime } from '../lib/relativeTime.js';
+  import { m } from '../lib/paraglide/messages.js';
 
   let open = $state(false);
   let container = $state(null);
@@ -79,7 +80,7 @@
     <button
       type="button"
       class="relative flex items-center justify-center w-10 h-10 rounded-full text-gray-700 hover:bg-gray-100 transition-colors"
-      aria-label="Notifications{unreadCount > 0 ? ` (${unreadCount} unread)` : ''}"
+      aria-label={unreadCount > 0 ? m.ncenter_notifications_unread({ count: unreadCount }) : m.ncenter_notifications()}
       aria-expanded={open}
       onclick={toggleOpen}
     >
@@ -96,14 +97,14 @@
     {#if open}
       <div class="notification-panel absolute right-0 top-full mt-2 w-96 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden z-50">
         <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-          <h3 class="text-sm font-semibold text-gray-900">Notifications</h3>
+          <h3 class="text-sm font-semibold text-gray-900">{m.ncenter_notifications()}</h3>
           <button
             type="button"
             class="text-xs font-medium text-gray-500 hover:text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed"
             disabled={unreadCount === 0}
             onclick={markAllRead}
           >
-            Mark all read
+            {m.common_mark_all_read()}
           </button>
         </div>
 
@@ -116,7 +117,7 @@
             </div>
           {:else if notifications.length === 0}
             <div class="p-8 text-center text-sm text-gray-500">
-              No notifications yet
+              {m.ncenter_no_notifications()}
             </div>
           {:else}
             {#each notifications as notification (notification.id)}
@@ -145,7 +146,7 @@
           class="w-full py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 border-t border-gray-100 text-center"
           onclick={viewAll}
         >
-          View all notifications
+          {m.ncenter_view_all()}
         </button>
       </div>
     {/if}

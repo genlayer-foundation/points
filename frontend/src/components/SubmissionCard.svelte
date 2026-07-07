@@ -1,6 +1,7 @@
 <script>
   import { push } from 'svelte-spa-router';
   import { format } from 'date-fns';
+  import { dateFnsLocale } from '../lib/i18n.js';
   import ContributionCard from './ContributionCard.svelte';
   import ContributionSelection from '../lib/components/ContributionSelection.svelte';
   import CRMNotesPanel from './CRMNotesPanel.svelte';
@@ -11,6 +12,7 @@
   import { stewardAPI } from '../lib/api.js';
   import { parseMarkdown, parseUserMarkdown } from '../lib/markdownLoader.js';
   import { showSuccess, showError } from '../lib/toastStore';
+  import { m } from '../lib/paraglide/messages.js';
   import {
     RUBRIC_EXTRAS,
     RUBRIC_GATE_FAILURES,
@@ -108,7 +110,7 @@
     copyingSubmissionId = true;
     try {
       await writeClipboard(submission.id);
-      showSuccess('Submission ID copied to clipboard');
+      showSuccess(m.scard_id_copied());
     } catch (err) {
       showError('Failed to copy submission ID: ' + (err?.message || 'unknown error'));
     } finally {
@@ -489,6 +491,23 @@
     }
   }
 
+  function getStateLabel(state) {
+    switch (state) {
+      case 'pending':
+        return m.status_pending();
+      case 'accepted':
+        return m.status_accepted();
+      case 'rejected':
+        return m.status_rejected();
+      case 'canceled':
+        return m.status_canceled();
+      case 'more_info_needed':
+        return m.status_more_info();
+      default:
+        return submission.state_display;
+    }
+  }
+
   function getStateBorderClass(state) {
     switch (state) {
       case 'pending':
@@ -525,7 +544,7 @@
 
   function formatDate(dateString) {
     if (!dateString) return 'N/A';
-    return format(new Date(dateString), 'MMM d, yyyy HH:mm');
+    return format(new Date(dateString), 'MMM d, yyyy HH:mm', { locale: dateFnsLocale() });
   }
 
   function adjustPoints(delta) {
@@ -544,7 +563,7 @@
 
   function getTypeName(typeId) {
     const type = contributionTypes.find(t => t.id === typeId);
-    return type?.name || 'Contribution';
+    return type?.name || m.scard_contribution();
   }
 
   function getGateFailure(key) {
@@ -1015,7 +1034,7 @@
               <Badge
                 badge={{
                   id: null,
-                  name: 'Mission',
+                  name: m.scard_mission(),
                   description: '',
                   points: 0
                 }}
@@ -1045,7 +1064,7 @@
           {/if}
         </h3>
         <p class="text-sm text-gray-600">
-          Submitted {formatDate(submission.created_at)}
+          {m.scard_submitted_date({ date: formatDate(submission.created_at) })}
         </p>
       </div>
       <div class="flex flex-wrap items-center gap-2 sm:justify-end">
@@ -1083,16 +1102,16 @@
         {/if}
         {#if !isOwnSubmission && submission.has_appeal}
           <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800" title="Submitter has appealed this submission">
-            Appealed
+            {m.scard_appealed()}
           </span>
         {/if}
         {#if submission.notes_count > 0}
           <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-            {submission.notes_count} note{submission.notes_count !== 1 ? 's' : ''}
+            {submission.notes_count === 1 ? m.scard_notes_count_one({ count: submission.notes_count }) : m.scard_notes_count_other({ count: submission.notes_count })}
           </span>
         {/if}
         <span class="px-3 py-1 rounded-full text-sm font-medium {getStateClass(submission.state)}">
-          {submission.state_display}
+          {getStateLabel(submission.state)}
         </span>
       </div>
     </div>
@@ -1105,7 +1124,7 @@
       <div class="flex flex-col gap-4">
         {#if !isOwnSubmission}
           <div>
-            <h4 class="text-sm font-medium text-gray-700">User</h4>
+            <h4 class="text-sm font-medium text-gray-700">{m.scard_user()}</h4>
             <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
               <Avatar
                 user={submission.user_details}
@@ -1121,14 +1140,14 @@
                   href="/participant/{submission.user_details?.address}"
                   class="text-xs text-primary-600 hover:text-primary-700 hover:underline"
                 >
-                  View Profile →
+                  {m.scard_view_profile()}
                 </a>
               {/if}
             </div>
           </div>
 
           <div>
-            <h4 class="text-sm font-medium text-gray-700">Contribution Type</h4>
+            <h4 class="text-sm font-medium text-gray-700">{m.scard_contribution_type()}</h4>
             <div class="mt-1 flex items-center gap-2 flex-wrap">
               <span class="text-sm text-gray-900">
                 {submission.contribution_type_details?.name}
@@ -1141,7 +1160,7 @@
 
           {#if submission.mission}
             <div>
-              <h4 class="text-sm font-medium text-gray-700">Mission</h4>
+              <h4 class="text-sm font-medium text-gray-700">{m.scard_mission()}</h4>
               <div class="mt-1 flex items-center gap-2 flex-wrap">
                 <span class="text-sm text-gray-900">
                   {submission.mission.name}
@@ -1152,19 +1171,19 @@
 
           {#if submission.project_contribution}
             <div>
-              <h4 class="text-sm font-medium text-gray-700">Linked Project</h4>
+              <h4 class="text-sm font-medium text-gray-700">{m.scard_linked_project()}</h4>
               <div class="mt-1 flex items-center gap-2 flex-wrap">
                 <span class="text-sm text-gray-900">
                   {submission.project_contribution.title}
                 </span>
                 {#if isMilestoneSubmission && submission.milestone_version}
                   <span class="text-xs text-indigo-700 bg-indigo-100 rounded-full px-2 py-0.5 font-medium">
-                    Milestone v{submission.milestone_version}
+                    {m.scard_milestone_v({ version: submission.milestone_version })}
                   </span>
                 {/if}
                 {#if submission.project_contribution.link}
                   <a href={submission.project_contribution.link} class="text-xs text-primary-600 hover:text-primary-700 hover:underline">
-                    View Project →
+                    {m.scard_view_project()}
                   </a>
                 {/if}
                 {#if submission.project_contribution.github_url}
@@ -1174,7 +1193,7 @@
                     rel="noopener noreferrer"
                     class="text-xs text-primary-600 hover:text-primary-700 hover:underline"
                   >
-                    Project Repository ↗
+                    {m.scard_project_repository()}
                   </a>
                 {/if}
               </div>
@@ -1189,7 +1208,7 @@
 
         {#if isOwnSubmission && submission.mission}
           <div>
-            <h4 class="text-sm font-medium text-gray-700">Contribution Type</h4>
+            <h4 class="text-sm font-medium text-gray-700">{m.scard_contribution_type()}</h4>
             <p class="mt-1 text-sm text-gray-900">
               {submission.contribution_type_name || getTypeName(submission.contribution_type)}
             </p>
@@ -1198,17 +1217,17 @@
 
         {#if isOwnSubmission && submission.project_contribution}
           <div>
-            <h4 class="text-sm font-medium text-gray-700">Linked Project</h4>
+            <h4 class="text-sm font-medium text-gray-700">{m.scard_linked_project()}</h4>
             <div class="mt-1 flex items-center gap-2 flex-wrap">
               <p class="text-sm text-gray-900">{submission.project_contribution.title}</p>
               {#if isMilestoneSubmission && submission.milestone_version}
                 <span class="text-xs text-indigo-700 bg-indigo-100 rounded-full px-2 py-0.5 font-medium">
-                  Milestone v{submission.milestone_version}
+                  {m.scard_milestone_v({ version: submission.milestone_version })}
                 </span>
               {/if}
               {#if submission.project_contribution.link}
                 <a href={submission.project_contribution.link} class="text-xs text-primary-600 hover:text-primary-700 hover:underline">
-                  View Project →
+                  {m.scard_view_project()}
                 </a>
               {/if}
               {#if submission.project_contribution.github_url}
@@ -1218,7 +1237,7 @@
                   rel="noopener noreferrer"
                   class="text-xs text-primary-600 hover:text-primary-700 hover:underline"
                 >
-                  Project Repository ↗
+                  {m.scard_project_repository()}
                 </a>
               {/if}
             </div>
@@ -1226,20 +1245,20 @@
         {/if}
 
         <div>
-          <h4 class="text-sm font-medium text-gray-700">Contribution Date</h4>
+          <h4 class="text-sm font-medium text-gray-700">{m.scard_contribution_date()}</h4>
           <p class="mt-1 text-sm text-gray-900">{formatDate(submission.contribution_date)}</p>
         </div>
 
         {#if submission.notes}
           <div>
-            <h4 class="text-sm font-medium text-gray-700">Notes</h4>
+            <h4 class="text-sm font-medium text-gray-700">{m.scard_notes_heading()}</h4>
             <div class="markdown-content mt-1 text-sm text-gray-900">{@html parseUserMarkdown(submission.notes)}</div>
           </div>
         {/if}
 
         {#if !isOwnSubmission && submission.has_appeal && submission.appeal_reason}
           <div class="border border-orange-200 rounded-lg p-3 bg-orange-50">
-            <h4 class="text-sm font-medium text-orange-900 mb-1">Appeal reason</h4>
+            <h4 class="text-sm font-medium text-orange-900 mb-1">{m.scard_appeal_reason()}</h4>
             <p class="text-sm text-orange-800 whitespace-pre-wrap">{submission.appeal_reason}</p>
           </div>
         {/if}
@@ -1247,10 +1266,10 @@
         {#if moreInfoRequests.length > 0}
           <div class="border border-blue-200 rounded-lg p-3 bg-blue-50">
             <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h4 class="text-sm font-medium text-blue-950">More information requested</h4>
+              <h4 class="text-sm font-medium text-blue-950">{m.scard_more_info_requested()}</h4>
               {#if moreInfoRequests.length > 1}
                 <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
-                  {moreInfoRequests.length} requests
+                  {moreInfoRequests.length === 1 ? m.scard_requests_one({ count: moreInfoRequests.length }) : m.scard_requests_other({ count: moreInfoRequests.length })}
                 </span>
               {/if}
             </div>
@@ -1259,9 +1278,9 @@
                 <div class="{index === 0 ? 'pt-0' : 'pt-3'} {index === moreInfoRequests.length - 1 ? 'pb-0' : 'pb-3'}">
                   <div class="markdown-content text-sm text-blue-900">{@html parseMarkdown(request.message)}</div>
                   <p class="mt-2 text-xs text-blue-700">
-                    {request.user_name ? `Requested by ${request.user_name}` : 'Requested'}
+                    {request.user_name ? m.scard_requested_by({ name: request.user_name }) : m.scard_requested()}
                     {#if request.created_at}
-                      on {formatDate(request.created_at)}
+                      {m.scard_on_date({ date: formatDate(request.created_at) })}
                     {/if}
                   </p>
                 </div>
@@ -1272,7 +1291,7 @@
 
         {#if submission.evidence_items?.length > 0}
           <div>
-            <h4 class="text-sm font-medium text-gray-700">Evidence</h4>
+            <h4 class="text-sm font-medium text-gray-700">{m.scard_evidence()}</h4>
             {#if urlEvidence.length > 0}
               <div class="mt-2 flex flex-col gap-2">
                 {#each urlEvidence as evidence}
@@ -1294,7 +1313,7 @@
 
         {#if showStaffResponse}
           <div class="bg-gray-50 p-3 rounded">
-            <h4 class="text-sm font-medium text-gray-700 mb-1">Staff Response</h4>
+            <h4 class="text-sm font-medium text-gray-700 mb-1">{m.scard_staff_response()}</h4>
             <div class="markdown-content text-sm text-gray-600">{@html parseMarkdown(submission.staff_reply)}</div>
           </div>
         {/if}
@@ -1879,7 +1898,7 @@
         {:else if submission.state === 'rejected'}
           {#if submission.staff_reply}
             <div class="border border-red-200 rounded-lg p-4 bg-red-50">
-              <h4 class="text-sm font-medium text-red-900 mb-2">Rejection Reason</h4>
+              <h4 class="text-sm font-medium text-red-900 mb-2">{m.scard_rejection_reason()}</h4>
               <div class="markdown-content text-sm text-red-700">{@html parseMarkdown(submission.staff_reply)}</div>
             </div>
           {/if}
@@ -1887,18 +1906,18 @@
             {#if submission.has_appeal}
               <div class="border border-orange-200 rounded-lg p-3 bg-orange-50">
                 <p class="text-sm text-orange-800">
-                  You have already appealed this submission. Each submission can only be appealed once.
+                  {m.scard_already_appealed()}
                 </p>
               </div>
             {:else if onAppeal}
               <div class="border border-orange-200 rounded-lg p-3 bg-orange-50 space-y-2">
-                <h4 class="text-sm font-medium text-orange-900">Appeal this rejection</h4>
+                <h4 class="text-sm font-medium text-orange-900">{m.scard_appeal_this_rejection()}</h4>
                 <p class="text-xs text-orange-700">
-                  You can appeal this rejection once. Explain why you believe it should be reconsidered.
+                  {m.scard_appeal_hint()}
                 </p>
                 <textarea
                   bind:value={appealReason}
-                  placeholder="Explain why you are appealing..."
+                  placeholder={m.scard_appeal_placeholder()}
                   rows="3"
                   maxlength="5000"
                   class="w-full px-3 py-2 border border-orange-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500"
@@ -1909,7 +1928,7 @@
                     disabled={submittingAppeal || !appealReason.trim()}
                     class="px-4 py-1.5 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
                   >
-                    {submittingAppeal ? 'Submitting...' : 'Submit Appeal'}
+                    {submittingAppeal ? m.scard_submitting() : m.scard_submit_appeal()}
                   </button>
                 </div>
               </div>
@@ -1917,13 +1936,13 @@
           {/if}
         {:else if submission.state === 'canceled'}
           <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
-            <h4 class="text-sm font-medium text-gray-900 mb-2">Canceled</h4>
-            <p class="text-sm text-gray-700">Canceled by user</p>
+            <h4 class="text-sm font-medium text-gray-900 mb-2">{m.status_canceled()}</h4>
+            <p class="text-sm text-gray-700">{m.scard_canceled_by_user()}</p>
           </div>
         {:else if isOwnSubmission && submission.state === 'pending' && submission.has_appeal}
           <div class="border border-orange-200 rounded-lg p-3 bg-orange-50">
-            <h4 class="text-sm font-medium text-orange-900 mb-1">Your appeal is under review</h4>
-            <p class="text-xs text-orange-700">A steward will re-review your submission.</p>
+            <h4 class="text-sm font-medium text-orange-900 mb-1">{m.scard_appeal_under_review()}</h4>
+            <p class="text-xs text-orange-700">{m.scard_appeal_rereview()}</p>
           </div>
         {:else if isOwnSubmission && (submission.state === 'pending' || submission.state === 'more_info_needed')}
           <!-- Edit button for pending and more_info_needed submissions -->
@@ -1938,7 +1957,7 @@
               }}
               class="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 text-gray-700"
             >
-              Edit
+              {m.scard_edit()}
             </button>
           </div>
         {/if}

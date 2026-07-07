@@ -5,6 +5,7 @@
   import { journeyAPI, socialTasksAPI } from '../lib/api.js';
   import { userStore } from '../lib/userStore.js';
   import { showError, showSuccess } from '../lib/toastStore.js';
+  import { m } from '../lib/paraglide/messages.js';
   import {
     getAnalyticsContext,
     getFunnelDurationMs,
@@ -80,41 +81,41 @@
   let selectedShareText = $derived(selectedPost?.text || xPost.share_text || '');
   let selectedIntentUrl = $derived(selectedPost?.intent_url || xPost.intent_url || 'https://x.com/intent/post');
   let displayName = $derived(user?.name?.trim() || '');
-  let welcomeTitle = $derived(displayName ? `Welcome, ${displayName}` : 'Welcome to your Community journey');
+  let welcomeTitle = $derived(displayName ? m.common_welcome_name({ name: displayName }) : m.cj_welcome_title_default());
   let welcomeMessage = $derived(
     complete
-      ? 'Your community steps are complete. Finish the journey to unlock the Creator role and start submitting community work.'
-      : 'Connect your social accounts, verify the community actions, and post your referral code to unlock the Creator role.'
+      ? m.cj_welcome_message_complete()
+      : m.cj_welcome_message_start()
   );
   let welcomeAlert = $derived(actionError || loadError || '');
   let welcomeChips = $derived([
-    { label: 'Progress', value: `${completedSteps}/${TOTAL_STEPS}` },
-    { label: 'Left', value: remainingSteps === 1 ? '1 step' : `${remainingSteps} steps` },
-    { label: 'Next', value: complete ? 'Finish journey' : `Step ${activeStepNumber}` },
+    { label: m.cj_chip_progress(), value: `${completedSteps}/${TOTAL_STEPS}` },
+    { label: m.cj_chip_left(), value: remainingSteps === 1 ? m.cj_steps_left_one() : m.cj_steps_left_other({ n: remainingSteps }) },
+    { label: m.cj_chip_next(), value: complete ? m.cj_finish_journey() : m.cj_step_n({ n: activeStepNumber }) },
   ]);
   let heroHelper = $derived(
     complete
-      ? 'Click to finish.'
-      : `Step ${activeStepNumber} is highlighted below.`
+      ? m.cj_click_to_finish()
+      : m.cj_hero_helper_step({ n: activeStepNumber })
   );
 
   const unlocks = [
     {
-      title: 'Missions',
-      body: 'Pick up open missions across the ecosystem and ship with the community.',
-      label: 'Earn points for every mission',
+      title: m.cj_unlock_missions_title(),
+      body: m.cj_unlock_missions_body(),
+      label: m.cj_unlock_missions_label(),
       icon: 'folder',
     },
     {
-      title: 'Leaderboard',
-      body: 'Climb the community ranks and get noticed by the ecosystem.',
-      label: 'Compete for top contributor',
+      title: m.nav_leaderboard(),
+      body: m.cj_unlock_leaderboard_body(),
+      label: m.cj_unlock_leaderboard_label(),
       icon: 'leaderboard',
     },
     {
-      title: 'Rewards',
-      body: 'Redeem your GenLayer Points for ecosystem rewards.',
-      label: 'Turn points into rewards',
+      title: m.cj_unlock_rewards_title(),
+      body: m.cj_unlock_rewards_body(),
+      label: m.cj_unlock_rewards_label(),
       icon: 'rewards',
     },
   ];
@@ -149,7 +150,7 @@
             surface: 'journey',
             error_stage: err.response?.status ? 'backend' : 'network',
           }));
-          showError('Could not start your creator journey. Try refreshing in a moment.');
+          showError(m.cj_toast_start_error());
         });
     }
     loadJourney({ showLoading: true });
@@ -268,7 +269,7 @@
       const existingPostUrl = journeyRes.data?.steps?.x_post?.post_url || '';
       if (existingPostUrl && !postUrl) postUrl = existingPostUrl;
     } catch (err) {
-      loadError = err.response?.data?.message || err.response?.data?.error || 'Could not load your creator journey.';
+      loadError = err.response?.data?.message || err.response?.data?.error || m.cj_error_load_journey();
       if (showLoading) {
         journey = null;
         tasks = [];
@@ -306,7 +307,7 @@
       else await userStore.loadUser?.();
       trackCommunityStepEvent('journey_step_verified', stepId);
       markStepDone(stepId);
-      showSuccess(isX ? 'X account linked for community points.' : 'Discord account linked for community points.');
+      showSuccess(isX ? m.cj_toast_x_linked() : m.cj_toast_discord_linked());
       await loadJourney({ showLoading: false });
       markStepDone(stepId);
     } catch (err) {
@@ -314,7 +315,7 @@
         error_code: err.response?.status ? 'backend_error' : 'unknown_error',
         error_stage: err.response?.status ? 'backend' : 'network',
       });
-      actionError = err.response?.data?.message || err.response?.data?.error || `Could not confirm your ${isX ? 'X' : 'Discord'} account.`;
+      actionError = err.response?.data?.message || err.response?.data?.error || (isX ? m.cj_error_confirm_x() : m.cj_error_confirm_discord());
       showError(actionError);
     } finally {
       if (isX) linkingX = false;
@@ -359,7 +360,7 @@
     }));
     try {
       await navigator.clipboard.writeText(text);
-      showSuccess('Post text copied.');
+      showSuccess(m.cj_toast_post_copied());
     } catch {
       const textarea = document.createElement('textarea');
       textarea.value = text;
@@ -370,8 +371,8 @@
       textarea.select();
       const copied = document.execCommand('copy');
       document.body.removeChild(textarea);
-      if (copied) showSuccess('Post text copied.');
-      else showError('Could not copy the post text. Please copy it manually.');
+      if (copied) showSuccess(m.cj_toast_post_copied());
+      else showError(m.cj_toast_copy_failed());
     }
   }
 
@@ -399,7 +400,7 @@
         error_code: 'invalid_url',
         error_stage: 'validation',
       });
-      actionError = 'Paste the URL of your X post first.';
+      actionError = m.cj_error_post_url_required();
       showError(actionError);
       return;
     }
@@ -417,7 +418,7 @@
         verification_mode: 'sorsa_tweet_info',
       }));
       trackCommunityStepEvent('journey_step_verified', 'x_post');
-      showSuccess('Community post verified.');
+      showSuccess(m.cj_toast_post_verified());
       await loadJourney({ showLoading: false });
     } catch (err) {
       const verificationResult = postVerificationResult(err);
@@ -433,7 +434,7 @@
         error_code: verificationResult,
         error_stage: err.response?.status ? 'backend' : 'network',
       });
-      actionError = err.response?.data?.message || err.response?.data?.error || 'Could not verify your X post.';
+      actionError = err.response?.data?.message || err.response?.data?.error || m.cj_error_verify_post();
       showError(actionError);
     } finally {
       verifyingPost = false;
@@ -472,7 +473,7 @@
         surface: 'journey',
         unlock_source: 'journey',
       }));
-      showSuccess('Welcome to the GenLayer community!');
+      showSuccess(m.cj_toast_welcome());
       replace('/community');
     } catch (err) {
       trackEvent('community_role_claim_error', getAnalyticsContext({
@@ -480,7 +481,7 @@
         error_code: err.response?.status ? 'backend_error' : 'unknown_error',
         error_stage: err.response?.status ? 'backend' : 'network',
       }));
-      actionError = err.response?.data?.message || err.response?.data?.error || 'Complete all creator journey steps first.';
+      actionError = err.response?.data?.message || err.response?.data?.error || m.cj_error_complete_steps_first();
       showError(actionError);
       await loadJourney({ showLoading: false });
     } finally {
@@ -490,7 +491,7 @@
 </script>
 
 <svelte:head>
-  <title>Community Journey | GenLayer Portal</title>
+  <title>{m.cj_page_title()}</title>
 </svelte:head>
 
 <div class="journey-page community-journey">
@@ -506,20 +507,20 @@
     role="community"
     iconHex="/assets/icons/hexagon-community-light.svg"
     iconGlyph="/assets/icons/group-3-line-purple.svg"
-    eyebrow="Your creator journey"
+    eyebrow={m.cj_hero_eyebrow()}
     accentValue={TOTAL_STEPS}
-    titleRest=" steps to become a creator"
-    description="Link your social accounts, verify the GenLayer creator actions, and share your unique X post before claiming the Creator role."
+    titleRest={m.cj_hero_title_rest()}
+    description={m.cj_hero_description()}
     completed={loading ? 0 : completedSteps}
     total={TOTAL_STEPS}
-    primaryLabel={completing ? 'Completing...' : 'Become a Creator'}
+    primaryLabel={completing ? m.cj_completing() : m.cj_become_creator()}
     primaryDisabled={loading || completing || !complete}
     primaryBusy={completing}
     helper={heroHelper}
     onPrimary={completeJourney}
   />
 
-  <section class="steps-card" aria-label="Creator journey steps">
+  <section class="steps-card" aria-label={m.cj_steps_aria()}>
     {#if loading}
       {#each Array(TOTAL_STEPS) as _, i}
         <JourneyStepRow number={i + 1} loading={true} />
@@ -528,13 +529,13 @@
       <div class="step-block" data-step-active={isActive('link_x')}>
         <JourneyStepRow
           number={1}
-          title="Link X"
-          contributionLabel={isActive('link_x') ? 'Up next' : ''}
-          detail={stepDone('link_x') ? twitterConnection?.platform_username ? `@${twitterConnection.platform_username}` : 'X account confirmed' : 'Connect X to verify community actions'}
+          title={m.cj_step_link_x_title()}
+          contributionLabel={isActive('link_x') ? m.cj_up_next() : ''}
+          detail={stepDone('link_x') ? twitterConnection?.platform_username ? `@${twitterConnection.platform_username}` : m.cj_x_confirmed() : m.cj_x_detail_connect()}
           points={stepPoints('link_x')}
           pointsLabel="CP"
           status={statusFor('link_x')}
-          actionLabel={isActive('link_x') && twitterConnection && !stepDone('link_x') ? 'Confirm' : ''}
+          actionLabel={isActive('link_x') && twitterConnection && !stepDone('link_x') ? m.cj_confirm() : ''}
           actionTone="accent"
           disabled={linkingX}
           busy={linkingX}
@@ -544,7 +545,7 @@
         {#if isActive('link_x') && !stepDone('link_x')}
           <div class="task-panel social-panel">
             <div class="task-panel-copy">
-              <p>Link the X account you will use to follow GenLayer and publish your community verification post.</p>
+              <p>{m.cj_link_x_panel_copy()}</p>
             </div>
             <div class="social-link-frame">
               {#if twitterConnection}
@@ -554,7 +555,7 @@
                   onclick={() => claimLinkedAccount('x')}
                   disabled={linkingX}
                 >
-                  {linkingX ? 'Confirming...' : 'Confirm X'}
+                  {linkingX ? m.cj_confirming() : m.cj_confirm_x()}
                 </button>
               {:else}
                 <SocialLink
@@ -573,13 +574,13 @@
       <div class="step-block" data-step-active={isActive('link_discord')}>
         <JourneyStepRow
           number={2}
-          title="Link Discord"
-          contributionLabel={isActive('link_discord') ? 'Up next' : ''}
-          detail={stepDone('link_discord') ? discordConnection?.platform_username || 'Discord account confirmed' : 'Connect Discord to verify server membership'}
+          title={m.cj_step_link_discord_title()}
+          contributionLabel={isActive('link_discord') ? m.cj_up_next() : ''}
+          detail={stepDone('link_discord') ? discordConnection?.platform_username || m.cj_discord_confirmed() : m.cj_discord_detail_connect()}
           points={stepPoints('link_discord')}
           pointsLabel="CP"
           status={statusFor('link_discord')}
-          actionLabel={isActive('link_discord') && discordConnection && !stepDone('link_discord') ? 'Confirm' : ''}
+          actionLabel={isActive('link_discord') && discordConnection && !stepDone('link_discord') ? m.cj_confirm() : ''}
           actionTone="accent"
           disabled={linkingDiscord}
           busy={linkingDiscord}
@@ -589,7 +590,7 @@
         {#if isActive('link_discord') && !stepDone('link_discord')}
           <div class="task-panel social-panel">
             <div class="task-panel-copy">
-              <p>Link the Discord account you will use in the GenLayer community server.</p>
+              <p>{m.cj_link_discord_panel_copy()}</p>
             </div>
             <div class="social-link-frame">
               {#if discordConnection}
@@ -599,7 +600,7 @@
                   onclick={() => claimLinkedAccount('discord')}
                   disabled={linkingDiscord}
                 >
-                  {linkingDiscord ? 'Confirming...' : 'Confirm Discord'}
+                  {linkingDiscord ? m.cj_confirming() : m.cj_confirm_discord()}
                 </button>
               {:else}
                 <SocialLink
@@ -618,9 +619,9 @@
       <div class="step-block" data-step-active={isActive('follow_x')}>
         <JourneyStepRow
           number={3}
-          title="Follow @genlayer"
-          contributionLabel={isActive('follow_x') ? 'Up next' : ''}
-          detail={stepDone('follow_x') ? '@genlayer follow verified' : 'Follow GenLayer on X'}
+          title={m.cj_step_follow_x_title()}
+          contributionLabel={isActive('follow_x') ? m.cj_up_next() : ''}
+          detail={stepDone('follow_x') ? m.cj_follow_x_verified() : m.cj_follow_x_detail()}
           points={stepPoints('follow_x') ?? followTask?.points}
           pointsLabel="CP"
           status={statusFor('follow_x')}
@@ -629,14 +630,14 @@
         {#if isActive('follow_x') && !stepDone('follow_x')}
           <div class="task-panel task-card-panel">
             <div class="task-panel-copy">
-              <p>Follow @genlayer with your linked X account, then verify the task.</p>
+              <p>{m.cj_follow_x_panel_copy()}</p>
             </div>
             <div class="task-card-frame">
               {#if followTask}
                 <SocialTaskCard task={followTask} pointsLabel="CP" onCompleted={handleTaskCompleted} />
               {:else}
                 <button type="button" class="landing-button landing-button-secondary" onclick={() => loadJourney({ showLoading: false })}>
-                  Reload task
+                  {m.cj_reload_task()}
                 </button>
               {/if}
             </div>
@@ -647,9 +648,9 @@
       <div class="step-block" data-step-active={isActive('join_discord')}>
         <JourneyStepRow
           number={4}
-          title="Join Discord"
-          contributionLabel={isActive('join_discord') ? 'Up next' : ''}
-          detail={stepDone('join_discord') ? 'GenLayer Discord membership verified' : 'Join the GenLayer Discord'}
+          title={m.cj_step_join_discord_title()}
+          contributionLabel={isActive('join_discord') ? m.cj_up_next() : ''}
+          detail={stepDone('join_discord') ? m.cj_join_discord_verified() : m.cj_join_discord_detail()}
           points={stepPoints('join_discord') ?? discordTask?.points}
           pointsLabel="CP"
           status={statusFor('join_discord')}
@@ -658,14 +659,14 @@
         {#if isActive('join_discord') && !stepDone('join_discord')}
           <div class="task-panel task-card-panel">
             <div class="task-panel-copy">
-              <p>Join the GenLayer Discord with your linked Discord account, then verify the task.</p>
+              <p>{m.cj_join_discord_panel_copy()}</p>
             </div>
             <div class="task-card-frame">
               {#if discordTask}
                 <SocialTaskCard task={discordTask} pointsLabel="CP" onCompleted={handleTaskCompleted} />
               {:else}
                 <button type="button" class="landing-button landing-button-secondary" onclick={() => loadJourney({ showLoading: false })}>
-                  Reload task
+                  {m.cj_reload_task()}
                 </button>
               {/if}
             </div>
@@ -676,17 +677,17 @@
       <div class="step-block" data-step-active={isActive('x_post')}>
         <JourneyStepRow
           number={5}
-          title="Choose a community post"
-          contributionLabel={isActive('x_post') ? 'Up next' : ''}
-          detail={stepDone('x_post') ? 'X post verified' : xPost.verification_code ? `Referral code ${xPost.verification_code}` : 'Share your referral code'}
+          title={m.cj_step_x_post_title()}
+          contributionLabel={isActive('x_post') ? m.cj_up_next() : ''}
+          detail={stepDone('x_post') ? m.cj_x_post_verified() : xPost.verification_code ? m.cj_referral_code({ code: xPost.verification_code }) : m.cj_x_post_detail_share()}
           status={statusFor('x_post')}
         />
 
         {#if isActive('x_post') && !stepDone('x_post')}
           <div class="x-post-panel">
             <div class="x-post-copy">
-              <p>Choose one post, publish it from your linked X account, then paste the public post URL to verify it.</p>
-              <div class="post-option-list" role="list" aria-label="Community post options">
+              <p>{m.cj_x_post_panel_copy()}</p>
+              <div class="post-option-list" role="list" aria-label={m.cj_post_options_aria()}>
                 {#each postOptions as option, index (option.id || option.text || index)}
                   <button
                     type="button"
@@ -697,7 +698,7 @@
                     disabled={!option.text}
                   >
                     <span class="post-option-index">{index + 1}</span>
-                    <span class="post-option-text">{option.text || 'Loading your post option...'}</span>
+                    <span class="post-option-text">{option.text || m.cj_post_option_loading()}</span>
                   </button>
                 {/each}
               </div>
@@ -708,7 +709,7 @@
                   onclick={copyShareText}
                   disabled={!selectedShareText}
                 >
-                  Copy
+                  {m.common_copy()}
                 </button>
                 <a
                   class="landing-button landing-button-secondary"
@@ -724,13 +725,13 @@
                     post_option: selectedPost?.id || 'default',
                   }))}
                 >
-                  Post on X
+                  {m.cj_post_on_x()}
                 </a>
               </div>
             </div>
 
             <div class="verify-card">
-              <label for="communityPostUrl">X post URL</label>
+              <label for="communityPostUrl">{m.cj_post_url_label()}</label>
               <input
                 id="communityPostUrl"
                 type="url"
@@ -743,7 +744,7 @@
                 onclick={verifyPost}
                 disabled={verifyingPost}
               >
-                {verifyingPost ? 'Verifying...' : 'Verify post'}
+                {verifyingPost ? m.cj_verifying() : m.cj_verify_post()}
               </button>
             </div>
           </div>
@@ -753,8 +754,8 @@
       {#if complete}
         <div class="completion-panel">
           <div>
-            <p>Creator journey complete</p>
-            <span>Click to finish.</span>
+            <p>{m.cj_completion_title()}</p>
+            <span>{m.cj_click_to_finish()}</span>
           </div>
         </div>
       {/if}
@@ -763,7 +764,7 @@
 
   <section class="unlock-section" aria-labelledby="community-unlocks-title">
     <div class="section-label">
-      <p id="community-unlocks-title">What you will unlock</p>
+      <p id="community-unlocks-title">{m.cj_unlocks_title()}</p>
       <span></span>
     </div>
     <div class="unlock-grid">

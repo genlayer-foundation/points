@@ -8,6 +8,7 @@
   import { currentCategory } from '../stores/category.js';
   import { push } from 'svelte-spa-router';
   import { getCategoryButtonStyle, getCategoryGradientStyle } from '../lib/categoryPresentation.js';
+  import { m } from '../lib/paraglide/messages.js';
 
   const RECENT_LIMIT = 5;
   const COMMUNITY_SOCIAL_LINK_SLUGS = new Set(['community-link-x', 'community-link-discord']);
@@ -15,41 +16,41 @@
   /** @type {Record<string, { title: string, recentTitle: string, description: string, icon: string, iconClass: string, accentColor: string }>} */
   const categoryConfig = {
     global: {
-      title: 'Contributions',
-      recentTitle: 'Recent Contributions',
-      description: 'Open calls, missions, and recent work from across the GenLayer ecosystem.',
+      title: m.nav_contributions(),
+      recentTitle: m.contrib_recent_title_global(),
+      description: m.contrib_desc_global(),
       icon: '/assets/icons/group-white.svg',
       iconClass: 'bg-black',
       accentColor: '#7f52e1',
     },
     builder: {
-      title: 'Builder Contributions',
-      recentTitle: 'Recent Builder Contributions',
-      description: 'Build, ship, and document high-signal work for the GenLayer ecosystem.',
+      title: m.contrib_title_builder(),
+      recentTitle: m.contrib_recent_title_builder(),
+      description: m.contrib_desc_builder(),
       icon: '/assets/icons/terminal-fill-white.svg',
       iconClass: 'bg-orange-500',
       accentColor: '#ee8521',
     },
     validator: {
-      title: 'Validator Contributions',
-      recentTitle: 'Recent Validator Contributions',
-      description: 'Support the network with validator operations, testing, and ecosystem reliability.',
+      title: m.contrib_title_validator(),
+      recentTitle: m.contrib_recent_title_validator(),
+      description: m.contrib_desc_validator(),
       icon: '/assets/icons/shield-white.svg',
       iconClass: 'bg-gradient-to-br from-[#8f7bff] to-[#6f8cff]',
       accentColor: '#387de8',
     },
     community: {
-      title: 'Community Contributions',
-      recentTitle: 'Recent Community Contributions',
-      description: 'Create, teach, gather feedback, and help the community understand GenLayer.',
+      title: m.contrib_title_community(),
+      recentTitle: m.contrib_recent_title_community(),
+      description: m.contrib_desc_community(),
       icon: '/assets/icons/group-white.svg',
       iconClass: 'bg-[#7f52e1]',
       accentColor: '#7f52e1',
     },
     steward: {
-      title: 'Steward Contributions',
-      recentTitle: 'Recent Steward Contributions',
-      description: 'Recognize, curate, and sustain high-quality ecosystem participation.',
+      title: m.contrib_title_steward(),
+      recentTitle: m.contrib_recent_title_steward(),
+      description: m.contrib_desc_steward(),
       icon: '/assets/icons/group-white.svg',
       iconClass: 'bg-emerald-500',
       accentColor: '#3eb359',
@@ -116,7 +117,7 @@
       recentContributions = filterRecentContributions(response.data?.results || [], category).slice(0, RECENT_LIMIT);
     } catch (err) {
       if (requestId !== recentRequestSequence) return;
-      recentError = err instanceof Error ? err.message : 'Failed to load recent contributions';
+      recentError = err instanceof Error ? err.message : m.contrib_error_load_recent();
       recentContributions = [];
     } finally {
       if (requestId === recentRequestSequence) {
@@ -195,7 +196,7 @@
         class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-black bg-black px-4 text-[13px] font-semibold text-white shadow-[0_8px_22px_rgba(31,42,68,0.12)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.16)] sm:w-auto"
         style={submitButtonStyle}
       >
-        Submit contribution
+        {m.contrib_submit_button()}
         <img src="/assets/icons/arrow-right-line-white.svg" alt="" class="h-4 w-4" />
       </button>
     </header>
@@ -223,12 +224,12 @@
               </h2>
               {#if !recentLoading && !recentError}
                 <span class="inline-flex h-[25px] items-center rounded-full border border-[#e8ebf2] bg-white px-3 text-[12px] font-semibold text-[#506078]">
-                  {recentContributions.length} latest
+                  {m.contrib_count_latest({ count: recentContributions.length })}
                 </span>
               {/if}
             </div>
             <p class="mt-2 text-[13px] sm:text-[14px] text-[#506078]">
-              Latest accepted contributions for the selected category.
+              {m.contrib_recent_subtitle()}
             </p>
           </div>
         </div>
@@ -237,7 +238,7 @@
           {#if !recentLoading && !recentError && recentContributions.length > 1}
             <button
               type="button"
-              aria-label="Scroll recent contributions left"
+              aria-label={m.contrib_scroll_left()}
               onclick={() => scrollRecent(-1)}
               class="hidden h-11 w-11 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white shadow-[0_8px_18px_rgba(31,42,68,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.12)] sm:inline-flex"
             >
@@ -245,7 +246,7 @@
             </button>
             <button
               type="button"
-              aria-label="Scroll recent contributions right"
+              aria-label={m.contrib_scroll_right()}
               onclick={() => scrollRecent(1)}
               class="hidden h-11 w-11 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white shadow-[0_8px_18px_rgba(31,42,68,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.12)] sm:inline-flex"
             >
@@ -258,7 +259,7 @@
             onclick={() => push(viewAllUrl)}
             class="inline-flex h-11 items-center justify-center gap-1.5 rounded-[8px] border border-[#dfe4ee] bg-white px-3 text-[13px] font-semibold text-[#111827] shadow-[0_8px_18px_rgba(31,42,68,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.12)]"
           >
-            View all
+            {m.common_view_all()}
             <img src="/assets/icons/arrow-right-line.svg" alt="" class="h-4 w-4" />
           </button>
         </div>
@@ -274,13 +275,13 @@
         </div>
       {:else if recentError}
         <div class="rounded-[8px] border border-red-100 bg-red-50 p-5">
-          <h3 class="text-[14px] font-semibold text-red-800">Error loading contributions</h3>
+          <h3 class="text-[14px] font-semibold text-red-800">{m.contrib_error_loading_title()}</h3>
           <p class="mt-1 text-[13px] text-red-700">{recentError}</p>
         </div>
       {:else if recentContributions.length === 0}
         <div class="rounded-[8px] border border-dashed border-[#dfe4ee] bg-white/70 p-8 text-center">
-          <h3 class="text-[15px] font-semibold text-black">No contributions yet</h3>
-          <p class="mt-1 text-[13px] text-[#6b6b6b]">Submitted work will appear here once it is accepted.</p>
+          <h3 class="text-[15px] font-semibold text-black">{m.common_no_contributions_yet()}</h3>
+          <p class="mt-1 text-[13px] text-[#6b6b6b]">{m.contrib_empty_recent_desc()}</p>
         </div>
       {:else}
         <div

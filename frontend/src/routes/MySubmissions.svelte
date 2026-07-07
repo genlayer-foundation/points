@@ -6,6 +6,7 @@
   import PaginationEnhanced from '../components/PaginationEnhanced.svelte';
   import SubmissionCard from '../components/SubmissionCard.svelte';
   import { showSuccess, showError } from '../lib/toastStore';
+  import { m } from '../lib/paraglide/messages.js';
   import {
     getAnalyticsContext,
     getLifecycleDurationMs,
@@ -193,7 +194,7 @@
       trackContributionLifecycleSnapshot();
       scrollToHighlightedSubmission();
     } catch (err) {
-      error = 'Failed to load submissions';
+      error = m.mysub_error_load();
     } finally {
       loading = false;
       authChecked = true;
@@ -278,9 +279,9 @@
           submissions = [...submissions];
         }
       }
-      showSuccess('Appeal submitted. A steward will re-review your submission.');
+      showSuccess(m.mysub_appeal_success());
     } catch (err) {
-      showError(err.response?.data?.error || 'Failed to submit appeal');
+      showError(err.response?.data?.error || m.mysub_appeal_error());
       throw err;
     }
   }
@@ -288,18 +289,18 @@
 
 <div class="container mx-auto px-4 py-8">
   <div class="flex justify-between items-center mb-6">
-    <h1 class="text-2xl font-bold">My Submissions</h1>
+    <h1 class="text-2xl font-bold">{m.nav_my_submissions()}</h1>
     <button
       onclick={handleSubmitNewContribution}
       class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
     >
-      Submit New Contribution
+      {m.mysub_submit_new()}
     </button>
   </div>
   
   <div class="mb-6">
     <label for="state-filter" class="block text-sm font-medium text-gray-700 mb-2">
-      Filter by status:
+      {m.mysub_filter_label()}
     </label>
     <select
       id="state-filter"
@@ -307,12 +308,12 @@
       onchange={handleFilterChange}
       class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
     >
-      <option value="">All</option>
-      <option value="pending">Pending Review</option>
-      <option value="accepted">Accepted</option>
-      <option value="rejected">Rejected</option>
-      <option value="canceled">Canceled</option>
-      <option value="more_info_needed">More Info Needed</option>
+      <option value="">{m.common_all()}</option>
+      <option value="pending">{m.status_pending()}</option>
+      <option value="accepted">{m.status_accepted()}</option>
+      <option value="rejected">{m.status_rejected()}</option>
+      <option value="canceled">{m.status_canceled()}</option>
+      <option value="more_info_needed">{m.status_more_info()}</option>
     </select>
   </div>
   
@@ -326,13 +327,13 @@
         <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
         </svg>
-        <h3 class="text-lg font-medium text-gray-900 mb-2">Authentication Required</h3>
-        <p class="text-gray-500 mb-4">Please connect your wallet to view your submissions.</p>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">{m.common_auth_required()}</h3>
+        <p class="text-gray-500 mb-4">{m.mysub_auth_desc()}</p>
         <button
           onclick={() => push('/')}
           class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
         >
-          Go to Dashboard
+          {m.common_go_to_dashboard()}
         </button>
       </div>
     </div>
@@ -342,12 +343,12 @@
     </div>
   {:else if submissions.length === 0}
     <div class="text-center py-12">
-      <p class="text-gray-600 mb-4">You haven't submitted any contributions yet.</p>
+      <p class="text-gray-600 mb-4">{m.mysub_empty()}</p>
       <button
         onclick={handleSubmitNewContribution}
         class="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
       >
-        Submit Your First Contribution
+        {m.mysub_submit_first()}
       </button>
     </div>
   {:else}

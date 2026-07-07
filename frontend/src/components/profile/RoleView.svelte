@@ -3,6 +3,7 @@
     import AlertBanner from "../portal/AlertBanner.svelte";
     import ProfileHighlights from "./ProfileHighlights.svelte";
     import ProfileRecentContributions from "./ProfileRecentContributions.svelte";
+    import { m } from "../../lib/paraglide/messages.js";
 
     let {
         role = "builder",
@@ -19,7 +20,8 @@
     } = $props();
 
     // Helper to get formatted display name for the role
-    let roleTitle = $derived(role.charAt(0).toUpperCase() + role.slice(1));
+    const ROLE_TITLES = { builder: m.role_builder, validator: m.role_validator, community: m.role_community };
+    let roleTitle = $derived(ROLE_TITLES[role] ? ROLE_TITLES[role]() : role.charAt(0).toUpperCase() + role.slice(1));
 
 </script>
 
@@ -55,7 +57,7 @@
             class="text-[20px] font-semibold text-black"
             style="letter-spacing: 0.4px;"
         >
-            {roleTitle} Journey
+            {m.prole_role_journey({ role: roleTitle })}
         </h2>
     </div>
 
@@ -65,8 +67,8 @@
                 id="validator-waitlist"
                 alertType="blue"
                 text={isOwnProfile
-                    ? "You've joined the <strong>Validator Waitlist</strong>. You're waiting to be graduated to the role of Validator. In the meantime, keep contributing to earn points and climb the ranks."
-                    : "This user is on the <strong>Validator Waitlist</strong>, waiting to be graduated to the role of Validator."}
+                    ? `${m.prole_waitlist_own_1()} <strong>${m.role_validator_waitlist()}</strong>${m.prole_waitlist_own_2()}`
+                    : `${m.prole_waitlist_other_1()} <strong>${m.role_validator_waitlist()}</strong>${m.prole_waitlist_other_2()}`}
             />
         </div>
     {/if}
@@ -125,7 +127,7 @@
                         <p
                             class="text-[13px] leading-[15px] tracking-[0.24px] text-[#6b6b6b] mt-1"
                         >
-                            Total {role.toLowerCase()} points
+                            {m.prole_total_role_points({ role: roleTitle.toLocaleLowerCase() })}
                         </p>
                     </div>
                 </div>
@@ -199,7 +201,7 @@
                         <p
                             class="text-[13px] leading-[15px] tracking-[0.24px] text-[#6b6b6b] mt-1"
                         >
-                            Total Contributions
+                            {m.prole_total_contributions()}
                         </p>
                     </div>
                 </div>
@@ -255,7 +257,7 @@
                         <p
                             class="text-[13px] leading-[15px] tracking-[0.24px] text-[#6b6b6b] mt-1"
                         >
-                            {roleTitle} Rank
+                            {m.prole_role_rank({ role: roleTitle })}
                         </p>
                     </div>
                 </div>
@@ -272,17 +274,17 @@
                         class="font-semibold text-[20px] text-black"
                         style="letter-spacing: 0.4px;"
                     >
-                        Highlights
+                        {m.prole_highlights()}
                     </h3>
                     <p class="text-[14px] text-[#999] mt-1">
-                        Get highlighted: submit impactful or pioneering work to get highlighted
+                        {m.prole_highlights_hint()}
                     </p>
                 </div>
                 <button
                     onclick={() => push("/submit-contribution")}
                     class="flex items-center gap-[6px] bg-[#101010] text-white px-4 py-2 rounded-[24px] text-[14px] font-medium hover:bg-black transition-colors whitespace-nowrap shrink-0"
                 >
-                    Submit contribution
+                    {m.prole_submit_contribution()}
                     <img
                         src="/assets/icons/arrow-right-line.svg"
                         alt=""
@@ -303,7 +305,7 @@
                 class="font-semibold text-[20px] text-black mb-[20px]"
                 style="letter-spacing: 0.4px;"
             >
-                Recent Contributions
+                {m.prole_recent_contributions()}
             </h3>
             <ProfileRecentContributions
                 userId={participant?.address}
@@ -311,7 +313,7 @@
                 category={iconCategory}
                 showViewAll={true}
                 viewAllPath={`/all-contributions?user=${participant?.address}&category=${iconCategory}`}
-                viewAllText={`View All ${roleTitle} Contributions →`}
+                viewAllText={m.prole_view_all_role_contributions({ role: roleTitle })}
             />
         </div>
     </div>

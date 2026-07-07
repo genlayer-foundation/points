@@ -2,6 +2,7 @@
   import { push } from 'svelte-spa-router';
   import { userStore } from '../../../lib/userStore.js';
   import { authState } from '../../../lib/auth.js';
+  import { m } from '../../../lib/paraglide/messages.js';
 
   let storeValue = $state({ user: null });
   userStore.subscribe(value => { storeValue = value; });
@@ -14,12 +15,12 @@
   const baseRoles = [
     {
       key: 'builder',
-      title: 'Start as a Builder',
-      titleLoggedIn: 'Continue building',
-      description: 'Deploy Intelligent Contracts, ship projects, and earn GenLayer Points for every accepted contribution.',
-      descriptionLoggedIn: 'Submit your work and earn points for accepted contributions.',
-      cta: 'Start building',
-      ctaLoggedIn: 'View builders',
+      title: m.rc_builder_title(),
+      titleLoggedIn: m.rc_builder_title_logged_in(),
+      description: m.rc_builder_description(),
+      descriptionLoggedIn: m.rc_builder_description_logged_in(),
+      cta: m.rc_builder_cta(),
+      ctaLoggedIn: m.rc_builder_cta_logged_in(),
       href: '/builders/welcome',
       hrefLoggedIn: '/builders',
       badge: '/assets/illustrations/builder-badge.svg',
@@ -30,12 +31,12 @@
     },
     {
       key: 'validator',
-      title: 'Become a Validator',
-      titleLoggedIn: 'Validator status',
-      description: 'Join the waitlist, run nodes on the testnet, and earn GenLayer Points for uptime and infrastructure.',
-      descriptionLoggedIn: 'Check your validator waitlist status and node requirements.',
-      cta: 'Join the waitlist',
-      ctaLoggedIn: 'View validators',
+      title: m.rc_validator_title(),
+      titleLoggedIn: m.rc_validator_title_logged_in(),
+      description: m.rc_validator_description(),
+      descriptionLoggedIn: m.rc_validator_description_logged_in(),
+      cta: m.rc_validator_cta(),
+      ctaLoggedIn: m.rc_validator_cta_logged_in(),
       href: '/validators/waitlist/join',
       hrefLoggedIn: '/validators',
       badge: '/assets/illustrations/validator-badge.svg',
@@ -46,12 +47,12 @@
     },
     {
       key: 'community',
-      title: 'Join the Community',
-      titleLoggedIn: 'Community',
-      description: 'Create content, participate in events, and grow the GenLayer ecosystem to earn GenLayer Points.',
-      descriptionLoggedIn: 'Engage with the GenLayer community and earn community points.',
-      cta: 'Join the GenFam',
-      ctaLoggedIn: 'View community',
+      title: m.rc_community_title(),
+      titleLoggedIn: m.role_community(),
+      description: m.rc_community_description(),
+      descriptionLoggedIn: m.rc_community_description_logged_in(),
+      cta: m.rc_community_cta(),
+      ctaLoggedIn: m.rc_community_cta_logged_in(),
       href: '/community',
       hrefLoggedIn: '/community',
       badge: '/assets/illustrations/community-badge.svg',
@@ -76,10 +77,10 @@
   <!-- Header -->
   <div class="flex flex-col gap-[24px] items-center text-center">
     <h2 class="text-[36px] md:text-[48px] font-medium font-display leading-[56px] text-black" style="letter-spacing: -0.96px;">
-      {isLoggedIn ? 'Your contributions' : 'Choose how you contribute'}
+      {isLoggedIn ? m.rc_header_logged_in() : m.rc_header_logged_out()}
     </h2>
     <p class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">
-      {isLoggedIn ? 'Keep earning points across all your roles.' : 'Pick your path — you can always take on more roles later.'}
+      {isLoggedIn ? m.rc_subheader_logged_in() : m.rc_subheader_logged_out()}
     </p>
   </div>
 

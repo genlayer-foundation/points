@@ -1,6 +1,7 @@
 <script lang="ts">
   import { push, querystring } from "svelte-spa-router";
   import { format } from "date-fns";
+  import { dateFnsLocale } from '../lib/i18n.js';
   import {
     usersAPI,
     statsAPI,
@@ -16,6 +17,7 @@
   import { parseMarkdown } from "../lib/markdownLoader.js";
   import { getTopRole } from "../lib/profileRole.js";
   import { hasStartedJourney } from "../lib/roleState.js";
+  import { m } from "../lib/paraglide/messages.js";
 
   import ProfileHeader from "../components/profile/ProfileHeader.svelte";
   import RankingsWidget from "../components/profile/RankingsWidget.svelte";
@@ -184,23 +186,21 @@
 
     const builderSuccess = sessionStorage.getItem("builderJourneySuccess");
     if (builderSuccess === "true") {
-      showSuccess("Congratulations! 🎉 You are now a GenLayer Builder!");
+      showSuccess(m.profile_builder_congrats());
       sessionStorage.removeItem("builderJourneySuccess");
     }
 
     if (currentParams && currentParams.address) {
       fetchParticipantData(currentParams.address);
     } else {
-      error = "No valid wallet address provided";
+      error = m.profile_no_wallet_address();
       loading = false;
     }
   });
 
   $effect(() => {
     if (statsError && !loading && !hasShownStatsErrorToast) {
-      showWarning(
-        "Having trouble connecting to the API. Some data might not display correctly.",
-      );
+      showWarning(m.profile_api_trouble());
       hasShownStatsErrorToast = true;
     }
   });
@@ -467,7 +467,7 @@
               userStore.setUser(currentUser);
             }
           } catch {
-            showWarning("Couldn't load your referral link right now. Try refreshing.");
+            showWarning(m.profile_referral_link_error());
           }
         }
 
@@ -524,7 +524,7 @@
         poapCount = 0;
         poapCountLoaded = true;
       } else {
-        error = err.message || "Failed to load participant data";
+        error = err.message || m.profile_load_failed();
         loading = false;
       }
     }
@@ -532,7 +532,7 @@
 
   function formatDate(dateString) {
     try {
-      return format(new Date(dateString), "MMM d, yyyy");
+      return format(new Date(dateString), "MMM d, yyyy", { locale: dateFnsLocale() });
     } catch (e) {
       return dateString;
     }
@@ -704,7 +704,7 @@
                       {topRole.label}
                     </p>
                     {#if topRole.badges?.length}
-                      <div class="flex items-center gap-[3px] shrink-0" aria-label="Top role categories">
+                      <div class="flex items-center gap-[3px] shrink-0" aria-label={m.profile_top_role_categories_aria()}>
                         {#each topRole.badges as badge (badge.key)}
                           <span title={badge.label} class="shrink-0">
                             <CategoryIcon category={badge.category} mode="hexagon" size={22} />
@@ -716,7 +716,7 @@
                   <p
                     class="text-[14px] leading-[15px] tracking-[0.24px] text-[#6b6b6b] mt-1"
                   >
-                    Top role
+                    {m.profile_top_role()}
                   </p>
                 </div>
               </div>
@@ -767,7 +767,7 @@
                   <p
                     class="text-[14px] leading-[15px] tracking-[0.24px] text-[#6b6b6b] mt-1"
                   >
-                    Total Contributions
+                    {m.profile_total_contributions()}
                   </p>
                 </div>
               </div>
@@ -809,7 +809,7 @@
                 <p
                   class="text-[14px] leading-[15px] tracking-[0.24px] text-[#6b6b6b] mt-1"
                 >
-                  Date joined
+                  {m.profile_date_joined()}
                 </p>
               </div>
             </div>
@@ -924,7 +924,7 @@
     <div
       class="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded"
     >
-      Participant not found
+      {m.profile_participant_not_found()}
     </div>
   {/if}
 </div>

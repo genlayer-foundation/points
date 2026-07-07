@@ -7,6 +7,8 @@
   import { userStore } from "../lib/userStore";
   import { showSuccess, showError } from "../lib/toastStore";
   import SocialLink from "../components/SocialLink.svelte";
+  import { m } from "../lib/paraglide/messages.js";
+  import { getLocale } from "../lib/i18n.js";
 
   // State management
   let user = $state(null);
@@ -128,7 +130,7 @@
         }
       }
     } catch (err) {
-      error = "Failed to load profile";
+      error = m.pedit_load_failed();
     } finally {
       authChecked = true;
     }
@@ -157,7 +159,7 @@
   function validateName() {
     const trimmedName = name.trim();
     if (trimmedName === "") {
-      nameError = "Display name is required";
+      nameError = m.pedit_name_required();
       return false;
     }
     nameError = "";
@@ -200,7 +202,7 @@
       // Store success message in sessionStorage to show on profile page
       sessionStorage.setItem(
         "profileUpdateSuccess",
-        "Profile updated successfully!",
+        m.pedit_update_success(),
       );
       // Redirect to public profile
       push(`/participant/${$authState.address}`);
@@ -216,10 +218,10 @@
           nameError = data.name; // Shows under name field with red border
         } else {
           // General error (shows at top of form)
-          error = data.error || err.message || "Failed to update profile";
+          error = data.error || err.message || m.pedit_update_failed();
         }
       } else {
-        error = err.message || "Failed to update profile";
+        error = err.message || m.pedit_update_failed();
       }
 
       isSaving = false;
@@ -233,7 +235,7 @@
 
   async function handleLinkWallets() {
     if (!operatorAddress.trim()) {
-      showError("Please enter an operator address");
+      showError(m.pedit_enter_operator_address());
       return;
     }
 
@@ -241,12 +243,16 @@
     try {
       const response = await validatorsAPI.linkValidatorWalletsByOperator(operatorAddress.trim());
       const walletsLinked = response.data.wallets_linked;
-      showSuccess(`Successfully linked ${walletsLinked} wallet${walletsLinked !== 1 ? "s" : ""}`);
+      showSuccess(
+        walletsLinked === 1
+          ? m.pedit_wallets_linked_one({ count: walletsLinked })
+          : m.pedit_wallets_linked_other({ count: walletsLinked })
+      );
       // Refresh data to update the UI
       await loadUserData();
       operatorAddress = "";
     } catch (err) {
-      const message = err.response?.data?.error || "Failed to link wallets";
+      const message = err.response?.data?.error || m.pedit_link_wallets_failed();
       showError(message);
     } finally {
       isLinkingWallets = false;
@@ -261,7 +267,7 @@
     reader.onload = (e) => {
       cropperImage = e.target.result;
       cropperAspectRatio = 1; // 1:1 for profile image
-      cropperTitle = "Crop Profile Image";
+      cropperTitle = m.pedit_crop_profile_image();
       cropperCallback = uploadProfileImage;
       showImageCropper = true;
     };
@@ -276,7 +282,7 @@
     reader.onload = (e) => {
       cropperImage = e.target.result;
       cropperAspectRatio = 3; // 3:1 for banner (1500x500)
-      cropperTitle = "Crop Banner Image";
+      cropperTitle = m.pedit_crop_banner_image();
       cropperCallback = uploadBannerImage;
       showImageCropper = true;
     };
@@ -301,7 +307,7 @@
         profile_image_url: response.data.profile_image_url,
       });
     } catch (err) {
-      error = err.response?.data?.error || "Failed to upload profile image";
+      error = err.response?.data?.error || m.pedit_upload_profile_failed();
     } finally {
       uploadingImage = false;
     }
@@ -325,7 +331,7 @@
         banner_image_url: response.data.banner_image_url,
       });
     } catch (err) {
-      error = err.response?.data?.error || "Failed to upload banner image";
+      error = err.response?.data?.error || m.pedit_upload_banner_failed();
     } finally {
       uploadingImage = false;
     }
@@ -342,10 +348,10 @@
   }
 
   function formatDateTime(value) {
-    if (!value) return "Never";
+    if (!value) return m.pedit_never();
     const date = value instanceof Date ? value : new Date(value);
-    if (Number.isNaN(date.getTime())) return "Never";
-    return date.toLocaleString("en-US", {
+    if (Number.isNaN(date.getTime())) return m.pedit_never();
+    return date.toLocaleString(getLocale(), {
       month: "short",
       day: "numeric",
       hour: "numeric",
@@ -363,12 +369,12 @@
       user = updatedUser;
       userStore.setUser(updatedUser);
       if (response.data?.cooldown_active) {
-        showError(`Discord roles can be refreshed again after ${formatDateTime(response.data.next_allowed_at)}.`);
+        showError(m.pedit_discord_cooldown({ time: formatDateTime(response.data.next_allowed_at) }));
       } else {
-        showSuccess("Discord roles refreshed.");
+        showSuccess(m.pedit_discord_refreshed());
       }
     } catch (err) {
-      const message = err.response?.data?.error || "Failed to refresh Discord roles";
+      const message = err.response?.data?.error || m.pedit_discord_refresh_failed();
       showError(message);
     } finally {
       isRefreshingDiscordRoles = false;
@@ -398,7 +404,7 @@
         {#if bannerImageUrl}
           <img
             src={bannerImageUrl}
-            alt="Banner"
+            alt={m.pedit_banner_alt()}
             class="w-full h-full object-cover"
           />
         {/if}
@@ -427,7 +433,7 @@
                 d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
               />
             </svg>
-            Edit Banner
+            {m.pedit_edit_banner()}
           </div>
           <input
             type="file"
@@ -451,7 +457,7 @@
               {#if profileImageUrl}
                 <img
                   src={profileImageUrl}
-                  alt="Profile"
+                  alt={m.pedit_profile_alt()}
                   class="w-full h-full object-cover"
                 />
               {:else}
@@ -510,14 +516,14 @@
                 class="w-full px-4 py-3 bg-black text-white rounded-[8px] hover:bg-gray-800 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed font-medium transition-colors"
                 style="letter-spacing: 0.2px;"
               >
-                {isSaving ? "Saving..." : "Save Changes"}
+                {isSaving ? m.common_saving() : m.common_save_changes()}
               </button>
               <button
                 onclick={handleCancel}
                 disabled={isSaving}
                 class="w-full px-4 py-3 border border-gray-200 text-gray-700 bg-white rounded-[8px] hover:bg-gray-50 font-medium transition-colors"
               >
-                Cancel
+                {m.common_cancel()}
               </button>
             </div>
 
@@ -527,10 +533,10 @@
             >
               <span
                 class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2"
-                >Connected Wallet</span
+                >{m.pedit_connected_wallet()}</span
               >
               <p class="text-black font-mono text-xs break-all opacity-80">
-                {user.address || "Not connected"}
+                {user.address || m.pedit_not_connected()}
               </p>
             </div>
           </div>
@@ -542,7 +548,7 @@
               <h3
                 class="text-[20px] font-semibold text-black tracking-[-0.36px]"
               >
-                General Information
+                {m.pedit_general_information()}
               </h3>
 
               <div class="space-y-4">
@@ -550,7 +556,7 @@
                   <label
                     for="name"
                     class="block text-sm font-medium text-gray-600 mb-1.5"
-                    >Display Name *</label
+                    >{m.pedit_display_name()} *</label
                   >
                   <input
                     id="name"
@@ -560,7 +566,7 @@
                     class="w-full px-4 py-3 bg-[#FCFCFC] border {nameError
                       ? 'border-red-300 focus:ring-red-500 rounded-[8px]'
                       : 'border-[#EAEAEA] rounded-[8px] focus:outline-none focus:border-black focus:ring-1 focus:ring-black'} transition-colors"
-                    placeholder="Enter your display name"
+                    placeholder={m.pedit_display_name_placeholder()}
                     disabled={isSaving}
                   />
                   {#if nameError}
@@ -572,20 +578,20 @@
                   <label
                     for="email"
                     class="block text-sm font-medium text-gray-600 mb-1.5"
-                    >Email *</label
+                    >{m.pedit_email()} *</label
                   >
                   <input
                     id="email"
                     type="email"
                     bind:value={email}
                     class="w-full px-4 py-3 bg-[#F5F5F5] border border-[#EAEAEA] rounded-[8px] text-gray-600"
-                    placeholder="Enter your email"
+                    placeholder={m.pedit_email_placeholder()}
                     disabled
                   />
                   {#if user.is_email_verified}
-                    <p class="mt-1 text-xs text-green-600">Email verified</p>
+                    <p class="mt-1 text-xs text-green-600">{m.pedit_email_verified()}</p>
                   {:else}
-                    <p class="mt-1 text-xs text-orange-500">Email not verified. Use the check on your public profile header to verify it.</p>
+                    <p class="mt-1 text-xs text-orange-500">{m.pedit_email_not_verified()}</p>
                   {/if}
                 </div>
 
@@ -594,7 +600,7 @@
                     for="description"
                     class="block text-sm font-medium text-gray-600 mb-1.5 flex justify-between"
                   >
-                    <span>Bio</span>
+                    <span>{m.pedit_bio()}</span>
                     <span class="text-gray-400 font-normal"
                       >{description.length}/500</span
                     >
@@ -605,7 +611,7 @@
                     maxlength="500"
                     rows="4"
                     class="w-full px-4 py-3 bg-[#FCFCFC] border border-[#EAEAEA] rounded-[8px] focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-colors resize-y"
-                    placeholder="Tell us about yourself"
+                    placeholder={m.pedit_bio_placeholder()}
                     disabled={isSaving}
                   ></textarea>
                 </div>
@@ -619,7 +625,7 @@
               <h3
                 class="text-[20px] font-semibold text-black tracking-[-0.36px]"
               >
-                Connected Accounts
+                {m.pedit_connected_accounts()}
               </h3>
 
               <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -661,9 +667,9 @@
                     <div class="mt-3 rounded-[8px] border border-[#ececff] bg-[#fbfbff] p-3">
                       <div class="flex items-center justify-between gap-3">
                         <div class="min-w-0">
-                          <p class="text-[12px] font-medium text-gray-900">Server roles</p>
+                          <p class="text-[12px] font-medium text-gray-900">{m.pedit_server_roles()}</p>
                           <p class="mt-0.5 text-[11px] text-gray-500">
-                            Last synced {formatDateTime(user.discord_connection.roles_synced_at)}
+                            {m.pedit_last_synced({ time: formatDateTime(user.discord_connection.roles_synced_at) })}
                           </p>
                         </div>
                         <button
@@ -671,15 +677,15 @@
                           onclick={handleRefreshDiscordRoles}
                           disabled={isRefreshingDiscordRoles || discordRoleRefreshBlocked}
                           class="h-[32px] shrink-0 rounded-[6px] border border-[#d8dafb] bg-white px-3 text-[12px] font-medium text-[#4752c4] transition-colors hover:border-[#5865f2] hover:text-[#313aa3] disabled:cursor-not-allowed disabled:opacity-50"
-                          title={discordRoleRefreshBlocked ? `Available after ${formatDateTime(discordNextRoleRefreshAt)}` : "Refresh Discord roles"}
+                          title={discordRoleRefreshBlocked ? m.pedit_available_after({ time: formatDateTime(discordNextRoleRefreshAt) }) : m.pedit_refresh_discord_roles()}
                         >
-                          {isRefreshingDiscordRoles ? "Refreshing..." : "Refresh roles"}
+                          {isRefreshingDiscordRoles ? m.pedit_refreshing() : m.pedit_refresh_roles()}
                         </button>
                       </div>
 
                       {#if discordRoleRefreshBlocked}
                         <p class="mt-2 text-[11px] text-gray-500">
-                          Available again after {formatDateTime(discordNextRoleRefreshAt)}
+                          {m.pedit_available_again_after({ time: formatDateTime(discordNextRoleRefreshAt) })}
                         </p>
                       {/if}
 
@@ -705,7 +711,7 @@
                         </div>
                       {:else}
                         <p class="mt-3 text-[12px] text-gray-500">
-                          Roles have not been synced yet.
+                          {m.pedit_roles_not_synced()}
                         </p>
                       {/if}
                     </div>
@@ -721,7 +727,7 @@
               <h3
                 class="text-[20px] font-semibold text-black tracking-[-0.36px]"
               >
-                Links & Socials
+                {m.pedit_links_socials()}
               </h3>
 
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -729,7 +735,7 @@
                   <label
                     for="website"
                     class="block text-sm font-medium text-gray-600 mb-1.5"
-                    >Website</label
+                    >{m.pedit_website()}</label
                   >
                   <input
                     id="website"
@@ -757,7 +763,7 @@
                       type="text"
                       bind:value={telegramHandle}
                       class="w-full pl-9 pr-4 py-3 bg-[#FCFCFC] border border-[#EAEAEA] rounded-[8px] focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-colors"
-                      placeholder="username"
+                      placeholder={m.pedit_username_placeholder()}
                       disabled={isSaving}
                     />
                   </div>
@@ -789,7 +795,7 @@
                 <h3
                   class="text-[20px] font-semibold text-black tracking-[-0.36px]"
                 >
-                  Validator Settings
+                  {m.pedit_validator_settings()}
                 </h3>
 
                 <!-- Link Validator Wallets (operator address - applies across all networks) -->
@@ -798,10 +804,10 @@
                     <label
                       for="operatorAddress"
                       class="block text-sm font-medium text-gray-600 mb-1.5"
-                      >Link to Operator Wallet</label
+                      >{m.pedit_link_operator_wallet()}</label
                     >
                     <p class="text-xs text-gray-400 mb-2">
-                      Enter the operator wallet address you used when creating your validator on GenLayer.
+                      {m.pedit_operator_wallet_hint()}
                     </p>
                     <div class="flex gap-3 items-start">
                       <div class="flex-1">
@@ -820,7 +826,7 @@
                         disabled={isLinkingWallets || !operatorAddress.trim()}
                         class="px-4 py-3 bg-black text-white rounded-[8px] hover:bg-gray-800 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed font-medium transition-colors text-sm whitespace-nowrap"
                       >
-                        {isLinkingWallets ? "Linking..." : "Link Wallets"}
+                        {isLinkingWallets ? m.pedit_linking() : m.pedit_link_wallets()}
                       </button>
                     </div>
                   </div>
@@ -830,8 +836,8 @@
                 <div class="border border-[#EAEAEA] rounded-[12px] p-4">
                   <div class="flex items-center justify-between mb-3">
                     <h4 class="text-[16px] font-semibold text-black tracking-[-0.2px]">
-                      Asimov Network
-                      <span class="text-sm font-normal text-gray-400 ml-1">({asimovWallets.length} {asimovWallets.length === 1 ? 'wallet' : 'wallets'})</span>
+                      {m.pedit_asimov_network()}
+                      <span class="text-sm font-normal text-gray-400 ml-1">({asimovWallets.length === 1 ? m.pedit_wallet_count_one({ count: asimovWallets.length }) : m.pedit_wallet_count_other({ count: asimovWallets.length })})</span>
                     </h4>
                   </div>
 
@@ -842,14 +848,14 @@
                           <svg class="w-4 h-4 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                           </svg>
-                          <span class="text-green-800">Up to date with target version {user.validator.target_version_asimov}</span>
+                          <span class="text-green-800">{m.pedit_up_to_date_version({ version: user.validator.target_version_asimov })}</span>
                         </div>
                       {:else}
                         <div class="bg-amber-50 border border-amber-200 rounded-[8px] p-3 text-sm flex items-center gap-2">
                           <svg class="w-4 h-4 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                           </svg>
-                          <span class="text-amber-800">Please update your node to version {user.validator.target_version_asimov}</span>
+                          <span class="text-amber-800">{m.pedit_update_node_version({ version: user.validator.target_version_asimov })}</span>
                         </div>
                       {/if}
                     {/if}
@@ -858,7 +864,7 @@
                       <label
                         for="nodeVersionAsimov"
                         class="block text-sm font-medium text-gray-600 mb-1.5"
-                        >Node Version</label
+                        >{m.pedit_node_version()}</label
                       >
                       <input
                         id="nodeVersionAsimov"
@@ -868,12 +874,12 @@
                         placeholder="e.g., 0.3.9"
                         disabled={isSaving}
                       />
-                      <p class="mt-1 text-xs text-gray-400">Your Asimov network node version</p>
+                      <p class="mt-1 text-xs text-gray-400">{m.pedit_asimov_node_hint()}</p>
                     </div>
 
                     {#if asimovWallets.length > 0}
                       <div>
-                        <span class="block text-sm font-medium text-gray-600 mb-1.5">Linked Wallets</span>
+                        <span class="block text-sm font-medium text-gray-600 mb-1.5">{m.pedit_linked_wallets()}</span>
                         <div class="space-y-2">
                           {#each asimovWallets as wallet}
                             <div class="flex items-center gap-2 bg-[#f7f8f9] rounded-[8px] px-3 py-2 border border-[#f0f0f0]">
@@ -893,8 +899,8 @@
                 <div class="border border-[#EAEAEA] rounded-[12px] p-4">
                   <div class="flex items-center justify-between mb-3">
                     <h4 class="text-[16px] font-semibold text-black tracking-[-0.2px]">
-                      Bradbury Network
-                      <span class="text-sm font-normal text-gray-400 ml-1">({bradburyWallets.length} {bradburyWallets.length === 1 ? 'wallet' : 'wallets'})</span>
+                      {m.pedit_bradbury_network()}
+                      <span class="text-sm font-normal text-gray-400 ml-1">({bradburyWallets.length === 1 ? m.pedit_wallet_count_one({ count: bradburyWallets.length }) : m.pedit_wallet_count_other({ count: bradburyWallets.length })})</span>
                     </h4>
                   </div>
 
@@ -905,14 +911,14 @@
                           <svg class="w-4 h-4 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                           </svg>
-                          <span class="text-green-800">Up to date with target version {user.validator.target_version_bradbury}</span>
+                          <span class="text-green-800">{m.pedit_up_to_date_version({ version: user.validator.target_version_bradbury })}</span>
                         </div>
                       {:else}
                         <div class="bg-amber-50 border border-amber-200 rounded-[8px] p-3 text-sm flex items-center gap-2">
                           <svg class="w-4 h-4 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                           </svg>
-                          <span class="text-amber-800">Please update your node to version {user.validator.target_version_bradbury}</span>
+                          <span class="text-amber-800">{m.pedit_update_node_version({ version: user.validator.target_version_bradbury })}</span>
                         </div>
                       {/if}
                     {/if}
@@ -921,7 +927,7 @@
                       <label
                         for="nodeVersionBradbury"
                         class="block text-sm font-medium text-gray-600 mb-1.5"
-                        >Node Version</label
+                        >{m.pedit_node_version()}</label
                       >
                       <input
                         id="nodeVersionBradbury"
@@ -931,12 +937,12 @@
                         placeholder="e.g., 0.1.0"
                         disabled={isSaving}
                       />
-                      <p class="mt-1 text-xs text-gray-400">Your Bradbury network node version</p>
+                      <p class="mt-1 text-xs text-gray-400">{m.pedit_bradbury_node_hint()}</p>
                     </div>
 
                     {#if bradburyWallets.length > 0}
                       <div>
-                        <span class="block text-sm font-medium text-gray-600 mb-1.5">Linked Wallets</span>
+                        <span class="block text-sm font-medium text-gray-600 mb-1.5">{m.pedit_linked_wallets()}</span>
                         <div class="space-y-2">
                           {#each bradburyWallets as wallet}
                             <div class="flex items-center gap-2 bg-[#f7f8f9] rounded-[8px] px-3 py-2 border border-[#f0f0f0]">

@@ -1,5 +1,6 @@
 <script>
   import CategoryIcon from '../portal/CategoryIcon.svelte';
+  import { m } from '../../lib/paraglide/messages.js';
 
   let { category = 'community', state = 'none', starting = false, onStart = () => {} } = $props();
 
@@ -10,32 +11,32 @@
       accent: '#ee8521',
       accentRgb: '238, 133, 33',
       gradient: 'linear-gradient(168deg, #f8b93d 15%, #ee8d24 50%, #db6917 85%)',
-      label: 'Builders',
-      eyebrow: 'Builder journey',
-      title: 'Build the first contracts that can think.',
-      body: 'Start with the boilerplate, make your first contribution, and claim your early Builder role.',
-      button: 'Become a Builder',
+      label: m.arl_label_builders(),
+      eyebrow: m.arl_eyebrow_builder(),
+      title: m.arl_title_builder(),
+      body: m.arl_body_builder(),
+      button: m.arl_button_builder(),
     },
     validator: {
       accent: '#3a7ce7',
       accentRgb: '58, 124, 231',
       gradient: 'linear-gradient(168deg, #6fa3f8 15%, #4f76f6 50%, #3b5dd6 85%)',
-      label: 'Validators',
-      eyebrow: 'Validator journey',
-      title: 'Run a node that reasons.',
-      body: 'Join the validator path, enter the waitlist, and prepare to adjudicate real Intelligent Contract decisions.',
-      button: 'Join the Waitlist',
-      waitlistBody: 'Your validator waitlist spot is active. Graduation unlocks the next step.',
+      label: m.arl_label_validators(),
+      eyebrow: m.arl_eyebrow_validator(),
+      title: m.arl_title_validator(),
+      body: m.arl_body_validator(),
+      button: m.arl_button_validator(),
+      waitlistBody: m.arl_waitlist_body_validator(),
     },
     community: {
       accent: '#7f52e1',
       accentRgb: '127, 82, 225',
       gradient: 'linear-gradient(168deg, #be8ff5 15%, #a86ff0 50%, #7f52e1 85%)',
-      label: 'Creators',
-      eyebrow: 'Creator journey',
-      title: 'Grow the network before mainnet.',
-      body: 'Start your creator path, link your channels, and turn ecosystem action into a visible GenLayer record.',
-      button: 'Become a Creator',
+      label: m.arl_label_creators(),
+      eyebrow: m.arl_eyebrow_community(),
+      title: m.arl_title_community(),
+      body: m.arl_body_community(),
+      button: m.arl_button_community(),
     },
   };
 
@@ -52,11 +53,11 @@
   const visualCategory = $derived(category === 'builder' || category === 'validator' ? category : 'community');
   const isWaitlisted = $derived(state === 'waitlisted');
   const body = $derived(isWaitlisted && category === 'validator' ? roleConfig.validator.waitlistBody : config.body);
-  const buttonLabel = $derived(starting ? 'Starting...' : config.button);
+  const buttonLabel = $derived(starting ? m.arl_starting() : config.button);
 </script>
 
 <svelte:head>
-  <title>{config.label} | GenLayer Portal</title>
+  <title>{m.arl_page_title({ label: config.label })}</title>
 </svelte:head>
 
 <div
@@ -80,20 +81,19 @@
             clip-rule="evenodd"
           />
         </svg>
-        Validator waitlist active
+        {m.arl_waitlist_active()}
       </div>
 
       <article class="validator-contact-card" aria-labelledby="validator-contact-title">
         <div>
-          <p class="contact-kicker">Operator onboarding</p>
-          <h2 id="validator-contact-title">Need to speak with the validator team?</h2>
+          <p class="contact-kicker">{m.arl_contact_kicker()}</p>
+          <h2 id="validator-contact-title">{m.arl_contact_title()}</h2>
           <p>
-            If you operate validator infrastructure or need to share operator details,
-            contact the team with your wallet, organization, and relevant node experience.
+            {m.arl_contact_body()}
           </p>
         </div>
         <a href={VALIDATOR_CONTACT_URL} target="_blank" rel="noopener noreferrer">
-          Contact the team
+          {m.arl_contact_button()}
         </a>
       </article>
     {:else}

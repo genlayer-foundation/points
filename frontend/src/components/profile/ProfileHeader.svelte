@@ -6,6 +6,7 @@
   import CategoryIcon from "../portal/CategoryIcon.svelte";
   import SocialLink from "../SocialLink.svelte";
   import { hasStartedJourney } from "../../lib/roleState.js";
+  import { m } from "../../lib/paraglide/messages.js";
 
   let {
     participant = null,
@@ -52,12 +53,12 @@
   let hasDiscordLeaderboardStats = $derived(hasDiscordRank || hasDiscordLevel);
   let discordRolesLabel = $derived.by(() => {
     const stats = [];
-    if (hasDiscordLevel) stats.push(`level ${formatNumber(participant.discord_connection.mee6_level)}`);
-    if (hasDiscordRank) stats.push(`rank #${formatNumber(participant.discord_connection.mee6_rank)}`);
+    if (hasDiscordLevel) stats.push(m.social_stat_level({ value: formatNumber(participant.discord_connection.mee6_level) }));
+    if (hasDiscordRank) stats.push(m.social_stat_rank({ value: formatNumber(participant.discord_connection.mee6_rank) }));
     const roles = discordRoles.length > 0
-      ? `Discord roles: ${discordRoles.map((role) => role.name).join(", ")}`
-      : "Discord roles not synced yet";
-    return stats.length ? `Discord ${stats.join(", ")}. ${roles}` : roles;
+      ? m.social_discord_roles_list({ roles: discordRoles.map((role) => role.name).join(", ") })
+      : m.social_discord_roles_not_synced();
+    return stats.length ? m.social_discord_stats_summary({ stats: stats.join(", "), roles }) : roles;
   });
 
   function getDiscordRoleColor(role) {
@@ -98,7 +99,7 @@
     {#if participant?.banner_image_url}
       <img
         src={participant.banner_image_url}
-        alt="Profile banner"
+        alt={m.ph_profile_banner_alt()}
         class="w-full h-full object-cover"
       />
     {/if}
@@ -122,7 +123,7 @@
               class="profile-name text-[40px] font-semibold text-black leading-[40px] min-w-0"
               style="letter-spacing: -0.8px; font-family: 'F37 Lineca', 'Geist', sans-serif;"
             >
-              {participant?.name || "Participant"}
+              {participant?.name || m.ph_participant_fallback()}
             </h1>
 
             <div class="profile-badges flex items-start gap-[5px] mt-1">
@@ -130,8 +131,8 @@
               <div class="flex-shrink-0 relative badge-tooltip-wrap">
                 <CategoryIcon category="genlayer" mode="hexagon" size={32} />
                 <div class="badge-tooltip">
-                  <span class="badge-tooltip-title">GenLayer Member</span>
-                  <span class="badge-tooltip-desc">Part of the GenLayer ecosystem</span>
+                  <span class="badge-tooltip-title">{m.ph_genlayer_member()}</span>
+                  <span class="badge-tooltip-desc">{m.ph_genlayer_member_desc()}</span>
                 </div>
               </div>
               <!-- Steward badge -->
@@ -139,8 +140,8 @@
                 <div class="flex-shrink-0 relative badge-tooltip-wrap">
                   <CategoryIcon category="steward" mode="hexagon" size={32} />
                   <div class="badge-tooltip">
-                    <span class="badge-tooltip-title">Ecosystem Steward</span>
-                    <span class="badge-tooltip-desc">{participant?.working_groups?.length > 0 ? 'Working Group Member' : 'Admin'}</span>
+                    <span class="badge-tooltip-title">{m.ph_ecosystem_steward()}</span>
+                    <span class="badge-tooltip-desc">{participant?.working_groups?.length > 0 ? m.ph_working_group_member() : m.ph_admin()}</span>
                   </div>
                 </div>
               {/if}
@@ -149,16 +150,16 @@
                 <div class="flex-shrink-0 relative badge-tooltip-wrap">
                   <CategoryIcon category="community" mode="hexagon" size={32} />
                   <div class="badge-tooltip">
-                    <span class="badge-tooltip-title">Community</span>
-                    <span class="badge-tooltip-desc">Contributing to the GenLayer community</span>
+                    <span class="badge-tooltip-title">{m.role_community()}</span>
+                    <span class="badge-tooltip-desc">{m.ph_community_desc()}</span>
                   </div>
                 </div>
               {:else if isOwnProfile && (communityStarted || communityJourneyInProgress)}
                 <div class="flex-shrink-0 relative badge-tooltip-wrap">
                   <span class="block grayscale opacity-50"><CategoryIcon category="community" mode="hexagon" size={32} /></span>
                   <div class="badge-tooltip">
-                    <span class="badge-tooltip-title">Community</span>
-                    <span class="badge-tooltip-desc">Journey in progress</span>
+                    <span class="badge-tooltip-title">{m.role_community()}</span>
+                    <span class="badge-tooltip-desc">{m.ph_journey_in_progress()}</span>
                   </div>
                 </div>
               {/if}
@@ -167,16 +168,16 @@
                 <div class="flex-shrink-0 relative badge-tooltip-wrap">
                   <CategoryIcon category="builder" mode="hexagon" size={32} />
                   <div class="badge-tooltip">
-                    <span class="badge-tooltip-title">Builder</span>
-                    <span class="badge-tooltip-desc">Deploying contracts and contributing code</span>
+                    <span class="badge-tooltip-title">{m.role_builder()}</span>
+                    <span class="badge-tooltip-desc">{m.ph_builder_desc()}</span>
                   </div>
                 </div>
               {:else if isOwnProfile && builderStarted}
                 <div class="flex-shrink-0 relative badge-tooltip-wrap">
                   <span class="block grayscale opacity-50"><CategoryIcon category="builder" mode="hexagon" size={32} /></span>
                   <div class="badge-tooltip">
-                    <span class="badge-tooltip-title">Builder</span>
-                    <span class="badge-tooltip-desc">Journey in progress</span>
+                    <span class="badge-tooltip-title">{m.role_builder()}</span>
+                    <span class="badge-tooltip-desc">{m.ph_journey_in_progress()}</span>
                   </div>
                 </div>
               {/if}
@@ -185,16 +186,16 @@
                 <div class="flex-shrink-0 relative badge-tooltip-wrap">
                   <CategoryIcon category="validator" mode="hexagon" size={32} />
                   <div class="badge-tooltip">
-                    <span class="badge-tooltip-title">Validator</span>
-                    <span class="badge-tooltip-desc">Securing the network through consensus</span>
+                    <span class="badge-tooltip-title">{m.role_validator()}</span>
+                    <span class="badge-tooltip-desc">{m.ph_validator_desc()}</span>
                   </div>
                 </div>
               {:else if isOwnProfile && validatorStarted}
                 <div class="flex-shrink-0 relative badge-tooltip-wrap">
                   <span class="block grayscale opacity-50"><CategoryIcon category="validator" mode="hexagon" size={32} /></span>
                   <div class="badge-tooltip">
-                    <span class="badge-tooltip-title">{participant?.has_validator_waitlist ? 'Validator Waitlist' : 'Validator'}</span>
-                    <span class="badge-tooltip-desc">{participant?.has_validator_waitlist ? 'Waiting for graduation to Validator' : 'Journey in progress'}</span>
+                    <span class="badge-tooltip-title">{participant?.has_validator_waitlist ? m.role_validator_waitlist() : m.role_validator()}</span>
+                    <span class="badge-tooltip-desc">{participant?.has_validator_waitlist ? m.ph_waiting_graduation() : m.ph_journey_in_progress()}</span>
                   </div>
                 </div>
               {/if}
@@ -216,13 +217,13 @@
               <button
                 onclick={() => {
                   navigator.clipboard.writeText(participant.address);
-                  showSuccess("Address copied to clipboard!");
+                  showSuccess(m.ph_address_copied());
                   copiedAddress = true;
                   setTimeout(() => (copiedAddress = false), 1200);
                 }}
-                title="Copy address"
+                title={m.ph_copy_address()}
                 class="hover:text-black transition-colors"
-                aria-label="Copy Address"
+                aria-label={m.ph_copy_address()}
               >
                 {#if copiedAddress}
                   <svg
@@ -247,8 +248,8 @@
               <button
                 type="button"
                 class="email-verification-check {participant?.is_email_verified ? 'is-verified' : 'is-unverified'}"
-                title={participant?.is_email_verified ? 'Email verified' : 'Verify email'}
-                aria-label={participant?.is_email_verified ? 'Email verified' : 'Verify email'}
+                title={participant?.is_email_verified ? m.everify_title_verified() : m.ph_verify_email()}
+                aria-label={participant?.is_email_verified ? m.everify_title_verified() : m.ph_verify_email()}
                 onclick={openEmailVerification}
                 disabled={participant?.is_email_verified}
               >
@@ -328,19 +329,19 @@
                   <div class="discord-xp-summary">
                     {#if hasDiscordLevel}
                       <div class="discord-xp-stat">
-                        <span class="discord-xp-label">Level</span>
+                        <span class="discord-xp-label">{m.social_level_label()}</span>
                         <span class="discord-xp-value">{formatNumber(participant.discord_connection.mee6_level)}</span>
                       </div>
                     {/if}
                     {#if hasDiscordRank}
                       <div class="discord-xp-stat">
-                        <span class="discord-xp-label">Rank</span>
+                        <span class="discord-xp-label">{m.social_rank_label()}</span>
                         <span class="discord-xp-value">#{formatNumber(participant.discord_connection.mee6_rank)}</span>
                       </div>
                     {/if}
                   </div>
                 {/if}
-                <span class="discord-role-heading">Roles</span>
+                <span class="discord-role-heading">{m.social_roles_heading()}</span>
                 {#if discordRoles.length > 0}
                   <div class="discord-role-list">
                     {#each discordRoles as role}
@@ -351,7 +352,7 @@
                     {/each}
                   </div>
                 {:else}
-                  <span class="discord-role-empty">Roles not synced yet</span>
+                  <span class="discord-role-empty">{m.social_roles_not_synced()}</span>
                 {/if}
               </div>
             </button>
@@ -373,7 +374,7 @@
                 d="M16.7574 2.99666L14.7574 4.99666H5V18.9967H19V9.2393L21 7.2393V19.9967C21 20.5489 20.5523 20.9967 20 20.9967H4C3.44772 20.9967 3 20.5489 3 19.9967V3.99666C3 3.44438 3.44772 2.99666 4 2.99666H16.7574ZM20.4853 2.09717L21.8995 3.51138L12.7071 12.7038L11.2954 12.7063L11.2929 11.2896L20.4853 2.09717Z"
               /></svg
             >
-            Edit profile
+            {m.ph_edit_profile()}
           </button>
         {/if}
       </div>

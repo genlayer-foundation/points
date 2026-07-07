@@ -6,6 +6,7 @@
   import { currentCategory } from '../stores/category.js';
   import { getCategoryGradientStyle } from '../lib/categoryPresentation.js';
   import { push, querystring, location } from 'svelte-spa-router';
+  import { m } from '../lib/paraglide/messages.js';
   
   const PAGE_SIZE = 10;
   const PODIUM_SIZE = 3;
@@ -30,9 +31,9 @@
 
   const categoryConfig = {
     builder: {
-      title: 'Builders Leaderboard',
+      title: m.lb_title_builder(),
       label: 'builders',
-      description: 'All-time Builder Points rankings.',
+      description: m.lb_desc_builder(),
       icon: '/assets/icons/terminal-fill-white.svg',
       iconClass: 'bg-orange-500',
       accentColor: '#ee8521',
@@ -40,9 +41,9 @@
       podiumCategory: 'builder',
     },
     validator: {
-      title: 'Validators Leaderboard',
+      title: m.lb_title_validator(),
       label: 'validators',
-      description: 'All-time Validator Points rankings.',
+      description: m.lb_desc_validator(),
       icon: '/assets/icons/shield-white.svg',
       iconClass: 'bg-gradient-to-br from-[#8f7bff] to-[#6f8cff]',
       accentColor: '#3a7ce7',
@@ -50,9 +51,9 @@
       podiumCategory: 'validator',
     },
     community: {
-      title: 'Community Leaderboard',
+      title: m.lb_title_community(),
       label: 'community',
-      description: 'All-time Community Points rankings.',
+      description: m.lb_desc_community(),
       icon: '/assets/icons/group-white.svg',
       iconClass: 'bg-[#7f52e1]',
       accentColor: '#7f52e1',
@@ -62,9 +63,9 @@
   };
 
   const leaderboardCategories = [
-    { id: 'builder', label: 'Builders' },
-    { id: 'validator', label: 'Validators' },
-    { id: 'community', label: 'Community' },
+    { id: 'builder', label: m.lb_tab_builders() },
+    { id: 'validator', label: m.lb_tab_validators() },
+    { id: 'community', label: m.role_community() },
   ];
 
   const categoryLeaderboardPath = {
@@ -189,7 +190,7 @@
       hasNextPage = currentPage < computedTablePages;
     } catch (err) {
       if (requestId !== requestSequence) return;
-      error = err.message || 'Failed to load leaderboard';
+      error = err.message || m.lb_error_load();
     } finally {
       if (requestId === requestSequence) {
         loading = false;
@@ -272,7 +273,7 @@
 
       {#if !loading && !error && (leaderboard.length > 0 || podiumEntries.length > 0)}
         <div class="w-full md:w-[320px]">
-          <label for="search" class="sr-only">Search participants</label>
+          <label for="search" class="sr-only">{m.lb_search_label()}</label>
           <div class="relative">
             <img
               src="/assets/icons/search-line.svg"
@@ -284,7 +285,7 @@
               bind:value={searchQuery}
               type="search"
               class="relative z-0 block h-[42px] w-full rounded-[8px] border border-white/70 bg-white/82 pl-11 pr-3 text-[14px] text-[#111827] shadow-[0_8px_22px_rgba(31,42,68,0.08)] outline-none backdrop-blur-md placeholder:text-[#7b8798] focus:border-black focus:ring-2 focus:ring-black/10"
-              placeholder="Search by name or address"
+              placeholder={m.lb_search_placeholder()}
             />
           </div>
         </div>
@@ -326,7 +327,7 @@
         </div>
       {:else if error}
         <div class="rounded-[8px] border border-red-100 bg-red-50 p-5">
-          <h3 class="text-[14px] font-semibold text-red-800">Error loading leaderboard</h3>
+          <h3 class="text-[14px] font-semibold text-red-800">{m.lb_error_title()}</h3>
           <p class="mt-1 text-[13px] text-red-700">{error}</p>
         </div>
       {:else}
@@ -347,7 +348,7 @@
             <div class={`overflow-hidden rounded-[8px] border border-[#e8ebf2] bg-white shadow-[0_8px_18px_rgba(31,42,68,0.07)] transition-opacity duration-200 ${pageLoading ? 'opacity-60' : 'opacity-100'}`}>
               {#if searchQuery && filteredTableEntries.length === 0}
                 <div class="p-8 text-center text-[14px] text-[#6b6b6b]">
-                  No participants found matching "{searchQuery.trim()}"
+                  {m.lb_no_results({ query: searchQuery.trim() })}
                 </div>
               {:else}
                 <LeaderboardTable
@@ -370,14 +371,14 @@
               disabled={currentPage === 1 || loading || pageLoading}
               class="inline-flex min-h-11 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white px-4 text-[13px] font-semibold text-[#111827] shadow-[0_8px_18px_rgba(31,42,68,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.12)] disabled:translate-y-0 disabled:opacity-45 disabled:shadow-none"
             >
-              First
+              {m.common_first()}
             </button>
             <button
               onclick={() => goToPage(currentPage - 1)}
               disabled={currentPage === 1 || loading || pageLoading}
               class="inline-flex min-h-11 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white px-4 text-[13px] font-semibold text-[#111827] shadow-[0_8px_18px_rgba(31,42,68,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.12)] disabled:translate-y-0 disabled:opacity-45 disabled:shadow-none"
             >
-              Previous
+              {m.common_previous()}
             </button>
 
             {#each paginationPages as page, index}
@@ -404,18 +405,18 @@
               disabled={currentPage >= totalPages || loading || pageLoading}
               class="inline-flex min-h-11 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white px-4 text-[13px] font-semibold text-[#111827] shadow-[0_8px_18px_rgba(31,42,68,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.12)] disabled:translate-y-0 disabled:opacity-45 disabled:shadow-none"
             >
-              Next
+              {m.common_next()}
             </button>
             <button
               onclick={() => goToPage(totalPages)}
               disabled={currentPage >= totalPages || loading || pageLoading}
               class="inline-flex min-h-11 items-center justify-center rounded-[8px] border border-[#dfe4ee] bg-white px-4 text-[13px] font-semibold text-[#111827] shadow-[0_8px_18px_rgba(31,42,68,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.12)] disabled:translate-y-0 disabled:opacity-45 disabled:shadow-none"
             >
-              Last
+              {m.common_last()}
             </button>
             </div>
             <div class="text-[12px] font-medium text-[#6b7280]">
-              Page {currentPage} of {totalPages}
+              {m.common_page_of({ current: currentPage, total: totalPages })}
             </div>
           </div>
         {/if}

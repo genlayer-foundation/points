@@ -1,36 +1,34 @@
 <script>
   import { journeyPath, rolePath } from "../../lib/roleState.js";
+  import { m } from "../../lib/paraglide/messages.js";
 
   let { role = "builder", participant = null } = $props();
 
   /** @type {Record<string, { title: string; journeyLabel: string; accent: string; rgb: string; glyph: string; description: string }>} */
   const ROLE_META = {
     builder: {
-      title: "Builder",
-      journeyLabel: "Builder journey",
+      title: m.role_builder(),
+      journeyLabel: m.prjc_builder_journey(),
       accent: "#ee8521",
       rgb: "238, 133, 33",
       glyph: "/assets/icons/terminal-line-orange.svg",
-      description:
-        "Complete the remaining steps, then claim your Builder role.",
+      description: m.prjc_builder_desc(),
     },
     validator: {
-      title: "Validator",
-      journeyLabel: "Validator journey",
+      title: m.role_validator(),
+      journeyLabel: m.prjc_validator_journey(),
       accent: "#387de8",
       rgb: "56, 125, 232",
       glyph: "/assets/icons/folder-shield-line-blue.svg",
-      description:
-        "Complete the application to enter the validator waitlist.",
+      description: m.prjc_validator_desc(),
     },
     community: {
-      title: "Creator",
-      journeyLabel: "Creator journey",
+      title: m.pcomm_creator(),
+      journeyLabel: m.prjc_creator_journey(),
       accent: "#8d81e1",
       rgb: "141, 129, 225",
       glyph: "/assets/icons/group-3-line-purple.svg",
-      description:
-        "Finish the required Creator steps, then claim your Creator role.",
+      description: m.prjc_creator_desc(),
     },
   };
 
@@ -38,28 +36,28 @@
   let isValidatorWaitlist = $derived(
     role === "validator" && participant?.has_validator_waitlist && !participant?.validator,
   );
-  let statusLabel = $derived(isValidatorWaitlist ? "Waiting for graduation" : "Action needed");
+  let statusLabel = $derived(isValidatorWaitlist ? m.prjc_waiting_graduation() : m.prjc_action_needed());
   let title = $derived.by(() => {
-    if (isValidatorWaitlist) return "Validator application submitted";
-    if (role === "validator") return "Complete your Validator application";
-    return `Finish your ${meta.title} journey`;
+    if (isValidatorWaitlist) return m.prjc_validator_app_submitted();
+    if (role === "validator") return m.prjc_complete_validator_app();
+    return m.prjc_finish_role_journey({ role: meta.title });
   });
   let description = $derived.by(() => {
     if (isValidatorWaitlist) {
-      return "You're on the waitlist. Check your validator status while graduation is reviewed.";
+      return m.prjc_waitlist_desc();
     }
     return meta.description;
   });
   let ctaText = $derived.by(() => {
-    if (isValidatorWaitlist) return "View validator status";
-    if (role === "validator") return "Continue application";
-    return "Continue journey";
+    if (isValidatorWaitlist) return m.prjc_view_validator_status();
+    if (role === "validator") return m.prjc_continue_application();
+    return m.prjc_continue_journey();
   });
   let ctaPath = $derived.by(() => {
     if (isValidatorWaitlist) return rolePath(role);
     return journeyPath(role);
   });
-  let ariaLabel = $derived(isValidatorWaitlist ? "Validator waitlist status" : `${meta.title} journey in progress`);
+  let ariaLabel = $derived(isValidatorWaitlist ? m.prjc_waitlist_status_aria() : m.prjc_role_journey_in_progress({ role: meta.title }));
 </script>
 
 <section

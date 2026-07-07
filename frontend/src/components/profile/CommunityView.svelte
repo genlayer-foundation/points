@@ -3,6 +3,7 @@
     import ProfileHighlights from "./ProfileHighlights.svelte";
     import ProfileRecentContributions from "./ProfileRecentContributions.svelte";
     import ProfilePoaps from "../poaps/ProfilePoaps.svelte";
+    import { m } from "../../lib/paraglide/messages.js";
 
     let {
         participant = null,
@@ -41,14 +42,14 @@
                 class="text-[20px] font-semibold text-black"
                 style="letter-spacing: 0.4px;"
             >
-                Community
+                {m.role_community()}
             </h2>
         </div>
         {#if showCommunityActivity}
             <span
                 class="text-[12px] font-medium text-[#ac6df3] tracking-[0.24px] leading-[16px]"
             >
-                Creator
+                {m.pcomm_creator()}
             </span>
         {/if}
     </div>
@@ -98,7 +99,7 @@
                             <p
                                 class="text-[13px] leading-[15px] tracking-[0.24px] text-[#6b6b6b] mt-1"
                             >
-                                Community Points
+                                {m.pcomm_community_points()}
                             </p>
                         </div>
                     </div>
@@ -153,7 +154,7 @@
                             <p
                                 class="text-[13px] leading-[15px] tracking-[0.24px] text-[#6b6b6b] mt-1"
                             >
-                                Community Contributions
+                                {m.pcomm_community_contributions()}
                             </p>
                         </div>
                     </div>
@@ -198,7 +199,7 @@
                         <p
                             class="text-[13px] leading-[15px] tracking-[0.24px] text-[#6b6b6b] mt-1"
                         >
-                            POAPs
+                            {m.pcomm_poaps()}
                         </p>
                     </div>
                 </div>
@@ -221,17 +222,17 @@
                             class="font-semibold text-[20px] text-black"
                             style="letter-spacing: 0.4px;"
                         >
-                            Highlights
+                            {m.prole_highlights()}
                         </h3>
                         <p class="text-[14px] text-[#999] mt-1">
-                            Get highlighted: submit impactful or pioneering work to get highlighted
+                            {m.prole_highlights_hint()}
                         </p>
                     </div>
                     <button
                         onclick={() => push("/submit-contribution")}
                         class="community-submit-button flex items-center gap-[6px] bg-[#101010] text-white px-4 py-2 rounded-[24px] text-[14px] font-medium hover:bg-black transition-colors whitespace-nowrap shrink-0"
                     >
-                        Submit contribution
+                        {m.prole_submit_contribution()}
                         <img
                             src="/assets/icons/arrow-right-line.svg"
                             alt=""
@@ -252,7 +253,7 @@
                     class="font-semibold text-[20px] text-black mb-[20px]"
                     style="letter-spacing: 0.4px;"
                 >
-                    Recent Contributions
+                    {m.prole_recent_contributions()}
                 </h3>
                 <ProfileRecentContributions
                     userId={participant?.address}
@@ -260,7 +261,7 @@
                     category="community"
                     showViewAll={true}
                     viewAllPath={`/all-contributions?user=${participant?.address}&category=community`}
-                    viewAllText="View All Community Contributions →"
+                    viewAllText={m.prole_view_all_role_contributions({ role: m.role_community() })}
                 />
             </div>
         {/if}

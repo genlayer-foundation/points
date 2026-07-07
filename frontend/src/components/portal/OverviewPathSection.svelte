@@ -1,29 +1,30 @@
 <script>
   import { push } from 'svelte-spa-router';
   import CategoryIcon from './CategoryIcon.svelte';
+  import { m } from '../../lib/paraglide/messages.js';
 
   const roles = [
     {
       key: 'builder',
-      title: 'Builder',
-      description: 'Ship Intelligent Contracts. Earn up to 20% of the points they generate.',
-      cta: 'START BUILDING',
+      title: m.role_builder(),
+      description: m.ops_builder_description(),
+      cta: m.ops_builder_cta(),
       href: '/builders/contributions',
       accent: '#ff8900',
     },
     {
       key: 'validator',
-      title: 'Validator',
-      description: 'Run a node that reasons. Get paid per decision.',
-      cta: 'JOIN THE WAITLIST',
+      title: m.role_validator(),
+      description: m.ops_validator_description(),
+      cta: m.ops_validator_cta(),
       href: '/validators/waitlist/join',
       accent: '#4778ff',
     },
     {
       key: 'community',
-      title: 'Community',
-      description: 'Push the project forward. Earn GenLayer Points.',
-      cta: 'BECOME A CREATOR',
+      title: m.role_community(),
+      description: m.ops_community_description(),
+      cta: m.ops_community_cta(),
       href: '/community',
       accent: '#9880ea',
     },
@@ -33,7 +34,7 @@
 <section class="overview-path-section">
   <div class="path-block">
     <div class="path-title">
-      <h2>Choose your path!</h2>
+      <h2>{m.ops_title()}</h2>
     </div>
 
     <div class="path-card-band">
@@ -62,14 +63,14 @@
   <footer class="auth-layer-footer">
     <div class="footer-message">
       <h2>
-        Build the Adjudication<br />
-        Layer of the Internet.<br />
-        Earn for it.
+        {m.ops_footer_title_line1()}<br />
+        {m.ops_footer_title_line2()}<br />
+        {m.ops_footer_title_line3()}
       </h2>
 
       <div class="footer-actions">
         <button type="button" class="footer-primary" onclick={() => push('/builders/contributions')}>
-          <span>Start Contributing</span>
+          <span>{m.ops_footer_cta()}</span>
           <img src="/assets/icons/arrow-right-line-white.svg" alt="" />
         </button>
       </div>
@@ -88,9 +89,9 @@
     </div>
 
     <p class="footer-copy">
-      BUILDERS, VALIDATORS AND COMMUNITY.<br />
-      EVERY CONTRIBUTION COUNTS,<br />
-      AND EVERY CONTRIBUTION IS REWARDED.
+      {m.ops_footer_copy_line1()}<br />
+      {m.ops_footer_copy_line2()}<br />
+      {m.ops_footer_copy_line3()}
     </p>
   </footer>
 </section>

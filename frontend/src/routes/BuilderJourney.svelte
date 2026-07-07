@@ -6,6 +6,7 @@
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
   import { showError, showSuccess, showWarning } from '../lib/toastStore.js';
+  import { m } from '../lib/paraglide/messages.js';
   import { STAR_BOILERPLATE_TASK_SLUG } from '../lib/roleState.js';
   import { FAUCET_URL } from '../lib/config.js';
   import { getValidatorBalance } from '../lib/blockchain.js';
@@ -63,9 +64,9 @@
   };
 
   const NETWORKS = [
-    { kind: 'bradbury', label: 'Bradbury', detail: 'Production-like testnet', config: BRADBURY_NETWORK },
-    { kind: 'asimov', label: 'Asimov', detail: 'Infrastructure testnet', config: ASIMOV_NETWORK },
-    { kind: 'studio', label: 'Studio', detail: 'Hosted development network', config: STUDIO_NETWORK },
+    { kind: 'bradbury', label: 'Bradbury', detail: m.bj_network_detail_bradbury(), config: BRADBURY_NETWORK },
+    { kind: 'asimov', label: 'Asimov', detail: m.bj_network_detail_asimov(), config: ASIMOV_NETWORK },
+    { kind: 'studio', label: 'Studio', detail: m.bj_network_detail_studio(), config: STUDIO_NETWORK },
   ];
 
   let tasks = $state([]);
@@ -101,7 +102,7 @@
   let githubRewarded = $derived(Boolean(user?.has_community_link_github));
   let githubStepDone = $derived(Boolean(githubConnection && githubRewarded));
   let githubHandle = $derived(githubConnection?.platform_username ? `@${githubConnection.platform_username}` : '');
-  let walletDetail = $derived(address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Connect a wallet to begin');
+  let walletDetail = $derived(address ? `${address.slice(0, 6)}...${address.slice(-4)}` : m.bj_wallet_detail_connect());
   let hasTestnetBalance = $derived(isPositiveBalance(testnetBalance));
   let networkItems = $derived(
     NETWORKS.map((network) => ({
@@ -113,21 +114,21 @@
   let addedNetworkCount = $derived(networkItems.filter((network) => network.done).length);
   let allNetworksAdded = $derived(addedNetworkCount === NETWORKS.length);
   let networkDetail = $derived(
-    allNetworksAdded ? 'Bradbury, Asimov, and Studio added' : `${addedNetworkCount}/${NETWORKS.length} networks added`
+    allNetworksAdded ? m.bj_networks_all_added() : m.bj_networks_added({ added: addedNetworkCount, total: NETWORKS.length })
   );
   let balanceDetail = $derived(
     hasTestnetBalance
-      ? `${testnetBalance.formatted} GEN available`
-      : balanceError || 'Get testnet tokens for deployment'
+      ? m.bj_gen_available({ amount: testnetBalance.formatted })
+      : balanceError || m.bj_topup_detail_get_tokens()
   );
 
   let stepStates = $derived([
-    { id: 'wallet', title: 'Connect your wallet', done: Boolean(address) },
-    { id: 'github', title: 'Connect your GitHub', done: githubStepDone },
-    { id: 'star', title: 'Star the Boilerplate repo', done: starred },
-    { id: 'networks', title: 'Add GenLayer networks', done: allNetworksAdded },
-    { id: 'topup', title: 'Top-up with Testnet GEN', done: hasTestnetBalance },
-    { id: 'deploy', title: 'Deploy your first contract', done: hasDeployedContract },
+    { id: 'wallet', title: m.bj_step_wallet_title(), done: Boolean(address) },
+    { id: 'github', title: m.bj_step_github_title(), done: githubStepDone },
+    { id: 'star', title: m.bj_step_star_title(), done: starred },
+    { id: 'networks', title: m.bj_step_networks_title(), done: allNetworksAdded },
+    { id: 'topup', title: m.bj_step_topup_title(), done: hasTestnetBalance },
+    { id: 'deploy', title: m.bj_step_deploy_title(), done: hasDeployedContract },
   ]);
 
   let activeStep = $derived(stepStates.find((step) => !step.done) || null);
@@ -145,41 +146,41 @@
     stepStates.filter((step) => !REQUIRED_STEP_IDS.includes(step.id) && step.done).length
   );
   let displayName = $derived(user?.name?.trim() || '');
-  let welcomeTitle = $derived(displayName ? `Welcome, ${displayName}` : 'Welcome to your Builder journey');
+  let welcomeTitle = $derived(displayName ? m.common_welcome_name({ name: displayName }) : m.bj_welcome_title_default());
   let welcomeMessage = $derived(
     requiredStepsComplete
-      ? 'Your Builder role is ready to claim. The remaining setup steps are optional, but they will help you ship faster once you are in.'
-      : 'Start with your GitHub account and the boilerplate repo. The journey will guide you through each setup step from here.'
+      ? m.bj_welcome_message_ready()
+      : m.bj_welcome_message_start()
   );
   let welcomeAlert = $derived(loadError && activeStepId === 'star' ? loadError : '');
   let welcomeChips = $derived([
-    { label: 'Progress', value: `${completedSteps}/${TOTAL_STEPS}` },
-    { label: 'Left', value: remainingSteps === 1 ? '1 step' : `${remainingSteps} steps` },
-    { label: 'Next', value: activeStep?.title || 'Claim role' },
+    { label: m.bj_chip_progress(), value: `${completedSteps}/${TOTAL_STEPS}` },
+    { label: m.bj_chip_left(), value: remainingSteps === 1 ? m.bj_steps_left_one() : m.bj_steps_left_other({ n: remainingSteps }) },
+    { label: m.bj_chip_next(), value: activeStep?.title || m.bj_claim_role() },
   ]);
   let heroHelper = $derived(
     requiredStepsComplete
-      ? 'Ready to claim. The remaining steps are recommended, not required.'
-      : 'Connect GitHub and star the boilerplate repo to unlock the Builder role. The other steps are recommended.'
+      ? m.bj_hero_helper_ready()
+      : m.bj_hero_helper_start()
   );
 
   const unlocks = [
     {
-      title: 'Contributions',
-      body: 'Pick up open missions and ship for the ecosystem.',
-      label: 'Earn up to 20% of fees',
+      title: m.nav_contributions(),
+      body: m.bj_unlock_contributions_body(),
+      label: m.bj_unlock_contributions_label(),
       icon: 'folder',
     },
     {
-      title: 'Leaderboard',
-      body: 'Climb the ranks and get seen by the whole ecosystem.',
-      label: 'Compete for top builder',
+      title: m.nav_leaderboard(),
+      body: m.bj_unlock_leaderboard_body(),
+      label: m.bj_unlock_leaderboard_label(),
       icon: 'leaderboard',
     },
     {
-      title: 'Resources',
-      body: 'Templates, deep guides, and direct core-team support.',
-      label: '1:1 with the protocol team',
+      title: m.nav_resources(),
+      body: m.bj_unlock_resources_body(),
+      label: m.bj_unlock_resources_label(),
       icon: 'resources',
     },
   ];
@@ -268,7 +269,7 @@
             surface: 'journey',
             error_stage: err.response?.status ? 'backend' : 'network',
           }));
-          showWarning('Could not start your builder journey. Try refreshing in a moment.');
+          showWarning(m.bj_toast_start_error());
         });
     }
     loadTasks({ showLoading: true });
@@ -420,12 +421,12 @@
       const res = await socialTasksAPI.list({ category: 'builder' });
       tasks = Array.isArray(res.data) ? res.data : [];
       if (!tasks.some((t) => t.slug === STAR_BOILERPLATE_TASK_SLUG)) {
-        loadError = 'The boilerplate star task is not available yet.';
+        loadError = m.bj_error_star_task_unavailable();
       }
     } catch {
       if (showLoading) {
         tasks = [];
-        loadError = 'Could not load the builder task. Try refreshing in a moment.';
+        loadError = m.bj_error_load_task();
       }
     } finally {
       if (showLoading) loading = false;
@@ -457,7 +458,7 @@
     if (typeof window === 'undefined') return;
     const walletProvider = provider || window.ethereum;
     if (!walletProvider) {
-      showWarning('Please connect your wallet first.');
+      showWarning(m.bj_toast_connect_wallet_first());
       return false;
     }
 
@@ -475,12 +476,12 @@
         params: [network],
       });
       markNetworkAdded(kind);
-      if (!silent) showSuccess(`${network.chainName} added.`);
+      if (!silent) showSuccess(m.bj_network_added({ network: network.chainName }));
       return true;
     } catch (error) {
       if (isAlreadyAddedNetworkError(error)) {
         markNetworkAdded(kind);
-        if (!silent) showSuccess(`${network.chainName} already exists in your wallet.`);
+        if (!silent) showSuccess(m.bj_network_already_exists({ network: network.chainName }));
         return true;
       }
       trackBuilderStepEvent('journey_step_error', 'networks', {
@@ -488,7 +489,7 @@
         error_stage: 'wallet_add_chain',
       });
       if (error?.code !== 4001) {
-        showError(`Failed to add ${network.chainName}. Please try manually.`);
+        showError(m.bj_network_add_failed({ network: network.chainName }));
       }
       return false;
     } finally {
@@ -511,7 +512,7 @@
       }
       if (NETWORKS.every((network) => networkDone(network.kind))) {
         trackBuilderStepEvent('journey_step_verified', 'networks');
-        showSuccess('GenLayer networks added.');
+        showSuccess(m.bj_toast_networks_added());
       }
     } finally {
       isAddingAllNetworks = false;
@@ -529,17 +530,17 @@
         trackBuilderStepEvent('journey_step_verified', 'topup');
       }
       if (notify && !isPositiveBalance(testnetBalance)) {
-        showWarning('No Testnet GEN found yet.');
+        showWarning(m.bj_toast_no_gen_yet());
       }
     } catch {
-      balanceError = 'Balance check unavailable';
+      balanceError = m.bj_error_balance_unavailable();
       if (notify) {
         trackBuilderStepEvent('journey_step_error', 'topup', {
           error_code: 'verification_unavailable',
           error_stage: 'balance_check',
         });
       }
-      if (notify) showError('Could not check your Testnet GEN balance.');
+      if (notify) showError(m.bj_toast_balance_check_failed());
     } finally {
       balanceLoading = false;
     }
@@ -556,18 +557,18 @@
         trackBuilderStepEvent('journey_step_verified', 'deploy');
       }
       if (notify && !hasDeployedContract) {
-        showWarning('No deployed contract found yet.');
+        showWarning(m.bj_toast_no_deployment_yet());
       }
     } catch {
       hasDeployedContract = false;
-      deploymentError = 'Deployment check unavailable';
+      deploymentError = m.bj_error_deployment_unavailable();
       if (notify) {
         trackBuilderStepEvent('journey_step_error', 'deploy', {
           error_code: 'verification_unavailable',
           error_stage: 'deployment_status',
         });
       }
-      if (notify) showError('Could not check Studio deployments.');
+      if (notify) showError(m.bj_toast_deployment_check_failed());
     } finally {
       deploymentLoading = false;
     }
@@ -582,13 +583,13 @@
       if (res.data?.user) userStore.updateUser(res.data.user);
       else await userStore.loadUser?.();
       trackBuilderStepEvent('journey_step_verified', 'github');
-      showSuccess('GitHub linked. 25 BP awarded.');
+      showSuccess(m.bj_toast_github_linked());
     } catch (err) {
       trackBuilderStepEvent('journey_step_error', 'github', {
         error_code: journeyErrorCode(err),
         error_stage: err.response?.status ? 'backend' : 'network',
       });
-      showError(err.response?.data?.error || 'Could not claim GitHub BP yet.');
+      showError(err.response?.data?.error || m.bj_toast_github_claim_failed());
     } finally {
       claimingGithub = false;
     }
@@ -655,7 +656,7 @@
         surface: 'journey',
         unlock_source: 'journey',
       }));
-      showSuccess('Builder role claimed.');
+      showSuccess(m.bj_toast_role_claimed());
       replace('/builders');
     } catch (err) {
       trackEvent('builder_role_claim_error', getAnalyticsContext({
@@ -663,7 +664,7 @@
         error_code: journeyErrorCode(err),
         error_stage: err.response?.status ? 'backend' : 'network',
       }));
-      showError(err.response?.data?.error || 'Could not complete the builder journey yet.');
+      showError(err.response?.data?.error || m.bj_toast_complete_failed());
     } finally {
       completing = false;
     }
@@ -671,7 +672,7 @@
 </script>
 
 <svelte:head>
-  <title>Builder Journey | GenLayer Portal</title>
+  <title>{m.bj_page_title()}</title>
 </svelte:head>
 
 <div class="journey-page builder-journey">
@@ -690,20 +691,20 @@
     iconPlacement="title"
     kickerIconHex="/assets/icons/hexagon-builder-light.svg"
     kickerIconGlyph="/assets/icons/terminal-line-orange.svg"
-    eyebrow="Your builder journey"
+    eyebrow={m.bj_hero_eyebrow()}
     accentValue={TOTAL_STEPS}
-    titleRest=" steps to become a Builder"
-    description="Connect GitHub and star the boilerplate repo to claim the Builder role. Adding networks, getting testnet GEN, and deploying are recommended next steps, not requirements. Only the GitHub link and repo star award BP."
+    titleRest={m.bj_hero_title_rest()}
+    description={m.bj_hero_description()}
     completed={loading ? 0 : completedSteps}
     total={TOTAL_STEPS}
-    primaryLabel={completing ? 'Claiming...' : 'Claim Builder Role'}
+    primaryLabel={completing ? m.bj_claiming() : m.bj_claim_builder_role()}
     primaryDisabled={loading || completing || !requiredStepsComplete}
     primaryBusy={completing}
     helper={heroHelper}
     onPrimary={completeJourney}
   />
 
-  <section class="steps-card" aria-label="Builder journey steps">
+  <section class="steps-card" aria-label={m.bj_steps_aria()}>
     {#if loading}
       {#each Array(TOTAL_STEPS) as _, i}
         <JourneyStepRow number={i + 1} loading={true} />
@@ -712,10 +713,10 @@
       <div class="step-block" data-step-active={isActive('wallet')}>
         <JourneyStepRow
           number={1}
-          title="Connect your wallet"
+          title={m.bj_step_wallet_title()}
           detail={walletDetail}
           status={statusFor('wallet')}
-          actionLabel={isActive('wallet') ? 'Connect wallet' : ''}
+          actionLabel={isActive('wallet') ? m.bj_action_connect_wallet() : ''}
           actionTone="accent"
           onAction={triggerWalletConnect}
         />
@@ -724,13 +725,13 @@
       <div class="step-block" data-step-active={isActive('github')}>
         <JourneyStepRow
           number={2}
-          title="Connect your GitHub"
-          contributionLabel={isActive('github') ? 'Up next' : ''}
-          detail={githubStepDone ? githubHandle : githubConnection ? `${githubHandle} connected - claim BP` : 'Link GitHub to verify builder tasks'}
+          title={m.bj_step_github_title()}
+          contributionLabel={isActive('github') ? m.bj_up_next() : ''}
+          detail={githubStepDone ? githubHandle : githubConnection ? m.bj_github_connected_claim({ handle: githubHandle }) : m.bj_github_detail_link()}
           points={POINTS_PER_GITHUB_STEP}
           pointsLabel="BP"
           status={statusFor('github')}
-          actionLabel={isActive('github') && githubConnection && !githubRewarded ? 'Claim points' : ''}
+          actionLabel={isActive('github') && githubConnection && !githubRewarded ? m.bj_action_claim_points() : ''}
           actionTone="accent"
           disabled={!githubConnection || claimingGithub}
           busy={claimingGithub}
@@ -740,7 +741,7 @@
         {#if isActive('github') && !githubConnection}
           <div class="task-panel github-panel">
             <div class="task-panel-copy">
-              <p>Link the GitHub account you will use to star the boilerplate repository. This step awards 25 BP once the link is verified.</p>
+              <p>{m.bj_github_panel_copy()}</p>
             </div>
             <div class="social-link-frame">
               <SocialLink
@@ -758,9 +759,9 @@
       <div class="step-block" data-step-active={isActive('star')}>
         <JourneyStepRow
           number={3}
-          title="Star the Boilerplate repo"
-          contributionLabel={isActive('star') ? 'Up next' : ''}
-          detail={starred ? 'genlayerlabs/genlayer-project-boilerplate verified' : 'genlayerlabs/genlayer-project-boilerplate'}
+          title={m.bj_step_star_title()}
+          contributionLabel={isActive('star') ? m.bj_up_next() : ''}
+          detail={starred ? m.bj_repo_verified() : 'genlayerlabs/genlayer-project-boilerplate'}
           points={POINTS_PER_GITHUB_STEP}
           pointsLabel="BP"
           status={statusFor('star')}
@@ -769,7 +770,7 @@
         {#if isActive('star') && starTask && !starred}
           <div class="task-panel">
             <div class="task-panel-copy">
-              <p>Open the repository, star it with your linked GitHub account, then verify the task here.</p>
+              <p>{m.bj_star_panel_copy()}</p>
             </div>
             <div class="task-card-frame">
               <SocialTaskCard task={starTask} pointsLabel="BP" onCompleted={handleTaskCompleted} />
@@ -779,7 +780,7 @@
           <div class="task-panel task-panel-error">
             <p>{loadError}</p>
             <button type="button" class="landing-button landing-button-secondary" onclick={loadTasks}>
-              Reload task
+              {m.bj_reload_task()}
             </button>
           </div>
         {/if}
@@ -788,11 +789,11 @@
       <div class="step-block" data-step-active={isActive('networks')}>
         <JourneyStepRow
           number={4}
-          title="Add GenLayer networks"
-          contributionLabel="Recommended"
+          title={m.bj_step_networks_title()}
+          contributionLabel={m.bj_recommended()}
           detail={networkDetail}
           status={statusFor('networks')}
-          actionLabel={isActive('networks') ? 'Add Missing' : ''}
+          actionLabel={isActive('networks') ? m.bj_add_missing() : ''}
           actionTone="accent"
           disabled={isLocked('networks') || isAddingAllNetworks}
           busy={isAddingAllNetworks}
@@ -802,7 +803,7 @@
         {#if isActive('networks')}
           <div class="task-panel networks-panel">
             <div class="task-panel-copy">
-              <p>Add Bradbury, Asimov, and Studio to this wallet. The journey continues when all three network entries have been confirmed.</p>
+              <p>{m.bj_networks_panel_copy()}</p>
             </div>
             <div class="network-list">
               {#each networkItems as network}
@@ -825,7 +826,7 @@
                     <small>{network.detail}</small>
                   </div>
                   {#if network.done}
-                    <em>Added</em>
+                    <em>{m.bj_added()}</em>
                   {:else}
                     <button
                       type="button"
@@ -833,7 +834,7 @@
                       onclick={() => addNetwork(network.config, network.kind)}
                       disabled={network.busy || isAddingAllNetworks}
                     >
-                      {network.busy ? 'Adding...' : 'Add'}
+                      {network.busy ? m.bj_adding() : m.bj_add()}
                     </button>
                   {/if}
                 </div>
@@ -846,7 +847,7 @@
                   onclick={checkNetworks}
                   disabled={isCheckingNetworks || isAddingAllNetworks}
                 >
-                  {isCheckingNetworks ? 'Checking...' : 'Sync Wallet'}
+                  {isCheckingNetworks ? m.common_checking() : m.bj_sync_wallet()}
                 </button>
                 <button
                   type="button"
@@ -854,7 +855,7 @@
                   onclick={addMissingNetworks}
                   disabled={isAddingAllNetworks || allNetworksAdded}
                 >
-                  {isAddingAllNetworks ? 'Adding...' : 'Add Missing'}
+                  {isAddingAllNetworks ? m.bj_adding() : m.bj_add_missing()}
                 </button>
               </div>
             </div>
@@ -865,11 +866,11 @@
       <div class="step-block" data-step-active={isActive('topup')}>
         <JourneyStepRow
           number={5}
-          title="Top-up with Testnet GEN"
-          contributionLabel="Recommended"
+          title={m.bj_step_topup_title()}
+          contributionLabel={m.bj_recommended()}
           detail={balanceDetail}
           status={statusFor('topup')}
-          actionLabel={isActive('topup') ? 'Get Tokens' : ''}
+          actionLabel={isActive('topup') ? m.bj_get_tokens() : ''}
           actionHref={isActive('topup') ? FAUCET_URL : ''}
           actionExternal={true}
           actionTone="accent"
@@ -879,7 +880,7 @@
         {#if isActive('topup')}
           <div class="task-panel compact-panel">
             <div class="task-panel-copy">
-              <p>Use the faucet, then check the wallet balance to continue. The journey advances once Testnet GEN is detected.</p>
+              <p>{m.bj_topup_panel_copy()}</p>
             </div>
             <div class="panel-actions">
               <button
@@ -888,7 +889,7 @@
                 onclick={() => refreshBalance({ notify: true })}
                 disabled={balanceLoading}
               >
-                {balanceLoading ? 'Checking...' : 'Check Balance'}
+                {balanceLoading ? m.common_checking() : m.bj_check_balance()}
               </button>
             </div>
           </div>
@@ -898,11 +899,11 @@
       <div class="step-block" data-step-active={isActive('deploy')}>
         <JourneyStepRow
           number={6}
-          title="Deploy your first contract"
-          contributionLabel="Recommended"
-          detail={hasDeployedContract ? 'Studio deployment verified' : deploymentError || 'Deploy an intelligent contract in Studio'}
+          title={m.bj_step_deploy_title()}
+          contributionLabel={m.bj_recommended()}
+          detail={hasDeployedContract ? m.bj_deploy_detail_verified() : deploymentError || m.bj_deploy_detail_prompt()}
           status={statusFor('deploy')}
-          actionLabel={isActive('deploy') ? 'Open Studio' : ''}
+          actionLabel={isActive('deploy') ? m.bj_open_studio() : ''}
           actionHref={isActive('deploy') ? STUDIO_URL : ''}
           actionExternal={true}
           actionTone="accent"
@@ -912,7 +913,7 @@
         {#if isActive('deploy')}
           <div class="task-panel compact-panel">
             <div class="task-panel-copy">
-              <p>Deploy from Studio with this wallet, then verify the deployment. Once verified, the Claim Builder Role button above becomes available.</p>
+              <p>{m.bj_deploy_panel_copy()}</p>
             </div>
             <div class="panel-actions">
               <button
@@ -921,7 +922,7 @@
                 onclick={() => refreshDeploymentStatus({ notify: true })}
                 disabled={deploymentLoading}
               >
-                {deploymentLoading ? 'Checking...' : 'Check Deployment'}
+                {deploymentLoading ? m.common_checking() : m.bj_check_deployment()}
               </button>
             </div>
           </div>
@@ -931,8 +932,8 @@
       {#if requiredStepsComplete}
         <div class="completion-panel">
           <div>
-            <p>Ready to claim the Builder role</p>
-            <span>The remaining steps are recommended, not required.</span>
+            <p>{m.bj_completion_title()}</p>
+            <span>{m.bj_completion_subtitle()}</span>
           </div>
         </div>
       {/if}
@@ -941,7 +942,7 @@
 
   <section class="unlock-section" aria-labelledby="builder-unlocks-title">
     <div class="section-label">
-      <p id="builder-unlocks-title">What you will unlock</p>
+      <p id="builder-unlocks-title">{m.bj_unlocks_title()}</p>
       <span></span>
     </div>
     <div class="unlock-grid">

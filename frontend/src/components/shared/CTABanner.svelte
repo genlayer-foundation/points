@@ -6,6 +6,7 @@
     import { authState } from "../../lib/auth.js";
     import { buildReferralLink, referralCodeFromSources } from "../../lib/referrals.js";
     import CategoryIcon from "../portal/CategoryIcon.svelte";
+    import { m } from "../../lib/paraglide/messages.js";
 
     let { variant = "dark", participant = null, referralData = null, topRole = null } = $props();
 
@@ -29,7 +30,7 @@
         participant?.name ||
             storeValue.user?.name ||
             storeValue.user?.address?.slice(0, 8) ||
-            "Builder",
+            m.role_builder(),
     );
     let referralCode = $derived(
         referralCodeFromSources(participant, storeValue.user),
@@ -76,10 +77,10 @@
     });
 
     const roleLabelMap: Record<string, string> = {
-        builder: "Builder",
-        validator: "Validator",
-        "validator-waitlist": "Validator Waitlist",
-        community: "Community",
+        builder: m.role_builder(),
+        validator: m.role_validator(),
+        "validator-waitlist": m.role_validator_waitlist(),
+        community: m.role_community(),
     };
 
     // Fetch points-to-next-rank once leaderboard entries are available
@@ -107,7 +108,7 @@
             const entries = participant.leaderboard_entries || [];
             let userRank: number | null = null;
             let userPoints = 0;
-            rankLabel = roleLabelMap[eligibleEntryType] || "Overall";
+            rankLabel = roleLabelMap[eligibleEntryType] || m.ctab_rank_overall();
 
             if (eligibleEntryType === "community") {
                 const userRankRes = await leaderboardAPI.getLeaderboard({
@@ -178,12 +179,12 @@
     function copyReferralLink() {
         const referralLink = buildReferralLink(referralCode);
         if (!referralLink) {
-            showError("Referral code is still loading. Try again in a moment.");
+            showError(m.common_referral_code_loading());
             return;
         }
 
         navigator.clipboard.writeText(referralLink);
-        showSuccess("Referral link copied!");
+        showSuccess(m.common_referral_link_copied());
     }
 
     // Show rank pill only when logged in and we have rank data (or are computing it)
@@ -228,11 +229,11 @@
                             class="cta-rank-text text-[#dcdcdc] text-[13px] font-medium tracking-[0.2px]"
                         >
                             {#if isTopRank}
-                                You lead the {rankLabel} ranks!
+                                {m.ctab_rank_lead({ rank: rankLabel })}
                             {:else if pointsToNextRank !== null}
-                                {pointsToNextRank} Points to {rankLabel} Rank #{nextRank}
+                                {m.ctab_rank_points_to({ points: pointsToNextRank, rank: rankLabel, n: nextRank })}
                             {:else}
-                                Keep earning points to climb the ranks
+                                {m.ctab_rank_keep_earning()}
                             {/if}
                         </span>
                     {/if}
@@ -244,9 +245,9 @@
                 class="cta-title text-[48px] md:text-[64px] font-semibold text-white leading-tight mb-6 tracking-[-1.5px]"
             >
                 {#if isLoggedIn}
-                    Keep building, {displayName}
+                    {m.ctab_title_logged_in({ name: displayName })}
                 {:else}
-                    Start contributing today
+                    {m.ctab_title_logged_out()}
                 {/if}
             </h2>
 
@@ -255,10 +256,9 @@
                 class="cta-subtitle text-[16px] md:text-[18px] text-[#b3b3b3] mb-10 w-full max-w-none leading-relaxed whitespace-nowrap overflow-hidden text-ellipsis"
             >
                 {#if isLoggedIn}
-                    Invite other builders to GenLayer and receive 10% of the points they
-                    make, forever.
+                    {m.ctab_subtitle_logged_in()}
                 {:else}
-                    Join professional validators and builders in creating the trust infrastructure for the AI age.
+                    {m.ctab_subtitle_logged_out()}
                 {/if}
             </p>
 
@@ -287,14 +287,14 @@
                                 d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
                             ></path>
                         </svg>
-                        Referral link
+                        {m.ctab_referral_link()}
                     </button>
                 {:else}
                     <button
                         onclick={() => push('/builders/welcome')}
                         class="cta-action-button flex items-center gap-[8px] bg-[#935cf1] hover:bg-[#824ce0] text-white px-6 py-[14px] rounded-full text-[15px] font-medium transition-all shadow-[0_0_20px_rgba(147,92,241,0.3)] hover:shadow-[0_0_25px_rgba(147,92,241,0.5)] transform hover:-translate-y-[1px]"
                     >
-                        Get started
+                        {m.ctab_get_started()}
                         <svg
                             width="16"
                             height="16"
@@ -316,7 +316,7 @@
                         window.open("https://docs.genlayer.com", "_blank")}
                     class="cta-action-button flex items-center gap-[8px] bg-transparent border border-white/20 hover:border-white/40 hover:bg-white/5 text-white px-6 py-[14px] rounded-full text-[15px] font-medium transition-all"
                 >
-                    Read the Docs
+                    {m.common_read_the_docs()}
                     <svg
                         width="16"
                         height="16"
@@ -360,11 +360,11 @@
                                 style="letter-spacing: 0.24px;"
                             >
                                 {#if isTopRank}
-                                    You lead the {rankLabel} ranks!
+                                    {m.ctab_rank_lead({ rank: rankLabel })}
                                 {:else if pointsToNextRank !== null}
-                                    {pointsToNextRank} Points to {rankLabel} Rank #{nextRank}
+                                    {m.ctab_rank_points_to({ points: pointsToNextRank, rank: rankLabel, n: nextRank })}
                                 {:else}
-                                    Keep earning points to climb the ranks
+                                    {m.ctab_rank_keep_earning()}
                                 {/if}
                             </span>
                         {/if}
@@ -376,9 +376,9 @@
                     style="letter-spacing: -1.28px;"
                 >
                     {#if isLoggedIn}
-                        Keep building, {displayName}
+                        {m.ctab_title_logged_in({ name: displayName })}
                     {:else}
-                        Start contributing today
+                        {m.ctab_title_logged_out()}
                     {/if}
                 </h2>
                 <p
@@ -386,11 +386,9 @@
                     style="letter-spacing: 0.34px;"
                 >
                     {#if isLoggedIn}
-                        Invite other builders to GenLayer and receive 10% of the
-                        points they make, forever.
+                        {m.ctab_subtitle_logged_in()}
                     {:else}
-                        Join professional validators and builders in creating the
-                        trust infrastructure for the AI age.
+                        {m.ctab_subtitle_logged_out()}
                     {/if}
                 </p>
 
@@ -411,7 +409,7 @@
                                 class="text-[14px] font-medium text-white leading-[21px]"
                                 style="letter-spacing: 0.28px;"
                             >
-                                Referral link
+                                {m.ctab_referral_link()}
                             </span>
                         </button>
                     {:else}
@@ -424,7 +422,7 @@
                                 class="text-[14px] font-medium text-white leading-[21px]"
                                 style="letter-spacing: 0.28px;"
                             >
-                                Get started
+                                {m.ctab_get_started()}
                             </span>
                             <img
                                 src="/assets/icons/arrow-right-line-white.svg"
@@ -443,7 +441,7 @@
                             class="text-[14px] font-medium text-black leading-[21px]"
                             style="letter-spacing: 0.28px;"
                         >
-                            Read the Docs
+                            {m.common_read_the_docs()}
                         </span>
                         <img
                             src="/assets/icons/arrow-right-line.svg"

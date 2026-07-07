@@ -10,6 +10,7 @@
   import { parseUserMarkdown } from '../lib/markdownLoader.js';
   import { relativeTime } from '../lib/relativeTime.js';
   import { normalizeWhatsNewItem } from '../lib/whatsNewPresentation.js';
+  import { m } from '../lib/paraglide/messages.js';
 
   let notifications = $state([]);
   let loading = $state(false);
@@ -62,7 +63,7 @@
       currentPage = page;
     } catch (err) {
       if (requestId !== latestRequestId) return;
-      error = 'Failed to load notifications';
+      error = m.notif_error_load();
     } finally {
       if (requestId === latestRequestId) {
         loading = false;
@@ -88,7 +89,7 @@
       announcements = asList(response.data).map(normalizeWhatsNewItem);
     } catch (err) {
       if (requestId !== latestAnnouncementsRequestId) return;
-      announcementsError = 'Failed to load announcements';
+      announcementsError = m.notif_error_load_announcements();
     } finally {
       if (requestId === latestAnnouncementsRequestId) {
         announcementsLoading = false;
@@ -204,7 +205,7 @@
 <div class="container mx-auto px-4 py-8">
   <div class="max-w-5xl mx-auto">
     <div class="flex justify-between items-center mb-6">
-      <h1 class="text-2xl font-bold">Notifications</h1>
+      <h1 class="text-2xl font-bold">{m.notif_title()}</h1>
       {#if $authState.isAuthenticated && activeTab === 'notifications' && totalCount > 0}
         <button
           type="button"
@@ -212,16 +213,16 @@
           disabled={$notificationStore.unreadCount === 0}
           onclick={markAllRead}
         >
-          Mark all read
+          {m.common_mark_all_read()}
         </button>
       {/if}
     </div>
 
     {#if !$authState.isAuthenticated}
       <div class="bg-white shadow rounded-lg p-8 text-center">
-        <h2 class="text-lg font-semibold text-gray-900">Sign in to view notifications</h2>
+        <h2 class="text-lg font-semibold text-gray-900">{m.notif_signin_title()}</h2>
         <p class="mt-2 mb-6 text-sm text-gray-500">
-          Submission decisions and portal updates appear here once you are signed in.
+          {m.notif_signin_desc()}
         </p>
         <div class="flex justify-center">
           <AuthButton />
@@ -229,7 +230,7 @@
       </div>
     {:else}
       <div class="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div class="inline-flex w-fit p-1 bg-white border border-gray-200 rounded-full" role="tablist" aria-label="Notification views">
+        <div class="inline-flex w-fit p-1 bg-white border border-gray-200 rounded-full" role="tablist" aria-label={m.notif_tabs_aria()}>
           <button
             type="button"
             role="tab"
@@ -237,7 +238,7 @@
             class="px-4 py-1.5 text-sm font-medium rounded-full transition-colors {activeTab === 'notifications' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}"
             onclick={() => setTab('notifications')}
           >
-            Notifications
+            {m.notif_tab_notifications()}
           </button>
           <button
             type="button"
@@ -246,32 +247,32 @@
             class="px-4 py-1.5 text-sm font-medium rounded-full transition-colors {activeTab === 'announcements' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}"
             onclick={() => setTab('announcements')}
           >
-            Announcements
+            {m.notif_tab_announcements()}
           </button>
         </div>
 
         {#if activeTab === 'notifications'}
           <div class="flex items-center gap-3">
-            <div class="inline-flex p-1 bg-white border border-gray-200 rounded-full" role="group" aria-label="Notification filters">
+            <div class="inline-flex p-1 bg-white border border-gray-200 rounded-full" role="group" aria-label={m.notif_filters_aria()}>
               <button
                 type="button"
                 class="px-4 py-1.5 text-sm font-medium rounded-full transition-colors {!unreadOnly ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}"
                 onclick={() => setFilter(false)}
               >
-                All
+                {m.common_all()}
               </button>
               <button
                 type="button"
                 class="px-4 py-1.5 text-sm font-medium rounded-full transition-colors {unreadOnly ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}"
                 onclick={() => setFilter(true)}
               >
-                Unread
+                {m.notif_filter_unread()}
               </button>
             </div>
-            <span class="text-sm text-gray-500">{totalCount} total</span>
+            <span class="text-sm text-gray-500">{m.notif_count_total({ count: totalCount })}</span>
           </div>
         {:else}
-          <span class="text-sm text-gray-500">{announcements.length} viewed</span>
+          <span class="text-sm text-gray-500">{m.notif_count_viewed({ count: announcements.length })}</span>
         {/if}
       </div>
 
@@ -295,9 +296,9 @@
             <svg class="w-10 h-10 mx-auto text-gray-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-7.5A2.25 2.25 0 0017.25 4.5H6.75A2.25 2.25 0 004.5 6.75v10.5A2.25 2.25 0 006.75 19.5h6.75M8.25 8.25h7.5M8.25 12h4.5m3 5.25l1.5 1.5 3-3"></path>
             </svg>
-            <h2 class="mt-3 text-lg font-semibold text-gray-900">No viewed announcements yet</h2>
+            <h2 class="mt-3 text-lg font-semibold text-gray-900">{m.notif_empty_announcements_title()}</h2>
             <p class="mt-1 text-sm text-gray-500">
-              Announcements you finish from What's New will appear here.
+              {m.notif_empty_announcements_desc()}
             </p>
           </div>
         {:else}
@@ -333,9 +334,9 @@
           <svg class="w-10 h-10 mx-auto text-gray-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
           </svg>
-          <h2 class="mt-3 text-lg font-semibold text-gray-900">No notifications</h2>
+          <h2 class="mt-3 text-lg font-semibold text-gray-900">{m.notif_empty_title()}</h2>
           <p class="mt-1 text-sm text-gray-500">
-            {unreadOnly ? 'You have no unread notifications.' : 'Portal updates and submission decisions will appear here.'}
+            {unreadOnly ? m.notif_empty_unread() : m.notif_empty_desc()}
           </p>
         </div>
       {:else}
@@ -365,7 +366,7 @@
                   <span class="notification-body block text-sm text-gray-500 leading-snug mt-1">{@html parseUserMarkdown(notification.body)}</span>
                 {/if}
                 <span class="block text-xs text-gray-400 mt-1.5">
-                  {notification.category_label || notification.category}{#if notification.link_url}&nbsp;&middot; {notification.link_label || 'Open'}{/if}
+                  {notification.category_label || notification.category}{#if notification.link_url}&nbsp;&middot; {notification.link_label || m.notif_open()}{/if}
                 </span>
               </span>
             </div>
@@ -380,7 +381,7 @@
               disabled={loading}
               onclick={() => loadNotifications(false)}
             >
-              {loading ? 'Loading...' : 'Load more'}
+              {loading ? m.common_loading() : m.common_load_more()}
             </button>
           </div>
         {/if}
@@ -394,7 +395,7 @@
     <button
       type="button"
       class="announcement-preview-backdrop"
-      aria-label="Close announcement preview"
+      aria-label={m.notif_close_preview()}
       onclick={closeAnnouncementPreview}
     ></button>
     <div class="announcement-preview-wrap">
@@ -403,11 +404,11 @@
         bind:dialogEl={previewDialogEl}
         labelledby="announcement-preview-title"
         showClose={true}
-        closeLabel="Close announcement preview"
+        closeLabel={m.notif_close_preview()}
         onClose={closeAnnouncementPreview}
         totalSlides={1}
         currentIndex={0}
-        primaryLabel="Done"
+        primaryLabel={m.common_done()}
         onPrimary={closeAnnouncementPreview}
         onOpenLink={() => openAnnouncementLink(previewAnnouncement)}
       />

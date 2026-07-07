@@ -10,6 +10,7 @@
   import SearchBar from '../components/portal/SearchBar.svelte';
   import Pagination from '../components/Pagination.svelte';
   import CategoryIcon from '../components/portal/CategoryIcon.svelte';
+  import { m } from '../lib/paraglide/messages.js';
 
   const HIGHLIGHTS_PREVIEW_COUNT = 15;
   const PAGE_SIZE = 20;
@@ -23,10 +24,10 @@
   const SORT_REVERSE = Object.fromEntries(Object.entries(SORT_MAP).map(([k, v]) => [v, k]));
 
   const CATEGORY_OPTIONS = [
-    { id: 'all', label: 'All', icon: 'genlayer' },
-    { id: 'builder', label: 'Builder', icon: 'builder' },
-    { id: 'validator', label: 'Validator', icon: 'validator' },
-    { id: 'community', label: 'Community', icon: 'community' },
+    { id: 'all', label: m.common_all(), icon: 'genlayer' },
+    { id: 'builder', label: m.role_builder(), icon: 'builder' },
+    { id: 'validator', label: m.role_validator(), icon: 'validator' },
+    { id: 'community', label: m.role_community(), icon: 'community' },
   ];
 
   // === Routing context ===
@@ -92,7 +93,7 @@
   let typesForDropdown = $derived.by(() => {
     if (!typeId) return typesForCategory;
     if (typesForCategory.some(t => String(t.id) === String(typeId))) return typesForCategory;
-    return [{ id: typeId, name: activeTypeName || 'Selected type' }, ...typesForCategory];
+    return [{ id: typeId, name: activeTypeName || m.expl_selected_type() }, ...typesForCategory];
   });
   let missionsForType = $derived.by(() => {
     if (!typeId) return [];
@@ -376,7 +377,7 @@
       const end = view === 'both' ? HIGHLIGHTS_PREVIEW_COUNT : start + PAGE_SIZE;
       highlights = sorted.slice(start, end);
     } catch (err) {
-      highlightsError = err?.message || 'Failed to load highlights';
+      highlightsError = err?.message || m.expl_error_load_highlights();
       highlights = [];
       highlightsCount = 0;
     } finally {
@@ -402,7 +403,7 @@
       contributions = response.data?.results || [];
       contributionsCount = response.data?.count || 0;
     } catch (err) {
-      contributionsError = err?.message || 'Failed to load contributions';
+      contributionsError = err?.message || m.expl_error_load_contributions();
       contributions = [];
       contributionsCount = 0;
     } finally {
@@ -497,22 +498,26 @@
 
   // === Page title ===
   let categoryLabel = $derived(
-    category === 'builder' ? 'Builder'
-    : category === 'validator' ? 'Validator'
-    : category === 'community' ? 'Community'
-    : 'All'
+    category === 'builder' ? m.role_builder()
+    : category === 'validator' ? m.role_validator()
+    : category === 'community' ? m.role_community()
+    : m.common_all()
   );
   let pageTitle = $derived(
     participantDetails?.name
-      ? `${participantDetails.name}'s contributions`
+      ? m.expl_users_contributions({ name: participantDetails.name })
       : view === 'highlights'
-        ? `${categoryLabel} highlights`
-        : `${categoryLabel} contributions`
+        ? m.expl_category_highlights({ category: categoryLabel })
+        : m.expl_category_contributions({ category: categoryLabel })
   );
   let pageSubtitle = $derived(
     view === 'highlights'
-      ? (highlightsLoading ? 'Exceptional contributions from the community' : `${highlightsCount} highlight${highlightsCount === 1 ? '' : 's'}`)
-      : 'Browse highlighted and recent contributions'
+      ? (highlightsLoading
+          ? m.expl_subtitle_highlights_loading()
+          : (highlightsCount === 1
+              ? m.expl_highlight_count_one({ count: highlightsCount })
+              : m.expl_highlight_count_other({ count: highlightsCount })))
+      : m.expl_subtitle_browse()
   );
 
   let viewAllHighlightsHref = $derived.by(() => {
@@ -671,7 +676,7 @@
     onclick={clearAllFilters}
     class="px-4 py-2 rounded-[20px] bg-[#101010] text-white text-[13px] font-medium hover:bg-black transition-colors"
   >
-    Clear filters
+    {m.common_clear_filters()}
   </button>
 {/snippet}
 
@@ -681,17 +686,17 @@
     onclick={() => push('/submit-contribution')}
     class="px-4 py-2 rounded-[20px] bg-[#101010] text-white text-[13px] font-medium hover:bg-black transition-colors"
   >
-    Submit a contribution
+    {m.nav_submit_contribution()}
   </button>
 {/snippet}
 
 {#snippet highlightsEmptyState()}
   {@render emptyState(
     starIcon,
-    hasActiveFilters ? 'No highlights match these filters' : 'No highlighted contributions yet',
+    hasActiveFilters ? m.expl_empty_highlights_filtered_title() : m.expl_empty_highlights_title(),
     hasActiveFilters
-      ? 'Try clearing some filters to see highlighted contributions from other categories or types.'
-      : 'Submit impactful or pioneering work and a steward may highlight it.',
+      ? m.expl_empty_highlights_filtered_desc()
+      : m.common_highlight_hint(),
     hasActiveFilters ? clearFiltersAction : submitContributionAction
   )}
 {/snippet}
@@ -707,8 +712,8 @@
     </div>
     <p class="text-[13px] text-[#6b6b6b] leading-snug flex-1">
       {hasActiveFilters
-        ? 'No highlights match these filters.'
-        : 'No highlighted contributions yet. Submit impactful work and a steward may highlight it.'}
+        ? m.expl_empty_highlights_filtered_compact()
+        : m.expl_empty_highlights_compact()}
     </p>
   </div>
 {/snippet}
@@ -716,10 +721,10 @@
 {#snippet contributionsEmptyState()}
   {@render emptyState(
     docIcon,
-    hasActiveFilters ? 'No contributions match these filters' : 'No contributions yet',
+    hasActiveFilters ? m.expl_empty_contributions_filtered_title() : m.common_no_contributions_yet(),
     hasActiveFilters
-      ? 'Try clearing some filters or searching by a different name or address.'
-      : 'Be the first — submit a contribution to get started.',
+      ? m.expl_empty_contributions_filtered_desc()
+      : m.expl_empty_contributions_desc(),
     hasActiveFilters ? clearFiltersAction : submitContributionAction
   )}
 {/snippet}
@@ -755,7 +760,7 @@
     <!-- Filter row -->
     <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_2fr] gap-3">
       <div class="flex flex-col gap-1">
-        <label for="type-select" class="text-[12px] font-medium text-[#6b6b6b]" style="letter-spacing: 0.24px;">Contribution type</label>
+        <label for="type-select" class="text-[12px] font-medium text-[#6b6b6b]" style="letter-spacing: 0.24px;">{m.expl_filter_type_label()}</label>
         <select
           id="type-select"
           bind:value={typeId}
@@ -763,7 +768,7 @@
           disabled={typesLoading}
           class="w-full px-3 py-2 border border-[#e6e6e6] rounded-[8px] bg-white text-[14px] text-black focus:outline-none focus:border-[#8D81E1] transition-colors"
         >
-          <option value="" selected={!typeId}>All types</option>
+          <option value="" selected={!typeId}>{m.expl_all_types()}</option>
           {#each typesForDropdown as type (type.id)}
             <option value={String(type.id)} selected={String(type.id) === String(typeId)}>{type.name}</option>
           {/each}
@@ -771,7 +776,7 @@
       </div>
 
       <div class="flex flex-col gap-1">
-        <label for="mission-select" class="text-[12px] font-medium text-[#6b6b6b]" style="letter-spacing: 0.24px;">Mission</label>
+        <label for="mission-select" class="text-[12px] font-medium text-[#6b6b6b]" style="letter-spacing: 0.24px;">{m.expl_filter_mission_label()}</label>
         <select
           id="mission-select"
           bind:value={missionId}
@@ -779,7 +784,7 @@
           disabled={!typeId || missionsForType.length === 0}
           class="w-full px-3 py-2 border border-[#e6e6e6] rounded-[8px] bg-white text-[14px] text-black focus:outline-none focus:border-[#8D81E1] disabled:bg-[#f8f8f8] disabled:text-[#bababa] transition-colors"
         >
-          <option value="" selected={!missionId}>{typeId ? (missionsForType.length === 0 ? 'No missions' : 'Any mission') : 'Select a type first'}</option>
+          <option value="" selected={!missionId}>{typeId ? (missionsForType.length === 0 ? m.expl_no_missions() : m.expl_any_mission()) : m.expl_select_type_first()}</option>
           {#each missionsForType as mission (mission.id)}
             <option value={String(mission.id)} selected={String(mission.id) === String(missionId)}>{mission.name}</option>
           {/each}
@@ -787,22 +792,22 @@
       </div>
 
       <div class="flex flex-col gap-1">
-        <label for="search-input" class="text-[12px] font-medium text-[#6b6b6b]" style="letter-spacing: 0.24px;">Search</label>
+        <label for="search-input" class="text-[12px] font-medium text-[#6b6b6b]" style="letter-spacing: 0.24px;">{m.expl_filter_search_label()}</label>
         <SearchBar
           id="search-input"
           bind:value={searchInput}
-          placeholder="name, 0x… · sort:newest"
+          placeholder={m.expl_search_placeholder()}
           debounceMs={300}
           onChange={onSearchChange}
           onClear={clearSearch}
-          helpTitle="Search syntax"
+          helpTitle={m.expl_search_help_title()}
         >
           {#snippet helpBody()}
             <p class="text-[12px] text-[#6b6b6b] mb-3 leading-snug">
-              Type a name or 0x address to filter by participant. Add a <code class="font-mono bg-[#f5f5f5] px-1 rounded">sort:</code> tag to change ordering.
+              {m.expl_search_help_intro_before()} <code class="font-mono bg-[#f5f5f5] px-1 rounded">sort:</code> {m.expl_search_help_intro_after()}
             </p>
             <ul class="space-y-1.5 text-[12px]">
-              {#each [['sort:newest', 'Newest first (default)'], ['sort:oldest', 'Oldest first'], ['sort:highest', 'Highest points first'], ['sort:lowest', 'Lowest points first']] as [tag, desc]}
+              {#each [['sort:newest', m.expl_sort_newest_desc()], ['sort:oldest', m.expl_sort_oldest_desc()], ['sort:highest', m.expl_sort_highest_desc()], ['sort:lowest', m.expl_sort_lowest_desc()]] as [tag, desc]}
                 <li class="flex items-start gap-2">
                   <code class="font-mono bg-[#f5f5f5] px-1.5 py-0.5 rounded text-black whitespace-nowrap">{tag}</code>
                   <span class="text-[#6b6b6b]">{desc}</span>
@@ -810,7 +815,7 @@
               {/each}
             </ul>
             <div class="mt-3 pt-3 border-t border-[#f0f0f0]">
-              <p class="text-[11px] text-[#999] mb-1">Examples</p>
+              <p class="text-[11px] text-[#999] mb-1">{m.expl_examples_label()}</p>
               {#each ['alice', 'sort:highest', 'sort:newest 0x1234'] as ex}
                 <div class="font-mono text-[11px] text-[#6b6b6b] bg-[#fafafa] rounded px-2 py-1 mb-1 last:mb-0">{ex}</div>
               {/each}
@@ -823,7 +828,7 @@
     <!-- View toggle + clear -->
     <div class="flex items-center justify-between flex-wrap gap-3 pt-1">
       <div class="inline-flex items-center bg-[#f8f8f8] rounded-[8px] p-1 border border-[#f0f0f0]">
-        {#each [{ id: 'both', label: 'Both' }, { id: 'highlights', label: 'Highlights only' }, { id: 'all', label: 'Contributions only' }] as opt}
+        {#each [{ id: 'both', label: m.expl_view_both() }, { id: 'highlights', label: m.expl_view_highlights_only() }, { id: 'all', label: m.expl_view_contributions_only() }] as opt}
           <button
             type="button"
             onclick={() => setView(opt.id)}
@@ -838,7 +843,7 @@
       </div>
       {#if hasActiveFilters}
         <button type="button" onclick={clearAllFilters} class="text-[13px] text-[#6b6b6b] hover:text-black transition-colors">
-          Clear filters
+          {m.common_clear_filters()}
         </button>
       {/if}
     </div>
@@ -848,19 +853,19 @@
       <div class="flex flex-wrap gap-2 pt-1">
         {#if typeId && activeTypeName}
           <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] bg-[#f8f8f8] border border-[#f0f0f0] text-black">
-            Type: {activeTypeName}
+            {m.expl_chip_type({ name: activeTypeName })}
             <button type="button" onclick={clearTypeFilter} class="text-[#6b6b6b] hover:text-black leading-none">×</button>
           </span>
         {/if}
         {#if missionId && activeMissionName}
           <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] bg-[#f8f8f8] border border-[#f0f0f0] text-black">
-            Mission: {activeMissionName}
+            {m.expl_chip_mission({ name: activeMissionName })}
             <button type="button" onclick={clearMissionFilter} class="text-[#6b6b6b] hover:text-black leading-none">×</button>
           </span>
         {/if}
         {#if participantQuery && !looksLikeAddress(participantQuery)}
           <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] bg-[#f8f8f8] border border-[#f0f0f0] text-black">
-            Search: {participantQuery}
+            {m.expl_chip_search({ query: participantQuery })}
             <button type="button" onclick={clearParticipantFilter} class="text-[#6b6b6b] hover:text-black leading-none">×</button>
           </span>
         {/if}
@@ -874,12 +879,12 @@
       {#if view === 'both' && (highlightsLoading || highlights.length > 0)}
         <div class="flex items-end justify-between gap-3">
           <div class="flex items-center gap-2">
-            <h2 class="text-[16px] font-semibold text-black" style="letter-spacing: -0.2px;">Highlights</h2>
+            <h2 class="text-[16px] font-semibold text-black" style="letter-spacing: -0.2px;">{m.expl_highlights_heading()}</h2>
             <span class="text-[12px] text-[#999]">· {highlightsCount}</span>
           </div>
           {#if viewAllHighlightsHref}
             <button type="button" onclick={() => push(viewAllHighlightsHref)} class="flex items-center gap-1 text-[13px] text-[#6b6b6b] hover:text-black transition-colors">
-              View all <img src="/assets/icons/arrow-right-line.svg" alt="" class="w-4 h-4" />
+              {m.common_view_all()} <img src="/assets/icons/arrow-right-line.svg" alt="" class="w-4 h-4" />
             </button>
           {/if}
         </div>
@@ -923,15 +928,15 @@
       {#if view === 'both'}
         <div class="flex items-center gap-3 pt-3">
           <div class="flex items-center gap-2 flex-shrink-0">
-            <h2 class="text-[16px] font-semibold text-black" style="letter-spacing: -0.2px;">Contributions</h2>
-            <span class="text-[12px] text-[#999]">· {contributionsLoading ? '…' : `${contributionsCount} total`}</span>
+            <h2 class="text-[16px] font-semibold text-black" style="letter-spacing: -0.2px;">{m.nav_contributions()}</h2>
+            <span class="text-[12px] text-[#999]">· {contributionsLoading ? '…' : m.expl_count_total({ count: contributionsCount })}</span>
           </div>
           <div class="flex-1 h-px bg-[#e6e6e6]"></div>
         </div>
       {:else}
         <div class="flex items-center gap-2">
-          <h2 class="text-[16px] font-semibold text-black" style="letter-spacing: -0.2px;">Contributions</h2>
-          <span class="text-[12px] text-[#999]">· {contributionsLoading ? '…' : `${contributionsCount} total`}</span>
+          <h2 class="text-[16px] font-semibold text-black" style="letter-spacing: -0.2px;">{m.nav_contributions()}</h2>
+          <span class="text-[12px] text-[#999]">· {contributionsLoading ? '…' : m.expl_count_total({ count: contributionsCount })}</span>
         </div>
       {/if}
 
@@ -978,13 +983,13 @@
           class="text-[40px] md:text-[56px] font-medium font-display leading-[1.1] text-black"
           style="letter-spacing: -1.12px;"
         >
-          Bring value to the ecosystem
+          {m.expl_cta_title()}
         </h2>
         <p
           class="text-[17px] text-black leading-[28px]"
           style="letter-spacing: 0.34px;"
         >
-          Submit a contribution and help shape the future of GenLayer. Every action counts toward the network's progress.
+          {m.expl_cta_desc()}
         </p>
         <button
           onclick={() => push('/submit-contribution')}
@@ -995,7 +1000,7 @@
             class="text-[14px] font-medium text-white leading-[21px]"
             style="letter-spacing: 0.28px;"
           >
-            Submit a contribution
+            {m.nav_submit_contribution()}
           </span>
           <img src="/assets/icons/arrow-right-line-white.svg" alt="" class="w-4 h-4" />
         </button>

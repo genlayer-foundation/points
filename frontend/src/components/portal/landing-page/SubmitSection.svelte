@@ -1,5 +1,9 @@
+<script>
+  import { m } from '../../../lib/paraglide/messages.js';
+</script>
+
 <div class="flex flex-col md:flex-row gap-[24px] items-center p-[20px] rounded-[8px]">
-  <!-- Left: code editor mockup -->
+  <!-- Left: code editor mockup (decorative screenshot — stays in English) -->
   <div class="flex-1 border border-[#f5f5f5] rounded-[8px] h-[400px] overflow-hidden relative flex items-center justify-center">
     <div class="relative w-[500px] h-[400px] flex-shrink-0 flex items-center justify-center">
       <!-- Dashed connector lines -->
@@ -57,23 +61,23 @@
   <!-- Right: text -->
   <div class="flex-1 flex flex-col gap-[24px] justify-center">
     <h2 class="text-[32px] font-medium font-display leading-[40px] text-black" style="letter-spacing: -0.64px;">
-      Submit contributions
+      {m.ss_title()}
     </h2>
     <p class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">
-      Every contribution is reviewed by stewards. Accepted work earns GenLayer Points. Quality matters, the 18.5% acceptance rate means your work stands out.
+      {m.ss_description()}
     </p>
     <div class="flex flex-col gap-[4px]">
       <div class="flex gap-[10px] items-center">
         <img src="/assets/icons/checkbox-circle-fill.svg" alt="" class="w-4 h-4 flex-shrink-0" />
-        <span class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">Repos verified through GitHub OAuth</span>
+        <span class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">{m.ss_bullet_github()}</span>
       </div>
       <div class="flex gap-[10px] items-center">
         <img src="/assets/icons/checkbox-circle-fill.svg" alt="" class="w-4 h-4 flex-shrink-0" />
-        <span class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">Validate subjective outcomes in Intelligent Contracts</span>
+        <span class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">{m.ss_bullet_validate()}</span>
       </div>
       <div class="flex gap-[10px] items-center">
         <img src="/assets/icons/checkbox-circle-fill.svg" alt="" class="w-4 h-4 flex-shrink-0" />
-        <span class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">Points awarded on acceptance</span>
+        <span class="text-[17px] text-black leading-[28px]" style="letter-spacing: 0.34px;">{m.ss_bullet_points()}</span>
       </div>
     </div>
   </div>
