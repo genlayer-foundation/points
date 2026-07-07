@@ -8,6 +8,32 @@ import {
   routeStructuredData,
   resolveRouteMeta,
 } from './routeMeta.js';
+import { m } from './paraglide/messages.js';
+import { getLocale, ogLocale } from './i18n.js';
+
+// Runtime locale overlay for route metadata. routeMeta.js itself stays plain
+// English strings because scripts/generate-og-pages.mjs imports it in Node at
+// build time; static OG pages are prerendered in English by design. Keyed by
+// canonical route path; add entries here as pages get translated.
+const LOCALIZED_ROUTE_META = {
+  '/': () => ({ description: m.meta_home_description() }),
+};
+
+function localizeRouteMeta(path, meta) {
+  const canonicalPath = canonicalUrl(path).slice(SITE_URL.length) || '/';
+  const overlay = LOCALIZED_ROUTE_META[canonicalPath];
+  return overlay ? { ...meta, ...overlay() } : meta;
+}
+
+function localizeStructuredData(data) {
+  if (!data || !Array.isArray(data['@graph'])) return data;
+  return {
+    ...data,
+    '@graph': data['@graph'].map((node) =>
+      'inLanguage' in node ? { ...node, inLanguage: getLocale() } : node
+    ),
+  };
+}
 
 function ensureMeta(selector, attrs) {
   let el = document.querySelector(selector);
@@ -106,7 +132,7 @@ export function setPageMeta({
   updateTag('meta[property="og:image:height"]', h, { property: 'og:image:height' });
   updateTag('meta[property="og:url"]', u, { property: 'og:url' });
   updateTag('meta[property="og:site_name"]', SITE_NAME, { property: 'og:site_name' });
-  updateTag('meta[property="og:locale"]', 'en_US', { property: 'og:locale' });
+  updateTag('meta[property="og:locale"]', ogLocale(), { property: 'og:locale' });
   updateTag('meta[name="twitter:card"]', 'summary_large_image', { name: 'twitter:card' });
   updateTag('meta[name="twitter:title"]', t, { name: 'twitter:title' });
   updateTag('meta[name="twitter:description"]', d, { name: 'twitter:description' });
@@ -116,12 +142,14 @@ export function setPageMeta({
 
   upsertJsonLd(
     'page',
-    structuredData || routeStructuredData({ title: t, description: d, url: u, image: img })
+    localizeStructuredData(
+      structuredData || routeStructuredData({ title: t, description: d, url: u, image: img })
+    )
   );
 }
 
 export function setRouteMeta(path) {
-  setPageMeta(resolveRouteMeta(path));
+  setPageMeta(localizeRouteMeta(path, resolveRouteMeta(path)));
 }
 
 export function resetPageMeta() {

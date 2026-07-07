@@ -9,6 +9,8 @@
   import { hasEarnedRole, journeyPath, rolePath } from '../lib/roleState.js';
   import { getAnalyticsContext, setConnectWalletIntent, trackEvent } from '../lib/analytics.js';
   import Avatar from './Avatar.svelte';
+  import LanguageSelector from './LanguageSelector.svelte';
+  import { m } from '../lib/paraglide/messages.js';
 
   let { isOpen = $bindable(false), collapsed = $bindable(false) } = $props();
   let stewardPermissionMap = $state({});
@@ -211,7 +213,7 @@
       onclick={() => (collapsed = !collapsed)}
       class="absolute z-10 hover:opacity-80 transition-opacity cursor-pointer"
       style="top: 28px; right: -10px;"
-      aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+      aria-label={collapsed ? m.sidebar_expand() : m.sidebar_collapse()}
     >
       {#if collapsed}
         <img src="/assets/icons/arrow-right-s-line-expand.svg" alt="" class="w-5 h-5">
@@ -231,7 +233,7 @@
           style={getActiveSection() === 'global' ? 'background: #eeedfb;' : ''}
           onmouseenter={(e) => { if (getActiveSection() !== 'global') { e.currentTarget.style.background = '#eeedfb'; e.currentTarget.querySelector('img').src = '/assets/icons/dashboard-fill.svg'; }}}
           onmouseleave={(e) => { if (getActiveSection() !== 'global') { e.currentTarget.style.background = ''; e.currentTarget.querySelector('img').src = '/assets/icons/dashboard-fill-black.svg'; }}}
-          title={collapsed ? 'Overview' : ''}
+          title={collapsed ? m.nav_overview() : ''}
         >
           {#if getActiveSection() === 'global'}
             <img src="/assets/icons/dashboard-fill.svg" alt="" class="w-4 h-4 flex-shrink-0">
@@ -239,7 +241,7 @@
             <img src="/assets/icons/dashboard-fill-black.svg" alt="" class="w-4 h-4 flex-shrink-0">
           {/if}
           {#if !collapsed}
-            <span>Overview</span>
+            <span>{m.nav_overview()}</span>
           {/if}
         </button>
 
@@ -253,7 +255,7 @@
                 isActive('/testnets') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
               }"
             >
-              Testnets
+              {m.nav_testnets()}
             </a>
             <a
               href="/metrics"
@@ -262,7 +264,7 @@
                 isActive('/metrics') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
               }"
             >
-              Metrics
+              {m.nav_metrics()}
             </a>
           </div>
         {/if}
@@ -271,7 +273,7 @@
       <!-- Contribute section header -->
       {#if !collapsed}
         <div class="pt-2 pb-1 px-3">
-          <span class="text-[12px] font-normal text-[#6b6b6b] tracking-[0.24px]">Contribute</span>
+          <span class="text-[12px] font-normal text-[#6b6b6b] tracking-[0.24px]">{m.nav_section_contribute()}</span>
         </div>
       {:else}
         <div class="border-t border-gray-100 my-2"></div>
@@ -285,7 +287,7 @@
           style={getActiveSection() === 'builder' ? 'background: #fef3e2;' : ''}
           onmouseenter={(e) => { if (getActiveSection() !== 'builder') { e.currentTarget.style.background = '#fef3e2'; e.currentTarget.querySelector('img').src = '/assets/icons/terminal-line-orange.svg'; }}}
           onmouseleave={(e) => { if (getActiveSection() !== 'builder') { e.currentTarget.style.background = ''; e.currentTarget.querySelector('img').src = '/assets/icons/terminal-line.svg'; }}}
-          title={collapsed ? 'Builders' : ''}
+          title={collapsed ? m.nav_builders() : ''}
         >
           {#if getActiveSection() === 'builder'}
             <img src="/assets/icons/terminal-line-orange.svg" alt="" class="w-4 h-4 flex-shrink-0">
@@ -293,7 +295,7 @@
             <img src="/assets/icons/terminal-line.svg" alt="" class="w-4 h-4 flex-shrink-0">
           {/if}
           {#if !collapsed}
-            <span>Builders</span>
+            <span>{m.nav_builders()}</span>
           {/if}
         </button>
 
@@ -305,9 +307,9 @@
               class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
                 isActive('/builders/contributions') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
               } {isRoleLocked('builder') ? 'text-gray-400' : 'text-black'}"
-              title={isRoleLocked('builder') ? 'Become a builder to unlock' : ''}
+              title={isRoleLocked('builder') ? m.locked_become_builder() : ''}
             >
-              <span>Contributions</span>
+              <span>{m.nav_contributions()}</span>
               {#if isRoleLocked('builder')}
                 <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               {/if}
@@ -319,7 +321,7 @@
                 isActive('/builders/leaderboard') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
               }"
             >
-              Leaderboard
+              {m.nav_leaderboard()}
             </a>
             <a
               href="/builders/resources"
@@ -328,7 +330,7 @@
                 isActive('/builders/resources') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
               }"
             >
-              Resources
+              {m.nav_resources()}
             </a>
           </div>
         {/if}
@@ -342,7 +344,7 @@
           style={getActiveSection() === 'validator' ? 'background: #e8f0fd;' : ''}
           onmouseenter={(e) => { if (getActiveSection() !== 'validator') { e.currentTarget.style.background = '#e8f0fd'; e.currentTarget.querySelector('img').src = '/assets/icons/folder-shield-line-blue.svg'; }}}
           onmouseleave={(e) => { if (getActiveSection() !== 'validator') { e.currentTarget.style.background = ''; e.currentTarget.querySelector('img').src = '/assets/icons/folder-shield-line.svg'; }}}
-          title={collapsed ? 'Validators' : ''}
+          title={collapsed ? m.nav_validators() : ''}
         >
           {#if getActiveSection() === 'validator'}
             <img src="/assets/icons/folder-shield-line-blue.svg" alt="" class="w-4 h-4 flex-shrink-0">
@@ -350,7 +352,7 @@
             <img src="/assets/icons/folder-shield-line.svg" alt="" class="w-4 h-4 flex-shrink-0">
           {/if}
           {#if !collapsed}
-            <span>Validators</span>
+            <span>{m.nav_validators()}</span>
           {/if}
         </button>
 
@@ -362,9 +364,9 @@
               class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
                 isActive('/validators/contributions') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
               } {isRoleLocked('validator') ? 'text-gray-400' : 'text-black'}"
-              title={isRoleLocked('validator') ? 'Become a validator to unlock' : ''}
+              title={isRoleLocked('validator') ? m.locked_become_validator() : ''}
             >
-              <span>Contributions</span>
+              <span>{m.nav_contributions()}</span>
               {#if isRoleLocked('validator')}
                 <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               {/if}
@@ -376,7 +378,7 @@
                 isActive('/validators/leaderboard') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
               }"
             >
-              Leaderboard
+              {m.nav_leaderboard()}
             </a>
             <a
               href="/validators/participants"
@@ -385,7 +387,7 @@
                 isActive('/validators/participants') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
               }"
             >
-              Participants
+              {m.nav_participants()}
             </a>
             <a
               href="/validators/wall-of-shame"
@@ -393,9 +395,9 @@
               class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
                 isActive('/validators/wall-of-shame') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
               } {isRoleLocked('validator') ? 'text-gray-400' : 'text-black'}"
-              title={isRoleLocked('validator') ? 'Become a validator to unlock' : ''}
+              title={isRoleLocked('validator') ? m.locked_become_validator() : ''}
             >
-              <span>Wall of Shame</span>
+              <span>{m.nav_wall_of_shame()}</span>
               {#if isRoleLocked('validator')}
                 <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               {/if}
@@ -412,7 +414,7 @@
           style={getActiveSection() === 'community' ? 'background: #f0eafb;' : ''}
           onmouseenter={(e) => { if (getActiveSection() !== 'community') { e.currentTarget.style.background = '#f0eafb'; e.currentTarget.querySelector('img').src = '/assets/icons/group-3-line-purple.svg'; }}}
           onmouseleave={(e) => { if (getActiveSection() !== 'community') { e.currentTarget.style.background = ''; e.currentTarget.querySelector('img').src = '/assets/icons/group-3-line.svg'; }}}
-          title={collapsed ? 'Community' : ''}
+          title={collapsed ? m.nav_community() : ''}
         >
           {#if getActiveSection() === 'community'}
             <img src="/assets/icons/group-3-line-purple.svg" alt="" class="w-4 h-4 flex-shrink-0">
@@ -420,7 +422,7 @@
             <img src="/assets/icons/group-3-line.svg" alt="" class="w-4 h-4 flex-shrink-0">
           {/if}
           {#if !collapsed}
-            <span>Community</span>
+            <span>{m.nav_community()}</span>
           {/if}
         </button>
 
@@ -432,9 +434,9 @@
               class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
                 isActive('/community/contributions') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
               } {isRoleLocked('community') ? 'text-gray-400' : 'text-black'}"
-              title={isRoleLocked('community') ? 'Join the community to unlock' : ''}
+              title={isRoleLocked('community') ? m.locked_join_community() : ''}
             >
-              <span>Contributions</span>
+              <span>{m.nav_contributions()}</span>
               {#if isRoleLocked('community')}
                 <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               {/if}
@@ -446,7 +448,7 @@
                 isActive('/community/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
               }"
             >
-              Leaderboard
+              {m.nav_leaderboard()}
             </a>
             <a
               href="/community/poaps"
@@ -454,9 +456,9 @@
               class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
                 isActive('/community/poaps') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
               } {isRoleLocked('community') ? 'text-gray-400' : 'text-black'}"
-              title={isRoleLocked('community') ? 'Join the community to unlock' : ''}
+              title={isRoleLocked('community') ? m.locked_join_community() : ''}
             >
-              <span>POAPs</span>
+              <span>{m.nav_poaps()}</span>
               {#if isRoleLocked('community')}
                 <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               {/if}
@@ -473,7 +475,7 @@
           style={getActiveSection() === 'steward' ? 'background: #e6f7ed;' : ''}
           onmouseenter={(e) => { if (getActiveSection() !== 'steward') { e.currentTarget.style.background = '#e6f7ed'; e.currentTarget.querySelector('img').src = '/assets/icons/seedling-line-green.svg'; }}}
           onmouseleave={(e) => { if (getActiveSection() !== 'steward') { e.currentTarget.style.background = ''; e.currentTarget.querySelector('img').src = '/assets/icons/seedling-line.svg'; }}}
-          title={collapsed ? 'Stewards' : ''}
+          title={collapsed ? m.nav_stewards() : ''}
         >
           {#if getActiveSection() === 'steward'}
             <img src="/assets/icons/seedling-line-green.svg" alt="" class="w-4 h-4 flex-shrink-0">
@@ -481,7 +483,7 @@
             <img src="/assets/icons/seedling-line.svg" alt="" class="w-4 h-4 flex-shrink-0">
           {/if}
           {#if !collapsed}
-            <span>Stewards</span>
+            <span>{m.nav_stewards()}</span>
           {/if}
         </button>
 
@@ -495,7 +497,7 @@
                 isActive('/stewards/submissions') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
               }"
             >
-              Contribution Submissions
+              {m.nav_contribution_submissions()}
             </a>
             {#if canAccessFeatureReviews}
               <a
@@ -505,7 +507,7 @@
                   isActive('/stewards/feature-reviews') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
                 }"
               >
-                Feature Scoring
+                {m.nav_feature_scoring()}
               </a>
             {/if}
             {#if canAccessDiscordXP}
@@ -516,7 +518,7 @@
                   isActive('/stewards/discord-xp') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
                 }"
               >
-                Discord XP
+                {m.nav_discord_xp()}
               </a>
             {/if}
           </div>
@@ -526,7 +528,7 @@
       <!-- Discover section header -->
       {#if !collapsed}
         <div class="pt-2 pb-1 px-3">
-          <span class="text-[12px] font-normal text-[#6b6b6b] tracking-[0.24px]">Discover</span>
+          <span class="text-[12px] font-normal text-[#6b6b6b] tracking-[0.24px]">{m.nav_section_discover()}</span>
         </div>
       {:else}
         <div class="border-t border-gray-100 my-2"></div>
@@ -538,7 +540,7 @@
           onclick={() => changeCategory('foundations', '/genesis')}
           class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-[14px] font-medium text-black tracking-[0.28px] {getActiveSection() === 'foundations' ? '' : 'hover:bg-[#eeedfb]'}"
           style={getActiveSection() === 'foundations' ? 'background: #eeedfb;' : ''}
-          title={collapsed ? 'Genesis' : ''}
+          title={collapsed ? m.nav_genesis() : ''}
         >
           <!-- GenLayer symbol (from /assets/gl-symbol-black.svg) -->
           <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 34.0294 32" fill={getActiveSection() === 'foundations' ? '#6D5DD3' : '#1a1a1a'}>
@@ -547,7 +549,7 @@
             <path d="M16.9311 15.2394L20.3041 21.9088L16.9311 23.5623L13.7392 21.9019L16.9311 15.2394Z" />
           </svg>
           {#if !collapsed}
-            <span>Genesis</span>
+            <span>{m.nav_genesis()}</span>
           {/if}
         </button>
       </div>
@@ -558,7 +560,7 @@
           onclick={() => changeCategory('partners', '/ecosystem-partners')}
           class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-[14px] font-medium text-black tracking-[0.28px] {getActiveSection() === 'partners' ? '' : 'hover:bg-[#eeedfb]'}"
           style={getActiveSection() === 'partners' ? 'background: #eeedfb;' : ''}
-          title={collapsed ? 'Ecosystem' : ''}
+          title={collapsed ? m.nav_ecosystem() : ''}
         >
           <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke={getActiveSection() === 'partners' ? '#6D5DD3' : '#1a1a1a'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="6" cy="6" r="2.5" />
@@ -569,7 +571,7 @@
             <line x1="16.6" y1="8.2" x2="13" y2="15.6" />
           </svg>
           {#if !collapsed}
-            <span>Ecosystem</span>
+            <span>{m.nav_ecosystem()}</span>
           {/if}
         </button>
       </div>
@@ -580,14 +582,14 @@
           onclick={() => changeCategory('gentv', '/gen-tv')}
           class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-[14px] font-medium text-black tracking-[0.28px] {getActiveSection() === 'gentv' ? '' : 'hover:bg-[#eeedfb]'}"
           style={getActiveSection() === 'gentv' ? 'background: #eeedfb;' : ''}
-          title={collapsed ? 'Gen TV' : ''}
+          title={collapsed ? m.nav_gen_tv() : ''}
         >
           <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke={getActiveSection() === 'gentv' ? '#6D5DD3' : '#1a1a1a'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="2" y="5" width="20" height="14" rx="2" />
             <polygon points="10,9 16,12 10,15" fill={getActiveSection() === 'gentv' ? '#6D5DD3' : '#1a1a1a'} />
           </svg>
           {#if !collapsed}
-            <span>Gen TV</span>
+            <span>{m.nav_gen_tv()}</span>
           {/if}
         </button>
       </div>
@@ -598,14 +600,14 @@
           onclick={() => changeCategory('gennews', '/gen-news')}
           class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-[14px] font-medium text-black tracking-[0.28px] {getActiveSection() === 'gennews' ? '' : 'hover:bg-[#eeedfb]'}"
           style={getActiveSection() === 'gennews' ? 'background: #eeedfb;' : ''}
-          title={collapsed ? 'GenNews' : ''}
+          title={collapsed ? m.nav_gen_news() : ''}
         >
           <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke={getActiveSection() === 'gennews' ? '#6D5DD3' : '#1a1a1a'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="m3 11 18-5v12L3 14v-3z" />
             <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
           </svg>
           {#if !collapsed}
-            <span>GenNews</span>
+            <span>{m.nav_gen_news()}</span>
           {/if}
         </button>
       </div>
@@ -624,13 +626,13 @@
         <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke={isActive('/how-it-works') ? '#6D5DD3' : '#656567'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
         </svg>
-        <span class="text-[14px] font-medium tracking-[0.28px] {isActive('/how-it-works') ? 'text-[#6D5DD3]' : 'text-[#656567]'}">How it works</span>
+        <span class="text-[14px] font-medium tracking-[0.28px] {isActive('/how-it-works') ? 'text-[#6D5DD3]' : 'text-[#656567]'}">{m.nav_how_it_works()}</span>
       </button>
     {:else}
       <button
         onclick={() => navigate('/how-it-works')}
         class="w-full flex px-3 py-2 rounded-[8px] transition-colors {isActive('/how-it-works') ? 'bg-[#eeedfb]' : 'hover:bg-[#f5f5f5]'}"
-        title="How it works"
+        title={m.nav_how_it_works()}
       >
         <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke={isActive('/how-it-works') ? '#6D5DD3' : '#656567'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
@@ -648,13 +650,13 @@
           <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="#656567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" />
           </svg>
-          <span class="text-[14px] font-medium text-[#656567] tracking-[0.28px]">My Submissions</span>
+          <span class="text-[14px] font-medium text-[#656567] tracking-[0.28px]">{m.nav_my_submissions()}</span>
         </button>
       {:else}
         <button
           onclick={() => navigate('/my-submissions')}
           class="w-full flex px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors"
-          title="My Submissions"
+          title={m.nav_my_submissions()}
         >
           <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="#656567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" />
@@ -667,7 +669,7 @@
     <button
       onclick={handleProfileClick}
       class="w-full flex items-center justify-between pl-2 pr-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors"
-      title={collapsed ? (displayName || 'Profile') : ''}
+      title={collapsed ? (displayName || m.nav_profile()) : ''}
     >
       <div class="flex items-center gap-2">
         {#if sidebarUser}
@@ -679,7 +681,7 @@
         {/if}
         {#if !collapsed}
           <span class="text-[14px] font-medium text-black tracking-[0.28px] truncate text-left">
-            {displayName || 'Connect wallet'}
+            {displayName || m.nav_connect_wallet()}
           </span>
         {/if}
       </div>
@@ -697,7 +699,7 @@
   onkeydown={(e) => e.key === 'Escape' && (isOpen = false)}
   role="button"
   tabindex="0"
-  aria-label="Close sidebar"
+  aria-label={m.sidebar_close()}
 ></div>
 
 <!-- Mobile Sidebar -->
@@ -716,7 +718,7 @@
         {:else}
           <img src="/assets/icons/dashboard-fill-black.svg" alt="" class="w-4 h-4 flex-shrink-0">
         {/if}
-        <span>Overview</span>
+        <span>{m.nav_overview()}</span>
       </button>
 
       {#if getActiveSection() === 'global'}
@@ -728,7 +730,7 @@
               isActive('/testnets') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
             }"
           >
-            Testnets
+            {m.nav_testnets()}
           </a>
           <a
             href="/metrics"
@@ -737,14 +739,14 @@
               isActive('/metrics') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
             }"
           >
-            Metrics
+            {m.nav_metrics()}
           </a>
         </div>
       {/if}
 
       <!-- Contribute header -->
       <div class="pt-2 pb-1 px-3">
-        <span class="text-[12px] font-normal text-[#6b6b6b] tracking-[0.24px]">Contribute</span>
+        <span class="text-[12px] font-normal text-[#6b6b6b] tracking-[0.24px]">{m.nav_section_contribute()}</span>
       </div>
 
       <!-- Builders -->
@@ -758,7 +760,7 @@
         {:else}
           <img src="/assets/icons/terminal-line.svg" alt="" class="w-4 h-4 flex-shrink-0">
         {/if}
-        <span>Builders</span>
+        <span>{m.nav_builders()}</span>
       </button>
 
       {#if getActiveSection() === 'builder' && $authState.isAuthenticated}
@@ -769,9 +771,9 @@
             class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
               isActive('/builders/contributions') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
             } {isRoleLocked('builder') ? 'text-gray-400' : 'text-black'}"
-            title={isRoleLocked('builder') ? 'Become a builder to unlock' : ''}
+            title={isRoleLocked('builder') ? m.locked_become_builder() : ''}
           >
-            <span>Contributions</span>
+            <span>{m.nav_contributions()}</span>
             {#if isRoleLocked('builder')}
               <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             {/if}
@@ -783,7 +785,7 @@
               isActive('/builders/leaderboard') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
             }"
           >
-            Leaderboard
+            {m.nav_leaderboard()}
           </a>
           <a
             href="/builders/resources"
@@ -792,7 +794,7 @@
               isActive('/builders/resources') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
             }"
           >
-            Resources
+            {m.nav_resources()}
           </a>
         </div>
       {/if}
@@ -808,7 +810,7 @@
         {:else}
           <img src="/assets/icons/folder-shield-line.svg" alt="" class="w-4 h-4 flex-shrink-0">
         {/if}
-        <span>Validators</span>
+        <span>{m.nav_validators()}</span>
       </button>
 
       {#if getActiveSection() === 'validator' && $authState.isAuthenticated}
@@ -819,9 +821,9 @@
             class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
               isActive('/validators/contributions') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
             } {isRoleLocked('validator') ? 'text-gray-400' : 'text-black'}"
-            title={isRoleLocked('validator') ? 'Become a validator to unlock' : ''}
+            title={isRoleLocked('validator') ? m.locked_become_validator() : ''}
           >
-            <span>Contributions</span>
+            <span>{m.nav_contributions()}</span>
             {#if isRoleLocked('validator')}
               <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             {/if}
@@ -833,7 +835,7 @@
               isActive('/validators/leaderboard') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
             }"
           >
-            Leaderboard
+            {m.nav_leaderboard()}
           </a>
           <a
             href="/validators/participants"
@@ -842,7 +844,7 @@
               isActive('/validators/participants') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
             }"
           >
-            Participants
+            {m.nav_participants()}
           </a>
           <a
             href="/validators/wall-of-shame"
@@ -850,9 +852,9 @@
             class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
               isActive('/validators/wall-of-shame') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
             } {isRoleLocked('validator') ? 'text-gray-400' : 'text-black'}"
-            title={isRoleLocked('validator') ? 'Become a validator to unlock' : ''}
+            title={isRoleLocked('validator') ? m.locked_become_validator() : ''}
           >
-            <span>Wall of Shame</span>
+            <span>{m.nav_wall_of_shame()}</span>
             {#if isRoleLocked('validator')}
               <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             {/if}
@@ -871,7 +873,7 @@
         {:else}
           <img src="/assets/icons/group-3-line.svg" alt="" class="w-4 h-4 flex-shrink-0">
         {/if}
-        <span>Community</span>
+        <span>{m.nav_community()}</span>
       </button>
 
       {#if getActiveSection() === 'community' && $authState.isAuthenticated}
@@ -882,9 +884,9 @@
             class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
               isActive('/community/contributions') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
             } {isRoleLocked('community') ? 'text-gray-400' : 'text-black'}"
-            title={isRoleLocked('community') ? 'Join the community to unlock' : ''}
+            title={isRoleLocked('community') ? m.locked_join_community() : ''}
           >
-            <span>Contributions</span>
+            <span>{m.nav_contributions()}</span>
             {#if isRoleLocked('community')}
               <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             {/if}
@@ -896,7 +898,7 @@
               isActive('/community/leaderboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
             }"
           >
-            Leaderboard
+            {m.nav_leaderboard()}
           </a>
           <a
             href="/community/poaps"
@@ -904,9 +906,9 @@
             class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
               isActive('/community/poaps') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
             } {isRoleLocked('community') ? 'text-gray-400' : 'text-black'}"
-            title={isRoleLocked('community') ? 'Join the community to unlock' : ''}
+            title={isRoleLocked('community') ? m.locked_join_community() : ''}
           >
-            <span>POAPs</span>
+            <span>{m.nav_poaps()}</span>
             {#if isRoleLocked('community')}
               <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             {/if}
@@ -925,7 +927,7 @@
         {:else}
           <img src="/assets/icons/seedling-line.svg" alt="" class="w-4 h-4 flex-shrink-0">
         {/if}
-        <span>Stewards</span>
+        <span>{m.nav_stewards()}</span>
       </button>
 
       {#if getActiveSection() === 'steward' && $userStore.user?.steward}
@@ -937,7 +939,7 @@
               isActive('/stewards/submissions') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
             }"
           >
-            Contribution Submissions
+            {m.nav_contribution_submissions()}
           </a>
           {#if canAccessFeatureReviews}
               <a
@@ -947,7 +949,7 @@
                   isActive('/stewards/feature-reviews') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
               }"
             >
-              Feature Scoring
+              {m.nav_feature_scoring()}
             </a>
           {/if}
           {#if canAccessDiscordXP}
@@ -958,7 +960,7 @@
                 isActive('/stewards/discord-xp') ? 'border-[#19A663]' : 'border-[#f5f5f5]'
               }"
             >
-              Discord XP
+              {m.nav_discord_xp()}
             </a>
           {/if}
         </div>
@@ -966,7 +968,7 @@
 
       <!-- Discover header (mobile) -->
       <div class="pt-2 pb-1 px-3">
-        <span class="text-[12px] font-normal text-[#6b6b6b] tracking-[0.24px]">Discover</span>
+        <span class="text-[12px] font-normal text-[#6b6b6b] tracking-[0.24px]">{m.nav_section_discover()}</span>
       </div>
 
       <!-- Genesis (mobile) -->
@@ -981,7 +983,7 @@
           <path d="M18.6229 11.2607L24.3803 23.3639L18.9605 26.072L34.0294 32L18.6229 0V11.2607Z" />
           <path d="M16.9311 15.2394L20.3041 21.9088L16.9311 23.5623L13.7392 21.9019L16.9311 15.2394Z" />
         </svg>
-        <span>Genesis</span>
+        <span>{m.nav_genesis()}</span>
       </button>
 
       <!-- Ecosystem (mobile) -->
@@ -998,7 +1000,7 @@
           <line x1="7.4" y1="8.2" x2="11" y2="15.6" />
           <line x1="16.6" y1="8.2" x2="13" y2="15.6" />
         </svg>
-        <span>Ecosystem</span>
+        <span>{m.nav_ecosystem()}</span>
       </button>
 
       <!-- Gen TV (mobile) -->
@@ -1011,7 +1013,7 @@
           <rect x="2" y="5" width="20" height="14" rx="2" />
           <polygon points="10,9 16,12 10,15" fill={getActiveSection() === 'gentv' ? '#6D5DD3' : '#1a1a1a'} />
         </svg>
-        <span>Gen TV</span>
+        <span>{m.nav_gen_tv()}</span>
       </button>
 
       <!-- GenNews (mobile) -->
@@ -1024,7 +1026,7 @@
           <path d="m3 11 18-5v12L3 14v-3z" />
           <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
         </svg>
-        <span>GenNews</span>
+        <span>{m.nav_gen_news()}</span>
       </button>
 
     </nav>
@@ -1032,6 +1034,9 @@
 
   <!-- Bottom pinned area (mobile) -->
   <div class="flex-shrink-0 p-3 space-y-2">
+    <div class="flex px-1">
+      <LanguageSelector />
+    </div>
     <button
       onclick={() => navigate('/how-it-works')}
       class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-left {isActive('/how-it-works') ? 'bg-[#eeedfb]' : 'hover:bg-[#f5f5f5]'}"
@@ -1039,7 +1044,7 @@
       <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke={isActive('/how-it-works') ? '#6D5DD3' : '#656567'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
       </svg>
-      <span class="text-[14px] font-medium tracking-[0.28px] {isActive('/how-it-works') ? 'text-[#6D5DD3]' : 'text-[#656567]'}">How it works</span>
+      <span class="text-[14px] font-medium tracking-[0.28px] {isActive('/how-it-works') ? 'text-[#6D5DD3]' : 'text-[#656567]'}">{m.nav_how_it_works()}</span>
     </button>
     {#if $authState.isAuthenticated}
       <button
@@ -1049,7 +1054,7 @@
         <svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="#656567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" />
         </svg>
-        <span class="text-[14px] font-medium text-[#656567] tracking-[0.28px]">My Submissions</span>
+        <span class="text-[14px] font-medium text-[#656567] tracking-[0.28px]">{m.nav_my_submissions()}</span>
       </button>
     {/if}
     <button
@@ -1065,7 +1070,7 @@
           </div>
         {/if}
         <span class="text-[14px] font-medium text-black tracking-[0.28px] truncate text-left">
-          {displayName || 'Connect wallet'}
+          {displayName || m.nav_connect_wallet()}
         </span>
       </div>
       <img src="/assets/icons/arrow-right-s-line.svg" alt="" class="w-4 h-4 flex-shrink-0">

@@ -1,0 +1,4 @@
+# Compiled Paraglide i18n output (generated from messages/*.json by the Vite plugin)
+src/lib/paraglide/
+# inlang plugin module cache
+project.inlang/cache/

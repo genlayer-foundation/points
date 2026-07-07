@@ -1,12 +1,22 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import { fileURLToPath, URL } from 'node:url';
 
 const local = (p) => fileURLToPath(new URL(p, import.meta.url));
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [svelte()],
+  plugins: [
+    svelte(),
+    // Compiles messages/*.json into src/lib/paraglide (gitignored).
+    // Locale resolution: saved choice → browser language → English.
+    paraglideVitePlugin({
+      project: './project.inlang',
+      outdir: './src/lib/paraglide',
+      strategy: ['localStorage', 'preferredLanguage', 'baseLocale'],
+    }),
+  ],
   server: {
     proxy: {
       '/api': {

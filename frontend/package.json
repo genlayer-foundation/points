@@ -31,6 +31,7 @@
     "ws": "8.21.0"
   },
   "devDependencies": {
+    "@inlang/paraglide-js": "^2.20.2",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@testing-library/svelte": "^5.3.1",
     "@tsconfig/svelte": "^5.0.4",

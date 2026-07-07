@@ -5,6 +5,9 @@
   import SearchBar from './SearchBar.svelte';
   import NotificationCenter from './NotificationCenter.svelte';
   import WhatsNewTrigger from './WhatsNewTrigger.svelte';
+  import LanguageSelector from './LanguageSelector.svelte';
+  import { m } from '../lib/paraglide/messages.js';
+  import { formatCompactNumber } from '../lib/i18n.js';
   import { authState } from '../lib/auth.js';
   import { currentCategory } from '../stores/category.js';
   import { metricsAPI } from '../lib/api.js';
@@ -29,25 +32,6 @@
     { key: 'telegram', label: 'Telegram', href: 'https://t.me/genlayer', icon: 'telegram', color: '#2aabee' },
     { key: 'github', label: 'GitHub', href: `https://github.com/${BOILERPLATE_REPO}`, icon: 'github', color: '#6e7781' },
   ];
-
-  function formatCompactNumber(value) {
-    if (value == null || value === '') return null;
-    const n = Number(value);
-    if (!Number.isFinite(n)) return null;
-
-    const compact = (scaled) => {
-      const maximumFractionDigits = Number.isInteger(scaled) ? 0 : 1;
-      return scaled.toLocaleString(undefined, {
-        maximumFractionDigits,
-        minimumFractionDigits: 0,
-      });
-    };
-
-    const abs = Math.abs(n);
-    if (abs >= 1000000) return `${compact(n / 1000000)}M`;
-    if (abs >= 1000) return `${compact(n / 1000)}K`;
-    return Math.round(n).toLocaleString();
-  }
 
   let visibleSocialLinks = $derived(
     socialLinks
@@ -174,6 +158,7 @@
 
     <!-- Right: Actions -->
     <div class="hidden md:flex items-center gap-2">
+      <LanguageSelector />
       <WhatsNewTrigger />
       <NotificationCenter />
       <SearchBar />
@@ -183,7 +168,7 @@
           class={submitButtonBaseClass}
           style={submitButtonStyle}
         >
-          <span>Submit a contribution</span>
+          <span>{m.nav_submit_contribution()}</span>
           <img src="/assets/icons/add-line.svg" alt="" class="w-4 h-4">
         </button>
       {/if}
@@ -202,7 +187,7 @@
           }
         }}
         class="mobile-menu-button p-2 rounded-md text-gray-700 hover:bg-gray-100 relative"
-        aria-label="{sidebarOpen ? 'Close' : 'Open'} menu"
+        aria-label={sidebarOpen ? m.menu_close() : m.menu_open()}
       >
         <div class="mobile-menu-icon h-6 w-6 relative flex items-center justify-center">
           <!-- Top line -->

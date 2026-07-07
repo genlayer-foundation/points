@@ -14,6 +14,7 @@
     trackEvent,
   } from '../lib/analytics.js';
   import WalletSelector from './WalletSelector.svelte';
+  import { m } from '../lib/paraglide/messages.js';
 
   // Use $: to access the store values reactively
   $: isAuthenticated = $authState.isAuthenticated;
@@ -210,8 +211,8 @@
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
       </svg>
     {:else}
-      <span class="auth-label-full">Connect Wallet</span>
-      <span class="auth-label-mobile">Connect</span>
+      <span class="auth-label-full">{m.auth_connect_wallet()}</span>
+      <span class="auth-label-mobile">{m.auth_connect()}</span>
     {/if}
   </button>
   
@@ -224,19 +225,19 @@
         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
         </svg>
-        View Public Profile
+        {m.auth_view_public_profile()}
       </button>
       <button class="dropdown-item" on:click={navigateToEditProfile}>
         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
         </svg>
-        Edit Profile
+        {m.auth_edit_profile()}
       </button>
       <button class="dropdown-item logout" on:click={handleLogout}>
         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
         </svg>
-        Disconnect
+        {m.auth_disconnect()}
       </button>
     </div>
   {/if}
