@@ -209,7 +209,7 @@ class PartnerAPITest(TestCase):
         self.assertNotIn('inactive', slugs)    # inactive everywhere
         self.assertNotIn('missing-overview-logo', slugs)  # selected but unusable for marquee
         # Without the flag, an overview-hidden-but-active partner is still listed.
-        no_flag = self.client.get('/api/v1/partners/?page_size=100')
+        no_flag = self.client.get('/api/v1/partners/?page_size=50')
         no_flag_data = no_flag.json()
         no_flag_results = no_flag_data['results'] if isinstance(no_flag_data, dict) and 'results' in no_flag_data else no_flag_data
         no_flag_slugs = {p['slug'] for p in no_flag_results}

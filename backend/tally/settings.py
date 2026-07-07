@@ -215,6 +215,9 @@ REST_FRAMEWORK = {
         # Public profile/search surfaces: allow normal browsing, bound scraping
         'public_user_search': '30/minute',
         'public_user_profile': '60/minute',
+        # Anonymous-only (see LeaderboardViewSet.get_throttles); payloads are
+        # already address-truncated, this just slows bulk scraping.
+        'public_leaderboard': '300/minute',
         # Wallet linking is a one-time action per validator
         'wallet_link': '10/hour',
         'pending_email_start': '10/hour',

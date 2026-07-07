@@ -74,8 +74,10 @@
   }
 
   function navigateToUser(entry) {
-    const addr = getAddress(entry);
-    if (addr) push(`/participant/${addr}`);
+    // Prefer the user id: API addresses are truncated and can't be looked up.
+    const ud = entry.user_details || {};
+    const key = entry.user_id ?? ud.id ?? entry.user ?? getAddress(entry);
+    if (key) push(`/participant/${key}`);
   }
 </script>
 

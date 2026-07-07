@@ -62,8 +62,8 @@
 
   async function loadContributionTypes() {
     try {
-      const response = await contributionsAPI.getContributionTypes({ page_size: 100, category: 'community' });
-      contributionTypes = response.data.results || response.data || [];
+      const response = await contributionsAPI.getAllContributionTypes({ category: 'community' });
+      contributionTypes = response.data || [];
     } catch (err) {
       contributionTypes = [];
     }
@@ -382,7 +382,7 @@
           {currentPage}
           totalItems={totalCount}
           itemsPerPage={pageSize}
-          pageSizeOptions={[10, 25, 50, 100]}
+          pageSizeOptions={[10, 25, 50]}
           showPageSize={true}
           on:pageChange={handlePageChange}
           on:pageSizeChange={handlePageSizeChange}
@@ -468,7 +468,7 @@
           {currentPage}
           totalItems={totalCount}
           itemsPerPage={pageSize}
-          pageSizeOptions={[10, 25, 50, 100]}
+          pageSizeOptions={[10, 25, 50]}
           showPageSize={true}
           on:pageChange={handlePageChange}
           on:pageSizeChange={handlePageSizeChange}

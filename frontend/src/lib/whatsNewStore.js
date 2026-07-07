@@ -7,6 +7,7 @@ function createWhatsNewStore() {
     visible: false,
     unseenCount: 0,
   });
+  let refreshPromise = null;
 
   async function loadUnseen() {
     const response = await whatsNewAPI.list();
@@ -21,10 +22,22 @@ function createWhatsNewStore() {
   }
 
   async function refresh() {
-    const response = await whatsNewAPI.unseenCount();
-    const count = response.data?.count || 0;
-    update((state) => ({ ...state, unseenCount: count }));
-    return count;
+    if (refreshPromise) {
+      return refreshPromise;
+    }
+
+    refreshPromise = (async () => {
+      try {
+        const response = await whatsNewAPI.unseenCount();
+        const count = response.data?.count || 0;
+        update((state) => ({ ...state, unseenCount: count }));
+        return count;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+
+    return refreshPromise;
   }
 
   async function markSeen(ids, action = 'seen') {

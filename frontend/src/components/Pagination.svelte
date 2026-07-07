@@ -5,7 +5,9 @@
     currentPage = 1, 
     totalItems = 0, 
     itemsPerPage = 10,
-    pageSizeOptions = [10, 25, 50, 100],
+    // ponytail: options stop at the server-side max_page_size (50); a larger option
+    // silently clamps while totalPages is computed from the requested size.
+    pageSizeOptions = [10, 25, 50],
     showPageSize = true,
     className = ''
   } = $props();

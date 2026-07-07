@@ -218,8 +218,9 @@
   }
 
   function openParticipant(participant) {
-    if (participant?.address) {
-      push(`/participant/${participant.address}`);
+    const key = participant?.id ?? participant?.address;
+    if (key) {
+      push(`/participant/${key}`);
     }
   }
 

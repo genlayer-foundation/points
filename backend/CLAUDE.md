@@ -576,6 +576,18 @@ sessions: they authenticate per request with a service account bearer token
 `HasServiceAccountScope`. See the "Service Accounts" section above.
 
 ## Key Patterns
+- **Wallet address privacy** (`users/utils.py`): public API surfaces NEVER return a user's
+  full account address — serializers emit the truncated form via `truncate_address()`
+  (`0x1234...abcd`; full only for the owner via `/users/me/`+auth endpoints, staff, and
+  steward/admin serializers). Validator node wallet addresses and on-chain
+  `operator_address` are exempt (public chain data used by Grafana joins and explorer
+  links). Address SEARCH is exact-full-address only (`is_full_address()` gate) — never
+  `icontains`, which would be a char-by-char oracle against truncated payloads. User
+  lookups are dual-key via `user_lookup_kwargs()`: `/users/by-address/{key}/`,
+  `/users/{key}/`, poaps/leaderboard by-address endpoints, and `?user_address=` params
+  all accept a numeric user id OR a full address. Public leaderboard reads have an
+  anonymous-only `public_leaderboard` throttle scope. Tests:
+  `users/tests/test_address_privacy.py`.
 - All models inherit from `utils.models.BaseModel` (adds created_at, updated_at)
 - ViewSets use DRF's ModelViewSet for standard CRUD
 - Authentication uses Sign-In With Ethereum (SIWE)

@@ -1,7 +1,7 @@
 <script>
   import { onMount, onDestroy, tick } from 'svelte';
   import { Chart, registerables } from 'chart.js';
-  import api from '../lib/api.js';
+  import api, { contributionsAPI } from '../lib/api.js';
   import CategoryIcon from '../components/portal/CategoryIcon.svelte';
 
   Chart.register(...registerables);
@@ -298,9 +298,9 @@
 
       participantsData = participantsResponse.data.data || [];
 
-      const typesResponse = await api.get('/contribution-types/', { params: { page_size: 1000 } });
+      const typesResponse = await contributionsAPI.getAllContributionTypes();
       contributionTypes = normalizeContributionTypes(
-        typesResponse.data.results || typesResponse.data || []
+        typesResponse.data || []
       );
       await fetchSubmissionsData({ syncDates: true });
 

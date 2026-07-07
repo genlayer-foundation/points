@@ -42,6 +42,12 @@
     return entry.user_address || ud.address || entry.address;
   }
 
+  function getParticipantKey(entry) {
+    // Prefer the user id: API addresses are truncated and can't be looked up.
+    const ud = entry.user_details || {};
+    return entry.user_id ?? ud.id ?? entry.user ?? getAddress(entry);
+  }
+
   function formatPoints(pts) {
     if (pts == null) return '\u2014';
     if (pts >= 1000000) return (pts / 1000000).toFixed(1) + 'M';
@@ -53,8 +59,8 @@
     if (onRowClick) {
       onRowClick(entry);
     } else {
-      const addr = getAddress(entry);
-      if (addr) push(`/participant/${addr}`);
+      const key = getParticipantKey(entry);
+      if (key) push(`/participant/${key}`);
     }
   }
 </script>

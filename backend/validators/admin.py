@@ -1,10 +1,12 @@
 from django.contrib import admin
+from django.db.models import Count, IntegerField, OuterRef, Subquery, Value
+from django.db.models.functions import Coalesce
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
 from utils.admin_mixins import CloudinaryUploadMixin
 
-from .models import Validator, ValidatorWallet, ValidatorWalletStatusSnapshot
+from .models import Validator, ValidatorOperatorWallet, ValidatorWallet, ValidatorWalletStatusSnapshot
 
 
 class ValidatorWalletInline(admin.TabularInline):
@@ -17,6 +19,22 @@ class ValidatorWalletInline(admin.TabularInline):
     verbose_name = "Validator Wallet"
     verbose_name_plural = "Validator Wallets"
     ordering = ('network', '-status', '-created_at')
+
+
+class ValidatorOperatorWalletInline(admin.TabularInline):
+    model = ValidatorOperatorWallet
+    extra = 0
+    fields = ('address', 'wallet_count')
+    readonly_fields = ('wallet_count',)
+    verbose_name = "Operator Wallet"
+    verbose_name_plural = "Operator Wallets"
+    ordering = ('address',)
+
+    def wallet_count(self, obj):
+        if not obj.pk:
+            return '-'
+        return obj.matching_wallet_count()
+    wallet_count.short_description = 'Matching Wallets'
 
 
 class ValidatorInline(admin.StackedInline):
@@ -66,7 +84,7 @@ class ValidatorAdmin(admin.ModelAdmin):
     search_fields = ('user__email', 'user__name', 'node_version_asimov', 'node_version_bradbury')
     list_filter = ('created_at', 'updated_at')
     ordering = ('display_order', '-created_at')
-    inlines = [ValidatorWalletInline]
+    inlines = [ValidatorOperatorWalletInline, ValidatorWalletInline]
 
     fieldsets = (
         (None, {
@@ -82,6 +100,40 @@ class ValidatorAdmin(admin.ModelAdmin):
     def wallet_count(self, obj):
         return ValidatorWallet.objects.filter(operator=obj).count()
     wallet_count.short_description = 'Wallets'
+
+
+@admin.register(ValidatorOperatorWallet)
+class ValidatorOperatorWalletAdmin(admin.ModelAdmin):
+    list_display = ('address', 'validator', 'wallet_count', 'created_at')
+    list_filter = ('created_at',)
+    search_fields = ('address', 'validator__user__email', 'validator__user__name', 'validator__user__address')
+    raw_id_fields = ('validator',)
+    readonly_fields = ('created_at', 'updated_at')
+    ordering = ('address',)
+
+    def get_queryset(self, request):
+        wallet_counts = (
+            ValidatorWallet.objects
+            .filter(operator_address=OuterRef('address'))
+            .values('operator_address')
+            .annotate(count=Count('id'))
+            .values('count')
+        )
+        return super().get_queryset(request).annotate(
+            _matching_wallet_count=Coalesce(
+                Subquery(wallet_counts, output_field=IntegerField()),
+                Value(0),
+            )
+        )
+
+    def wallet_count(self, obj):
+        if not obj.pk:
+            return '-'
+        annotated_count = getattr(obj, '_matching_wallet_count', None)
+        if annotated_count is not None:
+            return annotated_count
+        return obj.matching_wallet_count()
+    wallet_count.short_description = 'Matching Wallets'
 
 
 @admin.register(ValidatorWallet)

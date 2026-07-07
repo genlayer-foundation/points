@@ -7,15 +7,15 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 
 from utils.throttling import WalletLinkRateThrottle
-from django.shortcuts import get_object_or_404
 from django.db.models import Min, Q, Count
 from django.db import IntegrityError, transaction
 from django.conf import settings
 from django.utils import timezone
 from django.core.cache import cache
-from .models import SyncLock, Validator, ValidatorWallet
+from .models import SyncLock, Validator, ValidatorOperatorWallet, ValidatorWallet
 from .serializers import (
     GrafanaValidatorSerializer,
+    ValidatorOperatorWalletSerializer,
     ValidatorWalletSerializer,
     WallOfShameSerializer,
     grafana_explorer_url,
@@ -28,6 +28,7 @@ from .version_status import compute_version_status
 from . import streaks as streaks_lib
 from users.models import User
 from users.serializers import ValidatorSerializer, UserSerializer
+from users.utils import truncate_address
 from contributions.models import Contribution, ContributionType
 
 logger = logging.getLogger(__name__)
@@ -178,7 +179,8 @@ class ValidatorViewSet(viewsets.ModelViewSet):
             else:
                 # Fallback to simple data if user not found
                 result.append({
-                    'address': validator['user__address'],
+                    'id': validator['user'],
+                    'address': truncate_address(validator['user__address']),
                     'name': validator['user__name'],
                     'validator': True,
                     'first_uptime_date': validator['first_uptime_date']
@@ -203,8 +205,13 @@ class ValidatorViewSet(viewsets.ModelViewSet):
         ).order_by('-created_at')
 
         serializer = ValidatorWalletSerializer(wallets, many=True)
+        operator_wallets = ValidatorOperatorWallet.objects.filter(
+            validator=request.user.validator
+        ).order_by('address')
+        operator_wallet_serializer = ValidatorOperatorWalletSerializer(operator_wallets, many=True)
         return Response({
             'wallets': serializer.data,
+            'operator_wallets': operator_wallet_serializer.data,
             'active_count': wallets.filter(status='active').count(),
             'total_count': wallets.count()
         })
@@ -213,83 +220,90 @@ class ValidatorViewSet(viewsets.ModelViewSet):
             throttle_classes=[WalletLinkRateThrottle])
     def link_by_operator(self, request):
         """
-        Link validator wallets to the current user by operator address.
-        Only available for validators who don't have any wallets linked yet.
+        First-come-first-served operator wallet claim.
 
-        NOTE: linking is first-come-first-served on a public operator address
-        and carries no cryptographic ownership proof; the throttle bounds
-        mass-claiming, and mistaken/abusive links are logged and reversible
-        by staff via the admin.
+        A validator profile can claim multiple operator wallets. Each operator
+        address can only be claimed by one validator profile.
         """
         user = request.user
-
-        # Verify user is a validator
         if not hasattr(user, 'validator'):
             return Response(
-                {'error': 'Only validators can link wallets'},
+                {'error': 'Only validators can link operator wallets'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        validator = user.validator
-
-        # Check user has no linked wallets
-        if ValidatorWallet.objects.filter(operator=validator).exists():
-            return Response(
-                {'error': 'You already have validator wallets linked'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
         operator_address = request.data.get('operator_address', '').strip().lower()
-
-        # Validate format (0x + 40 hex chars)
         if not re.match(r'^0x[a-fA-F0-9]{40}$', operator_address):
             return Response(
                 {'error': 'Invalid Ethereum address format'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Claim atomically: lock the matching wallet rows so two concurrent
-        # requests cannot both pass the "not linked yet" checks and link the
-        # same operator (or give one user two operators).
+        validator = user.validator
         with transaction.atomic():
+            existing_claim = (
+                ValidatorOperatorWallet.objects
+                .select_for_update()
+                .filter(address=operator_address)
+                .first()
+            )
+            if existing_claim and existing_claim.validator_id != validator.id:
+                return Response(
+                    {'error': 'This operator wallet is already linked to another validator'},
+                    status=status.HTTP_409_CONFLICT
+                )
+
             wallets = (
                 ValidatorWallet.objects
                 .select_for_update()
                 .filter(operator_address__iexact=operator_address)
             )
-
             if not wallets.exists():
                 return Response(
                     {'error': 'No validator wallets found for this operator address'},
                     status=status.HTTP_404_NOT_FOUND
                 )
 
-            # Re-check under the lock that the caller still has no wallets
-            if ValidatorWallet.objects.filter(operator=validator).exists():
+            conflicting_wallet = wallets.exclude(
+                Q(operator__isnull=True) | Q(operator=validator)
+            ).first()
+            if conflicting_wallet:
                 return Response(
-                    {'error': 'You already have validator wallets linked'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # Check if any wallet is already linked to another validator
-            already_linked = wallets.exclude(operator__isnull=True).first()
-            if already_linked:
-                return Response(
-                    {'error': 'This operator address is already linked to another validator'},
+                    {'error': 'A matching validator wallet is linked to another validator'},
                     status=status.HTTP_409_CONFLICT
                 )
 
-            # Link all wallets to this validator
-            count = wallets.update(operator=validator)
+            if existing_claim:
+                operator_wallet = existing_claim
+            else:
+                try:
+                    with transaction.atomic():
+                        operator_wallet = ValidatorOperatorWallet.objects.create(
+                            validator=validator,
+                            address=operator_address,
+                        )
+                except IntegrityError:
+                    operator_wallet = (
+                        ValidatorOperatorWallet.objects
+                        .select_for_update()
+                        .get(address=operator_address)
+                    )
+                    if operator_wallet.validator_id != validator.id:
+                        return Response(
+                            {'error': 'This operator wallet is already linked to another validator'},
+                            status=status.HTTP_409_CONFLICT
+                        )
+            wallets_linked = wallets.update(operator=validator)
 
         logger.info(
-            "Validator wallet link: user=%s (id=%s) claimed %s wallet(s) for operator %s",
-            user.address, user.id, count, operator_address,
+            "Validator operator wallet claimed: user=%s (id=%s) operator=%s wallets_linked=%s",
+            user.address, user.id, operator_address, wallets_linked,
         )
 
         return Response({
             'success': True,
-            'wallets_linked': count
+            'wallets_linked': wallets_linked,
+            'operator_wallet': ValidatorOperatorWalletSerializer(operator_wallet).data,
         })
 
 
@@ -466,11 +480,14 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
         login address differs from their operator address on the blockchain.
         Falls back to operator_address matching if no FK link exists.
         """
+        from users.utils import user_lookup_kwargs
+
         wallets = ValidatorWallet.objects.none()
 
-        # First, try to find wallets via the operator FK relationship
+        # First, try to find wallets via the operator FK relationship.
+        # Accepts a user id or a full account address.
         try:
-            user = User.objects.get(address__iexact=user_address)
+            user = User.objects.get(**user_lookup_kwargs(user_address))
             if hasattr(user, 'validator'):
                 wallets = ValidatorWallet.objects.filter(
                     operator=user.validator
@@ -691,7 +708,8 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
             return {
                 'id': user.id,
                 'name': user.name,
-                'address': user.address,
+                # Portal account address: public form is truncated (users.utils).
+                'address': truncate_address(user.address),
                 'profile_image_url': user.profile_image_url,
                 'visible': user.visible,
             }
@@ -991,8 +1009,9 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
         wallet linked on this network — either they never registered there or
         their wallet isn't linked to their portal account (the network factory's
         `getWalletsForOperator` is the definitive check); both cases are
-        outreach-worthy. `node` carries the account address purely as a unique
-        join key — by construction it matches no wallet or metric series.
+        outreach-worthy. `node` carries a synthetic `user-<id>` key purely as a
+        unique join key — by construction it matches no wallet or metric series
+        (account addresses are not exposed in full on public surfaces).
         """
         linked_user_ids = (
             ValidatorWallet.objects
@@ -1010,12 +1029,12 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
         explorer_url = grafana_explorer_url(network)
         rows = []
         for validator in graduated:
-            account = (validator.user.address or '').lower()
+            account = truncate_address((validator.user.address or '').lower())
             if not account:
                 continue
             rows.append({
                 'network': label,
-                'node': account,
+                'node': f'user-{validator.user_id}',
                 'name': validator.user.name or account,
                 'status': 'missing',
                 'operator': None,

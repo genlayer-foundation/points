@@ -152,12 +152,13 @@ vi.mock('../lib/api', () => {
     },
     contributionsAPI: {
       getContributions: vi.fn().mockResolvedValue(mockContributionsData),
-      getContribution: vi.fn().mockResolvedValue({ data: {} }),
-      getContributionsByUser: vi.fn().mockResolvedValue(mockContributionsData),
-      getContributionTypes: vi.fn().mockResolvedValue(mockContributionTypes),
-      getContributionTypeStatistics: vi.fn().mockResolvedValue({ data: {} }),
-      getContributionCount: vi.fn().mockResolvedValue({ data: { count: 50 } }),
-      getAllHighlights: vi.fn().mockResolvedValue({ data: [] })
+	      getContribution: vi.fn().mockResolvedValue({ data: {} }),
+	      getContributionsByUser: vi.fn().mockResolvedValue(mockContributionsData),
+	      getAllContributionTypes: vi.fn().mockResolvedValue({ data: mockContributionTypes.data.results }),
+	      getAllMissions: vi.fn().mockResolvedValue({ data: [] }),
+	      getContributionTypeStatistics: vi.fn().mockResolvedValue({ data: {} }),
+	      getContributionCount: vi.fn().mockResolvedValue({ data: { count: 50 } }),
+	      getAllHighlights: vi.fn().mockResolvedValue({ data: [] })
     },
     leaderboardAPI: {
       getLeaderboard: vi.fn().mockResolvedValue(mockLeaderboardData),
@@ -198,12 +199,16 @@ vi.mock('../lib/api', () => {
       updateProfile: vi.fn().mockResolvedValue({ data: mockProject }),
       uploadImage: vi.fn().mockResolvedValue({ data: { url: 'https://example.com/project-image.png' } }),
     },
-    featuredAPI: {
-      getFeatured: vi.fn().mockResolvedValue({ data: [] }),
-      getHero: vi.fn().mockResolvedValue({ data: [] }),
-      getCommunity: vi.fn().mockResolvedValue({ data: [] }),
-      getValidatorsStewards: vi.fn().mockResolvedValue({ data: [] })
-    },
+	    featuredAPI: {
+	      getFeatured: vi.fn().mockResolvedValue({ data: [] }),
+	      getHero: vi.fn().mockResolvedValue({ data: [] }),
+	      getCommunity: vi.fn().mockResolvedValue({ data: [] }),
+	      getValidatorsStewards: vi.fn().mockResolvedValue({ data: [] })
+	    },
+	    partnersAPI: {
+	      listAll: vi.fn().mockResolvedValue({ data: [] }),
+	      get: vi.fn().mockResolvedValue({ data: {} })
+	    },
     // Add convenience exports for the new functions
     getCurrentUser: vi.fn().mockResolvedValue(mockUserData.data),
     updateUserProfile: vi.fn().mockResolvedValue(mockUserData.data)

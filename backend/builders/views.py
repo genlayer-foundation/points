@@ -107,12 +107,14 @@ class BuilderViewSet(viewsets.ModelViewSet):
             .order_by('-created_at')[:limit]
         )
 
+        from users.utils import truncate_address
+
         # Build result with minimal user data
         result = []
         for builder in builders:
             result.append({
                 'id': builder.user.id,
-                'address': builder.user.address,
+                'address': truncate_address(builder.user.address),
                 'name': builder.user.name,
                 'profile_image_url': builder.user.profile_image_url,
                 'builder': True,

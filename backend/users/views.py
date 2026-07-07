@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404
 from django.conf import settings
 from django.db.models import Sum, Q
 from .models import BanAppeal, User
+from .utils import is_full_address, truncate_address, user_lookup_kwargs
 from .serializers import (
     BanAppealSerializer, UserSerializer,
     UserProfileUpdateSerializer, PublicUserListSerializer,
@@ -93,6 +94,9 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         through /users/me/ rather than through the public directory.
         """
         queryset = User.objects.all()
+        if getattr(self, 'action', None) == 'list':
+            queryset = queryset.select_related('validator', 'builder', 'steward', 'creator')
+
         request_user = self.request.user
 
         if request_user.is_authenticated and request_user.is_staff:
@@ -105,8 +109,8 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         Override to use case-insensitive address lookup and allow users to access 
         their own profile even if they're marked as not visible.
         """
-        lookup_value = self.kwargs[self.lookup_field]  # Gets address from URL
-        obj = get_object_or_404(User, address__iexact=lookup_value)  # Case-insensitive
+        lookup_value = self.kwargs[self.lookup_field]  # Gets address or id from URL
+        obj = get_object_or_404(User, **user_lookup_kwargs(lookup_value))
         
         if not self._can_view_user(obj):
             raise Http404
@@ -132,7 +136,7 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         """
         user = get_object_or_404(
             User.objects.select_related('validator', 'builder', 'steward', 'creator'),
-            address__iexact=address
+            **user_lookup_kwargs(address)
         )
 
         if not self._can_view_user(user):
@@ -153,7 +157,7 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         from contributions.models import ContributionHighlight, Category
         from contributions.serializers import ContributionHighlightSerializer
 
-        user = get_object_or_404(User, address__iexact=address)
+        user = get_object_or_404(User, **user_lookup_kwargs(address))
         if not self._can_view_user(user):
             raise Http404
 
@@ -1014,14 +1018,18 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         if len(query) < 2:
             return Response([])
 
+        # Address matching is exact-full-address only: responses carry
+        # truncated addresses, so a substring match would let anyone
+        # reconstruct a hidden address one character at a time.
         search_query = (
             Q(name__icontains=query) |
-            Q(address__icontains=query) |
             Q(twitter_handle__icontains=query) |
             Q(discord_handle__icontains=query) |
             Q(telegram_handle__icontains=query) |
             Q(githubconnection__platform_username__icontains=query)
         )
+        if is_full_address(query):
+            search_query = search_query | Q(address__iexact=query)
 
         users = User.objects.filter(search_query).filter(visible=True)[:10]
 
@@ -1029,7 +1037,7 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
             {
                 'id': user.id,
                 'name': user.name,
-                'address': user.address,
+                'address': truncate_address(user.address),
                 'profile_image_url': user.profile_image_url
             }
             for user in users

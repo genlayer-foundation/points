@@ -38,6 +38,11 @@ describe('roleState.roleFunnelState', () => {
 
   it('treats earned as higher priority than a started signal', () => {
     expect(roleFunnelState(true, { builder: {}, github_connection: {} }, 'builder')).toBe('earned');
+    expect(roleFunnelState(true, {
+      validator: {},
+      has_validator_welcome: true,
+      has_validator_waitlist: true,
+    }, 'validator')).toBe('earned');
   });
 });
 

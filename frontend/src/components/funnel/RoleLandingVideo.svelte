@@ -3,9 +3,7 @@
 
   let {
     variant = 'genlayer',
-    eyebrow = 'Portal Preview',
     title = 'GenLayer in motion',
-    description = 'Watch the network experience before starting your journey.',
     src = '/assets/landings/default-video-landings.mp4',
     poster = '/assets/landings/default-video-landings-poster.jpg',
   } = $props();
@@ -184,7 +182,7 @@
   bind:this={frameEl}
   style={rootStyle}
   role="group"
-  aria-labelledby={`landing-video-title-${variant}`}
+  aria-label={title}
   onpointerenter={revealControls}
   onpointermove={revealControls}
   onpointerleave={scheduleControlsHide}
@@ -211,15 +209,6 @@
   ></video>
 
   <div class="landing-video-sheen" aria-hidden="true"></div>
-
-  <div class="landing-video-copy">
-    <div class="landing-video-kicker">
-      <span aria-hidden="true"></span>
-      {eyebrow}
-    </div>
-    <h2 id={`landing-video-title-${variant}`}>{title}</h2>
-    <p>{description}</p>
-  </div>
 
   <button
     type="button"
@@ -346,71 +335,11 @@
   }
 
   .landing-video-sheen {
-    background:
-      linear-gradient(180deg, rgba(0, 0, 0, 0.1) 0%, transparent 34%, rgba(0, 0, 0, 0.76) 100%),
-      linear-gradient(90deg, rgba(0, 0, 0, 0.55) 0%, transparent 48%);
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.1) 0%, transparent 34%, rgba(0, 0, 0, 0.76) 100%);
     inset: 0;
     pointer-events: none;
     position: absolute;
     z-index: 1;
-  }
-
-  .landing-video-copy {
-    bottom: 78px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    left: 22px;
-    max-width: min(420px, calc(100% - 44px));
-    position: absolute;
-    transform: translateY(0);
-    transition:
-      opacity 190ms cubic-bezier(0.2, 0, 0, 1),
-      transform 190ms cubic-bezier(0.2, 0, 0, 1);
-    z-index: 2;
-  }
-
-  .landing-video.controls-hidden .landing-video-copy {
-    opacity: 0;
-    pointer-events: none;
-    transform: translateY(12px);
-  }
-
-  .landing-video-kicker {
-    align-items: center;
-    color: rgba(255, 255, 255, 0.8);
-    display: inline-flex;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    gap: 8px;
-    letter-spacing: 0.8px;
-    line-height: 16px;
-    text-transform: uppercase;
-  }
-
-  .landing-video-kicker span {
-    background: var(--player-accent);
-    border-radius: 999px;
-    box-shadow: 0 0 18px rgba(var(--player-accent-rgb), 0.85);
-    height: 8px;
-    width: 8px;
-  }
-
-  .landing-video-copy h2 {
-    color: #fff;
-    font-family: var(--font-display);
-    font-size: clamp(22px, 3vw, 34px);
-    font-weight: 500;
-    letter-spacing: 0;
-    line-height: 1;
-    margin: 0;
-  }
-
-  .landing-video-copy p {
-    color: rgba(255, 255, 255, 0.72);
-    font-size: 14px;
-    line-height: 20px;
-    margin: 0;
   }
 
   .landing-video-center {
@@ -558,16 +487,6 @@
   }
 
   @container (max-width: 460px) {
-    .landing-video-copy {
-      bottom: 68px;
-      gap: 6px;
-      max-width: calc(100% - 28px);
-    }
-
-    .landing-video-copy p {
-      display: none;
-    }
-
     .landing-video-center {
       height: 54px;
       width: 54px;
@@ -592,21 +511,6 @@
   }
 
   @container (max-width: 340px) {
-    .landing-video-copy {
-      bottom: 62px;
-      left: 12px;
-      max-width: calc(100% - 24px);
-    }
-
-    .landing-video-kicker {
-      font-size: 10px;
-      line-height: 14px;
-    }
-
-    .landing-video-copy h2 {
-      font-size: 20px;
-    }
-
     .landing-video-center {
       height: 48px;
       width: 48px;
@@ -620,12 +524,6 @@
     .control-button {
       height: 30px;
       width: 30px;
-    }
-  }
-
-  @media (max-width: 640px) {
-    .landing-video-copy {
-      left: 14px;
     }
   }
 </style>

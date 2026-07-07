@@ -249,8 +249,10 @@ describe('ProjectPageEditor', () => {
     await fireEvent.click(screen.getByRole('button', { name: /Project Participant/i }));
 
     await waitFor(() => {
+      // The editor prefers the user id as the lookup key (public payloads
+      // carry truncated addresses); the backend filter accepts either.
       expect(getContributionsMock).toHaveBeenCalledWith(
-        expect.objectContaining({ user_address: '0x0000000000000000000000000000000000000009' })
+        expect.objectContaining({ user_address: 9 })
       );
       expect(screen.getByLabelText('Search submissions')).toBeDefined();
     });

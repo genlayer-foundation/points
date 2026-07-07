@@ -138,7 +138,7 @@
               />
               <button 
                 class="{categoryColors.text} {categoryColors.hoverText} font-medium"
-                onclick={() => push(`/participant/${contribution.users[0].address || ''}`)}
+                onclick={() => push(`/participant/${contribution.users[0].id ?? contribution.users[0].address ?? ''}`)}
               >
                 {contribution.users[0].name || `${contribution.users[0].address?.slice(0, 6)}...${contribution.users[0].address?.slice(-4)}` || 'Anonymous'}
               </button>
@@ -166,7 +166,7 @@
             />
             <button 
               class="{categoryColors.text} {categoryColors.hoverText} font-medium"
-              onclick={() => push(`/participant/${contribution.user_details.address || ''}`)}
+              onclick={() => push(`/participant/${contribution.user_details.id ?? contribution.user_details.address ?? ''}`)}
             >
               {contribution.user_details.name || `${contribution.user_details.address?.slice(0, 6)}...${contribution.user_details.address?.slice(-4)}` || 'Anonymous'}
             </button>

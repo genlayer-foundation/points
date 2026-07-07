@@ -72,9 +72,10 @@
 
   // Handle click if clickable
   function handleClick() {
-    if (clickable && user?.address) {
+    const key = user?.id ?? user?.address;
+    if (clickable && key) {
       import("svelte-spa-router").then(({ push }) => {
-        push(`/participant/${user.address}`);
+        push(`/participant/${key}`);
       });
     }
   }

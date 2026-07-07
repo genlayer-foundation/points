@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.conf import settings
-from .models import ValidatorWallet, Validator
+from .models import ValidatorOperatorWallet, ValidatorWallet, Validator
+from users.utils import truncate_address
 
 
 def grafana_network_label(network):
@@ -46,7 +47,8 @@ class ValidatorWalletSerializer(serializers.ModelSerializer):
             return {
                 'id': user.id,
                 'name': user.name,
-                'address': user.address,
+                # Portal account address: public form is truncated (users.utils).
+                'address': truncate_address(user.address),
                 'profile_image_url': user.profile_image_url,
                 'visible': user.visible
             }
@@ -55,6 +57,48 @@ class ValidatorWalletSerializer(serializers.ModelSerializer):
     def get_explorer_url(self, obj):
         network_config = settings.TESTNET_NETWORKS.get(obj.network, {})
         return network_config.get('explorer_url', '')
+
+
+class ValidatorOperatorWalletSerializer(serializers.ModelSerializer):
+    """
+    Serializer for operator wallets claimed by a portal validator profile.
+    """
+    wallet_count = serializers.SerializerMethodField()
+    active_wallet_count = serializers.SerializerMethodField()
+    networks = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ValidatorOperatorWallet
+        fields = [
+            'id',
+            'address',
+            'wallet_count',
+            'active_wallet_count',
+            'networks',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = fields
+
+    def _wallet_rows(self, obj):
+        cache_name = '_matching_wallet_rows'
+        if not hasattr(obj, cache_name):
+            rows = list(
+                ValidatorWallet.objects
+                .filter(operator_address=obj.address)
+                .values('status', 'network')
+            )
+            setattr(obj, cache_name, rows)
+        return getattr(obj, cache_name)
+
+    def get_wallet_count(self, obj):
+        return len(self._wallet_rows(obj))
+
+    def get_active_wallet_count(self, obj):
+        return sum(1 for row in self._wallet_rows(obj) if row['status'] == 'active')
+
+    def get_networks(self, obj):
+        return sorted({row['network'] for row in self._wallet_rows(obj)})
 
 
 class GrafanaValidatorSerializer(serializers.ModelSerializer):
@@ -126,8 +170,9 @@ class GrafanaValidatorSerializer(serializers.ModelSerializer):
         return f"{addr[:6]}...{addr[-4:]}" if len(addr) > 10 else addr
 
     def get_account(self, obj):
+        # Identity display only — dashboards join on `node`, never on account.
         user = self._visible_user(obj)
-        return (user.address or '').lower() if user and user.address else None
+        return truncate_address((user.address or '').lower()) if user and user.address else None
 
     def get_account_name(self, obj):
         user = self._visible_user(obj)
@@ -196,7 +241,8 @@ class WallOfShameSerializer(serializers.ModelSerializer):
             return {
                 'id': user.id,
                 'name': user.name,
-                'address': user.address,
+                # Portal account address: public form is truncated (users.utils).
+                'address': truncate_address(user.address),
                 'profile_image_url': user.profile_image_url,
                 'visible': user.visible,
             }

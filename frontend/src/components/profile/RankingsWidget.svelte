@@ -6,6 +6,7 @@
         shouldShowRankingPreviewCta,
     } from "../../lib/profileRanking.js";
     import { showError, showWarning } from "../../lib/toastStore.js";
+    import { truncateAddress } from "../../lib/address.js";
     import Avatar from "../Avatar.svelte";
     import CategoryIcon from "../portal/CategoryIcon.svelte";
 
@@ -467,12 +468,19 @@
     }
 
     function isCurrentUser(row: any) {
+        // Compare ids when available: API addresses are truncated, while the
+        // viewed participant's own address may be full.
+        const rowId = row.user_id ?? row.user_details?.id ?? row.user;
+        if (rowId != null && participant?.id != null) {
+            return String(rowId) === String(participant.id);
+        }
         const addr =
             row.user_address || row.user_details?.address || row.address;
         return (
             addr &&
             participant?.address &&
-            addr.toLowerCase() === participant.address.toLowerCase()
+            truncateAddress(addr).toLowerCase() ===
+                truncateAddress(participant.address).toLowerCase()
         );
     }
 
@@ -695,12 +703,15 @@
                                 {:else}
                                     <button
                                         onclick={() => {
-                                            const addr =
-                                                row.user_address ||
-                                                row.user_details?.address ||
-                                                row.address;
-                                            if (addr)
-                                                push(`/participant/${addr}`);
+                                            const key =
+                                                row.user_id ??
+                                                row.user_details?.id ??
+                                                row.user ??
+                                                (row.user_address ||
+                                                    row.user_details?.address ||
+                                                    row.address);
+                                            if (key)
+                                                push(`/participant/${key}`);
                                         }}
                                         class="ranking-row flex items-center justify-between rounded-[10px] px-3 py-[10px] transition-colors min-w-0
                                         {isCurrentUser(row)

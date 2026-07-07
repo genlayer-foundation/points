@@ -68,8 +68,9 @@
     if (onCardClick) {
       onCardClick(entry);
     } else {
-      const addr = entry.user_address || entry.address;
-      if (addr) push(`/participant/${addr}`);
+      // Prefer the user id: API addresses are truncated and can't be looked up.
+      const key = entry.user_id ?? entry.user_details?.id ?? entry.id ?? (entry.user_address || entry.address);
+      if (key) push(`/participant/${key}`);
     }
   }
 </script>

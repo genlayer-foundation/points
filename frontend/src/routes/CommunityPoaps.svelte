@@ -20,7 +20,7 @@
   let loadingMore = $state(false);
   let latestPoapsRequestId = 0;
 
-  const PAGE_SIZE = 100;
+  const PAGE_SIZE = 48;
   const poapGradientStyle = getCategoryGradientStyle('community', '#7f52e1');
 
   /** @param {number} [nextPage] @param {boolean} [append] */

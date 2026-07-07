@@ -270,7 +270,9 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['user', 'contribution_type', 'mission']
-    search_fields = ['notes', 'user__name', 'user__address', 'contribution_type__name']
+    # No substring matching on user__address (see users.utils): address filtering
+    # goes through the exact-match ?user_address= param instead.
+    search_fields = ['notes', 'user__name', 'contribution_type__name']
     ordering_fields = ['contribution_date', 'created_at', 'points', 'frozen_global_points']
     ordering = ['-contribution_date']
     
@@ -296,7 +298,8 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         # Filter by user address if provided
         user_address = self.request.query_params.get('user_address')
         if user_address:
-            queryset = queryset.filter(user__address__iexact=user_address)
+            from users.utils import user_lookup_kwargs
+            queryset = queryset.filter(**user_lookup_kwargs(user_address, user_field='user'))
 
         # Filter by category if provided
         category = self.request.query_params.get('category')
@@ -3516,8 +3519,14 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.exclude(start_date__gt=timezone.now())
 
         # Filter by contribution type if specified
-        contribution_type = self.request.query_params.get('contribution_type', None)
-        if contribution_type:
+        contribution_type = self.request.query_params.get('contribution_type')
+        if contribution_type not in (None, ''):
+            try:
+                contribution_type = int(contribution_type)
+            except (TypeError, ValueError) as err:
+                raise serializers.ValidationError({
+                    'contribution_type': 'Must be a valid contribution type id.'
+                }) from err
             queryset = queryset.filter(contribution_type_id=contribution_type)
 
         # Filter by category if specified

@@ -28,11 +28,10 @@
   async function loadStewardNavigationPermissions() {
     try {
       await stewardPermissions.load();
-      const response = await contributionsAPI.getContributionTypes({
-        page_size: 100,
+      const response = await contributionsAPI.getAllContributionTypes({
         category: 'community',
       });
-      communityContributionTypes = response.data.results || response.data || [];
+      communityContributionTypes = response.data || [];
     } catch (err) {
       communityContributionTypes = [];
     }
@@ -91,6 +90,12 @@
     }));
   }
 
+  function closeMobileSidebar() {
+    if (window.innerWidth < 768) {
+      isOpen = false;
+    }
+  }
+
   function navigate(path, requiresAuth = false, options = {}) {
     if (options.track !== false) {
       trackSidebarNav(path, {
@@ -101,18 +106,28 @@
     if (requiresAuth && !$authState.isAuthenticated) {
       setConnectWalletIntent({
         surface: 'sidebar',
-        cta_id: 'protected_nav',
+        cta_id: options.ctaId || 'protected_nav',
         target_route: path,
       });
       sessionStorage.setItem('redirectAfterLogin', path);
       const authButton = document.querySelector('[data-auth-button]');
       if (authButton) authButton.click();
+      closeMobileSidebar();
       return;
     }
     push(path);
-    if (window.innerWidth < 768) {
-      isOpen = false;
-    }
+    closeMobileSidebar();
+  }
+
+  function handleSubmitContribution() {
+    trackEvent('submit_contribution_click', getAnalyticsContext({
+      surface: 'sidebar',
+    }));
+
+    navigate('/submit-contribution', true, {
+      ctaId: 'submit_contribution',
+      track: false,
+    });
   }
 
   // A signed-in user who has not earned this category's role: the role's
@@ -150,9 +165,7 @@
       const authButton = document.querySelector('[data-auth-button]');
       if (authButton) authButton.click();
     }
-    if (window.innerWidth < 768) {
-      isOpen = false;
-    }
+    closeMobileSidebar();
   }
 
   // Check if a route is active
@@ -181,9 +194,7 @@
     currentCategory.set(category);
     trackSidebarNav(path, { roleContext: roleContextForCategory(category) });
     push(path);
-    if (window.innerWidth < 768) {
-      isOpen = false;
-    }
+    closeMobileSidebar();
   }
 
   // Shorten address for display
@@ -1045,6 +1056,13 @@
       <span class="text-[14px] font-medium tracking-[0.28px] {isActive('/how-it-works') ? 'text-[#6D5DD3]' : 'text-[#656567]'}">How it works</span>
     </button>
     {#if $authState.isAuthenticated}
+      <button
+        onclick={handleSubmitContribution}
+        class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors text-left {isActive('/submit-contribution') ? 'bg-[#eeedfb]' : 'hover:bg-[#f5f5f5]'}"
+      >
+        <img src="/assets/icons/add-line-sidebar.svg" alt="" class="w-4 h-4 flex-shrink-0">
+        <span class="text-[14px] font-medium tracking-[0.28px] {isActive('/submit-contribution') ? 'text-[#6D5DD3]' : 'text-[#656567]'}">Submit Contribution</span>
+      </button>
       <button
         onclick={() => navigate('/my-submissions')}
         class="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] hover:bg-[#f5f5f5] transition-colors text-left"

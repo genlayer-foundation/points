@@ -319,6 +319,7 @@ The portal uses **history-based routing** (clean `/testnets` URLs, not hash `/#/
 - **Links:** plain `<a href="/path">` is SPA-navigated automatically by a global click interceptor (`installLinkInterceptor`, installed once in `App.svelte`); it skips modified/new-tab/external/file links and any anchor whose own handler already called `preventDefault()`. Never write `href="#/..."`.
 - **Deep links / refresh:** AWS Amplify (`amplify.yml` customRules) and the Vite dev server already serve `index.html` for unmatched paths — no server change needed.
 - **Back-compat:** a tiny boot script in `index.html` rewrites any incoming legacy `#/path` to `/path` before the app mounts, so old shared hash links still resolve.
+- **Guard error semantics (degraded backend):** "couldn't verify" is never treated as "not a member". `performVerification` (auth.js) only sets unauthenticated on a definitive <500 response — network/5xx keeps the current state and leaves `hasVerified` unset so it retries. `userStore.loadUser()` only clears `user` on 401/403; other failures keep the previously loaded user. `requireRoleForRoute` (App.svelte) fails OPEN when `/users/me/` fails with a non-auth error (the backend enforces real permissions on every API call). Journey pages (`CommunityJourney`, `BuilderJourney`) only auto-call the journey-start endpoint when a user object is actually loaded, so an outage can't fire a journey-start mutation for an existing member.
 - **Static OG:** `scripts/generate-og-pages.mjs` (post-build) writes `dist/<route>/index.html` per `STATIC_OG_ROUTES` with route-specific meta; with history routing a copied static-route URL hits that prerendered file directly. Dynamic detail pages (projects/POAPs/profiles) still serve the generic card to crawlers — a future backend-meta + edge-function task.
 
 ### Routes/Pages
@@ -431,8 +432,25 @@ const routes = {
 - **`/community/poaps/:slug`** - POAP detail page with lazy collector loading.
 - **`/claim/poap/:token`** - Mint-link claim route.
 
+#### Wallet Address Privacy (frontend rules)
+- The API returns **truncated** addresses (`0x1234...abcd`) for all OTHER users; a full
+  address exists client-side only for the logged-in user's own wallet (`authState.address`,
+  `/users/me/`). Existing `slice(0,6)+'...'+slice(-4)` display helpers are idempotent on
+  truncated values, so displays keep working.
+- **Link profiles by user id**: `/participant/${user.id ?? user.address}`. The route
+  accepts an id or a full address (old links and paste-to-verify still resolve).
+- No copy buttons or explorer links for other users' ACCOUNT addresses (ProfileHeader copy
+  is own-profile only). Validator node wallet addresses and on-chain `operator_address`
+  stay full — copy/explorer affordances on those are fine (Validators, WallOfShame).
+- Identity comparisons: compare user ids (or own full `authState.address` vs own profile,
+  which stays full for the owner) — never compare a full address against an API payload
+  address. Helpers in `src/lib/address.js` (`truncateAddress`, `isFullAddress`,
+  `participantPath`).
+- Participant search matches addresses only on an exact pasted full address; partial
+  address queries return nothing by design (anti-oracle). Name search is unchanged.
+
 #### Profile System
-- **`/participant/:address`** - Public participant profile (anyone can view)
+- **`/participant/:address`** - Public participant profile (anyone can view; the param accepts a user id or a full wallet address)
   - Component: `Profile.svelte`
   - Shows participant stats, contributions, validator status
   - Shows "Edit Profile" button if viewing own profile
@@ -452,7 +470,7 @@ const routes = {
   - `statsAPI` - Dashboard statistics
   - `journeyAPI` - Onboarding journeys (startBuilderJourney, startValidatorJourney, completeBuilderJourney, linkXAccount, linkDiscordAccount)
   - `creatorAPI` - Community/creator membership (joinAsCreator)
-  - `partnersAPI` - Ecosystem partners directory (`list`, `get(slug)`)
+  - `partnersAPI` - Ecosystem partners directory (`listAll`, `get(slug)`)
   - `genTvAPI` - Gen TV streams (`list`, `get(slug)`)
   - `poapsAPI` - POAP list/detail/claims, user POAPs, secret claims, mint-link claims, and recovery wallet verification
   - `validatorsAPI.getWallOfShame(params)` - Public Wall of Shame list for active validators with Grafana metrics/logs status badges (renders in `routes/WallOfShame.svelte`)
@@ -534,7 +552,7 @@ Investor-oriented home page (`routes/Overview.svelte`), top to bottom: hero → 
 - **`NetworkActivity.svelte`** - two-column section: LEFT `PortalStats`, RIGHT the network-activity panel (headline KPIs — decisions, chain TXs, DeFiLlama rank — + `DecisionsChart`). Fetches `metricsAPI.getNetworkActivity()`. (The old "Securing the network" validators panel was removed.)
 - **`PortalStats.svelte`** - "Portal contributors" panel: Builders / Validators / Community members / Contributions in a column, hexagon `CategoryIcon` style. Reads the **public** `metricsAPI.getOverview()` (`metrics.{builders,validators,community_members,contributions}.value`) — NOT `statsAPI.getDashboardStats()`, which is auth-only and would render blank for public visitors.
 - **`DecisionsChart.svelte`** - chart.js (already a dep) smooth multi-line area chart: decisions/day for Studio + asimov + bradbury over 7 days. IMPORTANT: chart.js mutates the arrays it receives, so de-proxy Svelte `$props` arrays before passing them to `new Chart` (else `state_descriptors_fixed`); the canvas is always mounted so `bind:this` is set before data arrives.
-- **`PartnerLogoBanner.svelte`** - logos-only infinite marquee in TWO rows (even indices one row, odd the other, opposite directions, each tripled for a seamless loop). Fetches `partnersAPI.list({ show_in_overview: true, page_size: 100 })` so admins curate which partners appear (Partner.show_in_overview). Logos are flattened to grey silhouettes on a light band.
+- **`PartnerLogoBanner.svelte`** - logos-only infinite marquee in TWO rows (even indices one row, odd the other, opposite directions, each tripled for a seamless loop). Fetches `partnersAPI.listAll({ show_in_overview: true })` so admins curate which partners appear (Partner.show_in_overview). Logos are flattened to grey silhouettes on a light band.
 - `metricsAPI` (`lib/api.js`): `getOverview()` (public; includes builders/validators/community_members/contributions counts + social + top_validators) and `getNetworkActivity()` (DB-snapshot-backed chart payload).
 
 #### Ecosystem Partners Components (`src/components/portal/partners/`)
@@ -890,6 +908,9 @@ $location // reactive store with current path
 
 ### Issue: State not reactive
 **Solution**: Use `$state()` for reactive variables
+
+### Issue: Absolutely-positioned dropdown gets clipped by a container
+**Solution**: `overflow-x: hidden` on an ancestor forces its computed `overflow-y` to `auto`, silently turning it into a scroll container that clips/scrolls absolutely-positioned descendants (this hid the Submit Contribution type dropdown on mobile). Use `overflow-x: clip` instead — it clips horizontal bleed without capturing vertical overflow. Also mind stacking: panels with `z-20` (e.g. the linked-project panel) paint over lower-z dropdowns in the same stacking context; dropdown menus use `z-[60]`.
 
 ## File Creation Guidelines
 - Pages go in `src/routes/`

@@ -416,6 +416,7 @@ export async function signInWithEthereum(provider = null, walletName = 'wallet',
 
 // Track verification promise to prevent duplicate calls
 let verificationInProgress = null;
+let refreshSessionPromise = null;
 
 /**
  * Verify authentication status - only once per session
@@ -471,8 +472,16 @@ async function performVerification() {
 
     return isAuthenticated;
   } catch (error) {
-    authState.setAuthenticated(false, null);
-    return false;
+    const status = error.response?.status;
+    if (status && status < 500) {
+      // Definitive rejection: the session is gone.
+      authState.setAuthenticated(false, null);
+      return false;
+    }
+    // Network error / 5xx: the backend couldn't answer, which says nothing
+    // about the session. Keep the current state (often restored from
+    // localStorage) and leave hasVerified unset so a later call retries.
+    return authState.get().isAuthenticated;
   }
 }
 
@@ -509,14 +518,24 @@ export async function logout() {
  * @returns {Promise<boolean>} Success status
  */
 export async function refreshSession() {
-  try {
-    await authAxios.post(API_ENDPOINTS.REFRESH);
-    return true;
-  } catch (error) {
-    // If refresh fails, verify auth state again
-    await verifyAuth();
-    return false;
+  if (refreshSessionPromise) {
+    return refreshSessionPromise;
   }
+
+  refreshSessionPromise = (async () => {
+    try {
+      await authAxios.post(API_ENDPOINTS.REFRESH);
+      return true;
+    } catch (error) {
+      // If refresh fails, verify auth state again
+      await verifyAuth();
+      return false;
+    } finally {
+      refreshSessionPromise = null;
+    }
+  })();
+
+  return refreshSessionPromise;
 }
 
 export async function startPendingSignupEmail(data) {
@@ -719,7 +738,7 @@ if (typeof window !== 'undefined') {
   // Set up periodic session refresh to keep user logged in
   setInterval(async () => {
     const state = authState.get();
-    if (state.isAuthenticated) {
+    if (state.isAuthenticated && document.hidden !== true) {
       try {
         await refreshSession();
       } catch (error) {
@@ -727,6 +746,14 @@ if (typeof window !== 'undefined') {
       }
     }
   }, 5 * 60 * 1000); // Refresh every 5 minutes
+
+  // The interval skips hidden tabs, so catch up as soon as the tab is visible
+  // again instead of waiting for the next tick.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && authState.get().isAuthenticated) {
+      refreshSession().catch(() => {});
+    }
+  });
 }
 
 export { authState };

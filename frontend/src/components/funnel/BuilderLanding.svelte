@@ -148,12 +148,7 @@
         <p class="cta-hint">{ctaHint}</p>
       </div>
     </div>
-    <RoleLandingVideo
-      variant="builder"
-      eyebrow="Builder Preview"
-      title="Contracts that reason"
-      description="A short look at the portal path from first action to intelligent contract launch."
-    />
+    <RoleLandingVideo variant="builder" title="Contracts that reason" />
   </section>
 
   <section class="capability-section" aria-labelledby="builder-capabilities-title">

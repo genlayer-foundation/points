@@ -102,7 +102,7 @@
       <button
         class="text-sm font-medium truncate hover:underline"
         style="color: #bbb;"
-        onclick={(e) => { e.stopPropagation(); if (user?.address) push(`/participant/${user.address}`); }}
+        onclick={(e) => { e.stopPropagation(); const key = user?.id ?? user?.address; if (key) push(`/participant/${key}`); }}
       >
         {user?.name || (user?.address ? `${user.address.slice(0, 6)}...` : 'Anonymous')}
       </button>

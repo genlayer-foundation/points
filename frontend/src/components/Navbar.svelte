@@ -124,7 +124,7 @@
   });
 </script>
 
-<header class="bg-white relative z-50" style="border-bottom: 1.2px solid #e5e5e6;">
+<header class="bg-white sticky top-0 z-50 flex-shrink-0" style="border-bottom: 1.2px solid #e5e5e6;">
   <div class="navbar-inner flex items-center justify-between p-3">
     <!-- Left: Logo -->
     <div class="navbar-logo-wrap flex items-center gap-1 px-1 min-w-0">

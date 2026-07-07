@@ -122,10 +122,18 @@ class StewardSubmissionPaginationTest(TestCase):
     
     def test_pagination_max_page_size(self):
         """Test that page_size is limited to max_page_size"""
+        for i in range(30):
+            SubmittedContribution.objects.create(
+                user=self.user,
+                contribution_type=self.contribution_type,
+                contribution_date=date.today(),
+                notes=f'Extra submission {i+1}',
+                state='pending'
+            )
+
         response = self.client.get('/api/v1/steward-submissions/?page_size=200')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
         data = response.json()
-        self.assertEqual(data['count'], 37)
-        # Should be limited to max_page_size (100)
-        self.assertEqual(len(data['results']), 37)  # All 37 items fit within max of 100
+        self.assertEqual(data['count'], 67)
+        self.assertEqual(len(data['results']), 50)

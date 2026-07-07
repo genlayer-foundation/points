@@ -503,10 +503,12 @@ class Mee6SyncTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         results = response.json()['results']
-        self.assertEqual(results[0]['user_address'], self.user.address)
+        # Public payloads carry truncated addresses (users.utils).
+        from users.utils import truncate_address
+        self.assertEqual(results[0]['user_address'], truncate_address(self.user.address))
         self.assertEqual(results[0]['total_points'], 5000)
         self.assertEqual(results[0]['discord_xp'], 5000)
-        self.assertEqual(results[1]['user_address'], other.address)
+        self.assertEqual(results[1]['user_address'], truncate_address(other.address))
         self.assertEqual(results[1]['total_points'], 3000)
         self.assertEqual(results[1]['pending_portal_points'], 3000)
 

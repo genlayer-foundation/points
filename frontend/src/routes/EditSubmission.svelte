@@ -395,8 +395,8 @@
 
       // Load contribution types to collect evidence URL types
       try {
-        const typesResponse = await contributionsAPI.getContributionTypes();
-        const allTypes = typesResponse.data.results || typesResponse.data;
+        const typesResponse = await contributionsAPI.getAllContributionTypes();
+        const allTypes = typesResponse.data || [];
         const urlTypeMap = new Map();
         for (const ct of allTypes) {
           for (const ut of ct.accepted_evidence_url_types || []) {

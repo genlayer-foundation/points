@@ -392,7 +392,7 @@
         <div class="bg-white rounded-[8px] pl-[17px] pr-[4px] py-[17px]" style="border: 1px solid #f0f0f0;">
           <div class="text-[12px] mb-[12px]" style="color: #ababab; letter-spacing: 0.24px;">Contributor</div>
           <button
-            onclick={() => contribution.user_details?.address && push(`/participant/${contribution.user_details.address}`)}
+            onclick={() => { const key = contribution.user_details?.id ?? contribution.user_details?.address; if (key) push(`/participant/${key}`); }}
             class="flex items-center gap-[12px] hover:opacity-80 transition-opacity"
           >
             <Avatar user={getUserObj(contribution)} size="md" clickable={false} />

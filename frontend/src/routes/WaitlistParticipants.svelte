@@ -38,15 +38,18 @@
       const userDetails = entry.user_details || {};
 
       const fullUser = allUsers.find(u =>
-        u.address && userDetails.address &&
-        u.address.toLowerCase() === userDetails.address.toLowerCase()
+        (u.id != null && userDetails.id != null && u.id === userDetails.id) ||
+        (u.address && userDetails.address &&
+          u.address.toLowerCase() === userDetails.address.toLowerCase())
       );
 
       const waitlistContribution = waitlistContributions?.data?.results?.find(c =>
+        (c.user_details?.id != null && userDetails.id != null && c.user_details.id === userDetails.id) ||
         c.user_details?.address?.toLowerCase() === userDetails.address?.toLowerCase()
       );
 
       return {
+        id: userDetails.id,
         address: userDetails.address || '',
         isWaitlisted: true,
         user: fullUser || userDetails,
@@ -226,17 +229,6 @@
                     <code class="text-xs font-mono text-gray-600">
                       {truncateAddress(user.address)}
                     </code>
-                    <a
-                      href={`${import.meta.env.VITE_EXPLORER_URL || 'https://explorer.testnet-chain.genlayer.com'}/address/${user.address}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="text-gray-400 hover:text-gray-600"
-                      title="View in Explorer"
-                    >
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-                      </svg>
-                    </a>
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
@@ -278,7 +270,7 @@
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <button
-                    onclick={() => push(`/participant/${user.address}`)}
+                    onclick={() => push(`/participant/${user.id ?? user.address}`)}
                     class="text-sm text-primary-600 hover:text-primary-900 font-medium"
                   >
                     View Profile →

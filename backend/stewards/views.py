@@ -8,6 +8,7 @@ from contributions.models import Evidence, SubmittedContribution
 from .models import FeatureCandidateScore, Steward, WorkingGroup, WorkingGroupParticipant
 from users.serializers import StewardSerializer
 from users.models import User
+from users.utils import truncate_address
 from .serializers import (
     FeatureCandidateAdminSerializer,
     FeatureCandidateSubmissionSerializer,
@@ -269,14 +270,16 @@ class StewardViewSet(viewsets.ModelViewSet):
                 'id': steward.id,
                 'user_id': steward.user.id,
                 'name': steward.user.name,
-                'address': steward.user.address,
+                # Public list: account addresses are truncated (users.utils).
+                'address': truncate_address(steward.user.address),
                 'profile_image_url': steward.user.profile_image_url,
                 'created_at': steward.created_at,
                 'role': role,
                 'permitted_categories': sorted(categories),
                 'user_details': {
+                    'id': steward.user.id,
                     'name': steward.user.name,
-                    'address': steward.user.address,
+                    'address': truncate_address(steward.user.address),
                     'profile_image_url': steward.user.profile_image_url,
                 }
             }

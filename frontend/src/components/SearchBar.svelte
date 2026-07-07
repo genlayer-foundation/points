@@ -60,7 +60,7 @@
     results = [];
     isOpen = false;
     isExpanded = false;
-    push(`/participant/${user.address}`);
+    push(`/participant/${user.id ?? user.address}`);
   }
 
   function handleKeydown(event) {

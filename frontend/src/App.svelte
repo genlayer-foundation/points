@@ -190,7 +190,20 @@
 
       let user = userStore.getUser();
       if (!user) {
-        try { user = await userStore.loadUser(); } catch { user = null; }
+        try {
+          user = await userStore.loadUser();
+        } catch (err) {
+          const status = err.response?.status;
+          if (!(status === 401 || status === 403)) {
+            // Membership couldn't be verified (backend down/overloaded), which
+            // is not the same as "no role". Fail open: the backend enforces
+            // real permissions on every API call, so the worst case is an
+            // error state inside the page — far better than bouncing a member
+            // back to the start of their journey.
+            return true;
+          }
+          user = null;
+        }
       }
       if (await hasSubsectionAccess(user, category)) return true;
 

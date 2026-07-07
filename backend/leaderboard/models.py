@@ -1,4 +1,6 @@
-from django.db import models, transaction
+import zlib
+
+from django.db import connection, models, transaction
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 from django.conf import settings
@@ -7,9 +9,29 @@ from django.core.exceptions import ValidationError
 from django.db.models import Sum
 from utils.models import BaseModel
 from contributions.models import ContributionType, Contribution, Category
+from validators.models import user_has_validator_profile
 from tally.middleware.logging_utils import get_app_logger
 
 logger = get_app_logger('leaderboard')
+
+LEADERBOARD_RANK_LOCK_NAMESPACE = 0x1EADBEEF
+
+
+def _signed_int32(value):
+    return value - 2**32 if value >= 2**31 else value
+
+
+def _lock_leaderboard_rank_update(leaderboard_type):
+    if connection.vendor != 'postgresql':
+        return
+
+    lock_key = _signed_int32(zlib.crc32(leaderboard_type.encode('utf-8')))
+    with connection.cursor() as cursor:
+        cursor.execute(
+            'SELECT pg_advisory_xact_lock(%s, %s)',
+            [LEADERBOARD_RANK_LOCK_NAMESPACE, lock_key],
+        )
+
 
 # Onboarding/journey contribution slugs excluded from referral point calculations.
 # These are signup markers and journey milestones, not actual contribution work.
@@ -225,7 +247,7 @@ def calculate_graduation_points(user):
 LEADERBOARD_CONFIG = {
     'validator': {
         'name': 'Validator',
-        'participants': lambda user: hasattr(user, 'validator'),  # Has Validator profile
+        'participants': lambda user: user_has_validator_profile(user),
         'points_calculator': lambda user: calculate_category_points(user, 'validator'),
         'ranking_order': '-total_points',  # Highest points first
     },
@@ -244,7 +266,7 @@ LEADERBOARD_CONFIG = {
         'name': 'Validator Waitlist',
         'participants': lambda user: (
             has_contribution_badge(user, 'validator-waitlist') and
-            not hasattr(user, 'validator')  # Not graduated yet
+            not user_has_validator_profile(user)  # Not graduated yet
         ),
         'points_calculator': lambda user: calculate_waitlist_points(user),
         'ranking_order': '-total_points',
@@ -253,7 +275,7 @@ LEADERBOARD_CONFIG = {
         'name': 'Validator Waitlist Graduation',
         'participants': lambda user: (
             has_contribution_badge(user, 'validator-waitlist') and
-            hasattr(user, 'validator')  # Graduated
+            user_has_validator_profile(user)  # Graduated
         ),
         'points_calculator': lambda user: calculate_graduation_points(user),
         'ranking_order': '-graduation_date',  # Most recent graduations first
@@ -387,7 +409,13 @@ class LeaderboardEntry(BaseModel):
         """
         if leaderboard_type not in LEADERBOARD_CONFIG:
             return
-        
+
+        with transaction.atomic():
+            _lock_leaderboard_rank_update(leaderboard_type)
+            cls._update_leaderboard_ranks_unlocked(leaderboard_type)
+
+    @classmethod
+    def _update_leaderboard_ranks_unlocked(cls, leaderboard_type):
         config = LEADERBOARD_CONFIG[leaderboard_type]
         ranking_order = config['ranking_order']
         
@@ -542,7 +570,7 @@ def update_user_leaderboard_entries(user):
     
     # Step 5: Update ranks for all affected leaderboards
     affected_leaderboards = set(qualified_leaderboards) | removed_leaderboards
-    for leaderboard_type in affected_leaderboards:
+    for leaderboard_type in sorted(affected_leaderboards):
         LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
 
 
@@ -577,7 +605,7 @@ def update_leaderboard_on_contribution_delete(sender, instance, **kwargs):
             entry.delete()
         affected_types.add(entry.type)
 
-    for leaderboard_type in affected_types:
+    for leaderboard_type in sorted(affected_types):
         LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
 
     # Mirror the save path: a referred user's contribution also feeds the
@@ -666,6 +694,8 @@ def get_referral_breakdown(user):
         ).values('user_id').annotate(total=Sum('frozen_global_points'))
     }
 
+    from users.utils import truncate_address
+
     referral_list = []
     for referred_user in referred_users_list:
         builder_contribution_points = builder_points_by_user.get(referred_user.id, 0)
@@ -675,7 +705,8 @@ def get_referral_breakdown(user):
         referral_list.append({
             'id': referred_user.id,
             'name': referred_user.name or 'Anonymous',
-            'address': referred_user.address,
+            # Referred users are other participants: truncated form only.
+            'address': truncate_address(referred_user.address),
             'profile_image_url': referred_user.profile_image_url,
             'total_points': total_points,
             'builder_contribution_points': builder_contribution_points,
@@ -792,7 +823,7 @@ def update_all_ranks():
     Only visible users are ranked. Non-visible users get null rank.
     """
     # Update each leaderboard type
-    for leaderboard_type in LEADERBOARD_CONFIG.keys():
+    for leaderboard_type in sorted(LEADERBOARD_CONFIG.keys()):
         LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
 
 
@@ -835,9 +866,12 @@ def recalculate_all_leaderboards():
 
             initial_builders_set = set(Builder.objects.values_list('user_id', flat=True))
             user_builder_contribs = defaultdict(list)
+            graduated_validator_user_ids = set()
             for contrib in initial_contributions:
                 if _is_eligible_builder_contribution(contrib):
                     user_builder_contribs[contrib['user_id']].append(contrib['contribution_date'])
+                if contrib['contribution_type__slug'] == 'validator':
+                    graduated_validator_user_ids.add(contrib['user_id'])
 
             for user_id, dates in user_builder_contribs.items():
                 if user_id not in initial_builders_set:
@@ -847,6 +881,19 @@ def recalculate_all_leaderboards():
                         ensure_builder_status(user, earliest_date)
                     except User.DoesNotExist:
                         pass
+
+            if graduated_validator_user_ids:
+                existing_validator_user_ids = set(
+                    Validator.objects.filter(user_id__in=graduated_validator_user_ids)
+                    .values_list('user_id', flat=True)
+                )
+                missing_validator_user_ids = (
+                    graduated_validator_user_ids - existing_validator_user_ids
+                )
+                Validator.objects.bulk_create(
+                    [Validator(user_id=user_id) for user_id in missing_validator_user_ids],
+                    ignore_conflicts=True,
+                )
 
             # Load all contribution data (including newly created)
             contributions = list(Contribution.objects.select_related(
@@ -1054,7 +1101,7 @@ def recalculate_all_leaderboards():
             LeaderboardEntry.objects.bulk_create(entries_to_create, batch_size=500)
             ReferralPoints.objects.bulk_create(referral_points_to_create, batch_size=500)
 
-            for leaderboard_type in ['validator', 'builder', 'validator-waitlist', 'validator-waitlist-graduation']:
+            for leaderboard_type in sorted(LEADERBOARD_CONFIG.keys()):
                 LeaderboardEntry.update_leaderboard_ranks(leaderboard_type)
 
             return (

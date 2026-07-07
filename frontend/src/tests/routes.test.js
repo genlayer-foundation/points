@@ -36,15 +36,13 @@ beforeEach(() => {
     } 
   });
   
-  contributionsAPI.getContributionTypes.mockResolvedValue({
-    data: {
-      results: [
-        { id: 1, name: 'Code', description: 'Code contributions' },
-        { id: 2, name: 'Documentation', description: 'Documentation contributions' }
-      ]
-    }
+  contributionsAPI.getAllContributionTypes.mockResolvedValue({
+    data: [
+      { id: 1, name: 'Code', description: 'Code contributions' },
+      { id: 2, name: 'Documentation', description: 'Documentation contributions' }
+    ]
   });
-  
+
   statsAPI.getDashboardStats.mockResolvedValue({
     data: {
       participant_count: 10,
@@ -123,7 +121,7 @@ describe('Routes Rendering Tests', () => {
   describe('NotFound Page', () => {
     it('renders without crashing', async () => {
       render(NotFound);
-      expect(screen.getByText(/page not found/i)).toBeDefined();
+      expect(screen.getByText(/error 404/i)).toBeDefined();
     });
   });
 });
@@ -147,6 +145,6 @@ describe('Data Fetching and Display Tests', () => {
   
   it('tests static rendering of NotFound component', () => {
     render(NotFound);
-    expect(screen.getByText(/page not found/i)).toBeDefined();
+    expect(screen.getByText(/error 404/i)).toBeDefined();
   });
 });

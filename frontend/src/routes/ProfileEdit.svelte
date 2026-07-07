@@ -46,10 +46,11 @@
   let cropperCallback = $state(null);
   let uploadingImage = $state(false);
 
-  // Operator address linking state
+  // Operator wallet linking state
   let operatorAddress = $state("");
   let isLinkingWallets = $state(false);
   let validatorWallets = $state([]);
+  let operatorWallets = $state([]);
   let isRefreshingDiscordRoles = $state(false);
   let roleRefreshClock = $state(Date.now());
   let roleRefreshTimer = null;
@@ -129,8 +130,10 @@
         try {
           const walletsResponse = await validatorsAPI.getMyValidatorWallets();
           validatorWallets = walletsResponse.data.wallets || [];
+          operatorWallets = walletsResponse.data.operator_wallets || [];
         } catch (err) {
           validatorWallets = [];
+          operatorWallets = [];
         }
       }
     } catch (err) {
@@ -229,6 +232,17 @@
     push(`/participant/${$authState.address}`);
   }
 
+  function truncateAddress(address) {
+    if (!address || address.length <= 12) return address || "";
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  }
+
+  function networkName(network) {
+    if (network === "asimov") return "Asimov";
+    if (network === "bradbury") return "Bradbury";
+    return network;
+  }
+
   async function handleLinkWallets() {
     if (!operatorAddress.trim()) {
       showError("Please enter an operator address");
@@ -239,7 +253,7 @@
     try {
       const response = await validatorsAPI.linkValidatorWalletsByOperator(operatorAddress.trim());
       const walletsLinked = response.data.wallets_linked;
-      showSuccess(`Successfully linked ${walletsLinked} wallet${walletsLinked !== 1 ? "s" : ""}`);
+      showSuccess(`Operator wallet linked. Matched ${walletsLinked} validator wallet${walletsLinked !== 1 ? "s" : ""}.`);
       // Refresh data to update the UI
       await loadUserData();
       operatorAddress = "";
@@ -808,39 +822,78 @@
                   Validator Settings
                 </h3>
 
-                <!-- Link Validator Wallets (operator address - applies across all networks) -->
-                {#if validatorWallets.length === 0}
-                  <div>
-                    <label
-                      for="operatorAddress"
-                      class="block text-sm font-medium text-gray-600 mb-1.5"
-                      >Link to Operator Wallet</label
-                    >
-                    <p class="text-xs text-gray-400 mb-2">
-                      Enter the operator wallet address you used when creating your validator on GenLayer.
-                    </p>
-                    <div class="flex gap-3 items-start">
-                      <div class="flex-1">
-                        <input
-                          id="operatorAddress"
-                          type="text"
-                          bind:value={operatorAddress}
-                          class="w-full px-4 py-3 bg-[#FCFCFC] border border-[#EAEAEA] rounded-[8px] focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-colors font-mono text-sm"
-                          placeholder="0x..."
-                          maxlength="42"
-                          disabled={isLinkingWallets}
-                        />
-                      </div>
+                <div class="rounded-[12px] border border-[#E6E3DD] bg-[#FBFAF7] p-4 shadow-[0_1px_0_rgba(0,0,0,0.04)]">
+                  <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div class="min-w-0">
+                      <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#7A766F]">
+                        Operator wallets
+                      </p>
+                      <h4 class="mt-1 text-[16px] font-semibold text-black tracking-[-0.2px]">
+                        Linked operators
+                      </h4>
+                      <p class="mt-1 max-w-[560px] text-sm text-gray-500">
+                        Add each operator wallet used by your validator nodes on Asimov or Bradbury.
+                      </p>
+                    </div>
+                    <div class="flex w-full flex-col gap-2 sm:w-[360px] sm:flex-row">
+                      <label for="operatorAddress" class="sr-only">Operator wallet address</label>
+                      <input
+                        id="operatorAddress"
+                        type="text"
+                        bind:value={operatorAddress}
+                        class="min-h-[44px] min-w-0 flex-1 rounded-[8px] border border-[#E2DED6] bg-white px-3 py-2.5 font-mono text-sm text-black transition-colors placeholder:text-gray-400 focus:border-black focus:outline-none focus:ring-1 focus:ring-black"
+                        placeholder="0x..."
+                        maxlength="42"
+                        disabled={isLinkingWallets}
+                      />
                       <button
                         onclick={handleLinkWallets}
                         disabled={isLinkingWallets || !operatorAddress.trim()}
-                        class="px-4 py-3 bg-black text-white rounded-[8px] hover:bg-gray-800 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed font-medium transition-colors text-sm whitespace-nowrap"
+                        class="min-h-[44px] shrink-0 rounded-[8px] bg-black px-4 py-2.5 text-sm font-medium text-white transition-[background-color,color,transform] hover:bg-gray-800 active:scale-[0.96] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 disabled:active:scale-100"
                       >
-                        {isLinkingWallets ? "Linking..." : "Link Wallets"}
+                        {isLinkingWallets ? "Linking..." : "Link"}
                       </button>
                     </div>
                   </div>
-                {/if}
+
+                  {#if operatorWallets.length > 0}
+                    <div class="mt-4 grid gap-2 sm:grid-cols-2">
+                      {#each operatorWallets as wallet}
+                        <div class="rounded-[8px] bg-white px-3 py-3 shadow-[0_0_0_1px_rgba(0,0,0,0.07),0_1px_2px_rgba(0,0,0,0.04)]">
+                          <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                              <p class="font-mono text-sm text-black">{truncateAddress(wallet.address)}</p>
+                              <p class="mt-1 text-xs text-gray-500">
+                                {wallet.wallet_count} matched wallet{wallet.wallet_count === 1 ? "" : "s"}
+                                <span class="font-mono tabular-nums"> · {wallet.active_wallet_count} active</span>
+                              </p>
+                            </div>
+                            <span class="shrink-0 rounded-full bg-[#EEF6F1] px-2 py-1 text-[11px] font-semibold text-[#2E7D46]">
+                              Linked
+                            </span>
+                          </div>
+                          <div class="mt-3 flex flex-wrap gap-1.5">
+                            {#if wallet.networks?.length}
+                              {#each wallet.networks as network}
+                                <span class="rounded-full bg-[#F3F1EC] px-2 py-1 text-[11px] font-medium text-[#5F5B54]">
+                                  {networkName(network)}
+                                </span>
+                              {/each}
+                            {:else}
+                              <span class="rounded-full bg-[#F3F1EC] px-2 py-1 text-[11px] font-medium text-[#7A766F]">
+                                Awaiting chain sync
+                              </span>
+                            {/if}
+                          </div>
+                        </div>
+                      {/each}
+                    </div>
+                  {:else}
+                    <div class="mt-4 rounded-[8px] bg-white px-3 py-3 text-sm text-gray-500 shadow-[0_0_0_1px_rgba(0,0,0,0.07),0_1px_2px_rgba(0,0,0,0.04)]">
+                      No operator wallets linked yet.
+                    </div>
+                  {/if}
+                </div>
 
                 <!-- Asimov Network Section -->
                 <div class="border border-[#EAEAEA] rounded-[12px] p-4">

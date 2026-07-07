@@ -69,11 +69,12 @@
   }
 
   function normalizeValidator(user) {
+    const profileKey = user.id ?? user.address;
     return {
-      id: `validator-${user.address || user.id || user.name}`,
+      id: `validator-${user.id || user.address || user.name}`,
       name: user.name || 'Validator',
       logo_url: user.profile_image_url || '',
-      href: user.address ? `/participant/${user.address}` : '#',
+      href: profileKey ? `/participant/${profileKey}` : '#',
       isExternal: false,
       category: 'validator',
       accent: pickAccent(user.name || user.address || 'validator'),
@@ -133,7 +134,7 @@
     }
 
     const [partnersRes, validatorsRes, buildsRes] = await Promise.allSettled([
-      partnersAPI.list({ page_size: 200 }),
+      partnersAPI.listAll(),
       validatorsAPI.getAllValidators(),
       projectsAPI.list(),
     ]);

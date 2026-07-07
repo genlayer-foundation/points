@@ -112,7 +112,8 @@
             if (eligibleEntryType === "community") {
                 const userRankRes = await leaderboardAPI.getLeaderboard({
                     type: "community",
-                    user_address: participant.address,
+                    // id preferred: visitors only get truncated addresses.
+                    user_address: participant.id ?? participant.address,
                     limit: 1,
                 });
                 userRank = userRankRes.data?.user_rank || null;

@@ -1,12 +1,13 @@
 from rest_framework import serializers
 from .models import BanAppeal, User
-from validators.models import Validator, ValidatorWallet
+from validators.models import Validator, ValidatorWallet, get_validator_profile
 from builders.models import Builder
 from stewards.models import Steward
 from creators.models import Creator
 from contributions.node_upgrade.models import TargetNodeVersion
 from leaderboard.models import LeaderboardEntry
 from contributions.models import Category
+from .utils import truncate_address
 
 
 # ============================================================================
@@ -24,9 +25,13 @@ class LightUserSerializer(serializers.Serializer):
     """
     id = serializers.IntegerField(read_only=True)
     name = serializers.CharField(read_only=True)
-    address = serializers.CharField(read_only=True)
+    address = serializers.SerializerMethodField()
     profile_image_url = serializers.URLField(read_only=True)
     visible = serializers.BooleanField(read_only=True)
+
+    def get_address(self, obj):
+        # Public surfaces never carry full account addresses; link by id.
+        return truncate_address(obj.address)
 
 
 class PublicUserListSerializer(serializers.ModelSerializer):
@@ -37,6 +42,7 @@ class PublicUserListSerializer(serializers.ModelSerializer):
     endpoint. Rich profile/account state belongs on explicit profile endpoints
     or authenticated owner/staff responses.
     """
+    address = serializers.SerializerMethodField()
     validator = serializers.SerializerMethodField()
     builder = serializers.SerializerMethodField()
     steward = serializers.SerializerMethodField()
@@ -45,6 +51,7 @@ class PublicUserListSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
+            'id',
             'name',
             'address',
             'profile_image_url',
@@ -56,6 +63,9 @@ class PublicUserListSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
+    def get_address(self, obj):
+        return truncate_address(obj.address)
+
     def _has_related(self, obj, related_name):
         try:
             getattr(obj, related_name)
@@ -65,7 +75,8 @@ class PublicUserListSerializer(serializers.ModelSerializer):
 
     def get_validator(self, obj):
         try:
-            return LightValidatorSerializer(obj.validator).data
+            validator = get_validator_profile(obj, trust_cached_missing=True)
+            return LightValidatorSerializer(validator).data if validator else None
         except Exception:
             return None
 
@@ -483,6 +494,7 @@ class CreatorSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    address = serializers.SerializerMethodField()
     leaderboard_entry = serializers.SerializerMethodField()
     validator = serializers.SerializerMethodField()
     builder = serializers.SerializerMethodField()
@@ -540,19 +552,27 @@ class UserSerializer(serializers.ModelSerializer):
                   # Working groups
                   'working_groups']
         read_only_fields = ['id', 'created_at', 'updated_at', 'referral_code']
-    
+
+    def get_address(self, obj):
+        # Full account address is owner/staff-only; everyone else gets the
+        # truncated display form.
+        if self._can_view_private_user_data(obj):
+            return obj.address
+        return truncate_address(obj.address)
+
     def get_validator(self, obj):
         """
         Get validator info using lightweight or full serializer based on context.
         """
-        if not hasattr(obj, 'validator'):
+        validator = get_validator_profile(obj)
+        if validator is None:
             return None
 
         # Use lightweight serializer for nested/list views
         use_light = self.context.get('use_light_serializers', False)
         if use_light:
-            return LightValidatorSerializer(obj.validator).data
-        return ValidatorSerializer(obj.validator, context=self.context).data
+            return LightValidatorSerializer(validator).data
+        return ValidatorSerializer(validator, context=self.context).data
 
     def get_builder(self, obj):
         """
@@ -705,7 +725,8 @@ class UserSerializer(serializers.ModelSerializer):
             return {
                 'id': obj.referred_by.id,
                 'name': obj.referred_by.name or 'Anonymous',
-                'address': obj.referred_by.address,
+                # The referrer is another user; their full address stays private.
+                'address': truncate_address(obj.referred_by.address),
                 'referral_code': obj.referred_by.referral_code
             }
         return None
@@ -795,9 +816,10 @@ class UserSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
 
+        # 'id' stays public: with addresses truncated it is the only linkable
+        # profile identifier, and list/search payloads already expose it.
         if not self._can_view_private_user_data(instance):
             for field in [
-                'id',
                 'visible',
                 'email',
                 'email_verified_at',
