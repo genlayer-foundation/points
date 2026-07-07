@@ -37,26 +37,27 @@ logger = get_app_logger('discord_oauth')
 service = DiscordOAuthService()
 
 DISCORD_ROLE_SYNC_LOCK_NAME = 'discord_role_sync'
+DISCORD_EARNED_ROLE_LOCK_NAME = 'discord_earned_role_assign'
 DISCORD_ROLE_SYNC_LOCK_STALE_AFTER_SECONDS = 1800
 DISCORD_ROLE_SYNC_HEARTBEAT_INTERVAL_SECONDS = 60
 
 
-def _ensure_role_sync_lock_row():
+def _ensure_role_sync_lock_row(name=DISCORD_ROLE_SYNC_LOCK_NAME):
     try:
-        DiscordRoleSyncLock.objects.get_or_create(name=DISCORD_ROLE_SYNC_LOCK_NAME)
+        DiscordRoleSyncLock.objects.get_or_create(name=name)
     except IntegrityError:
         pass
 
 
-def _acquire_role_sync_lock():
-    _ensure_role_sync_lock_row()
+def _acquire_role_sync_lock(name=DISCORD_ROLE_SYNC_LOCK_NAME):
+    _ensure_role_sync_lock_row(name)
 
     with transaction.atomic():
         now = timezone.now()
         lock_row = (
             DiscordRoleSyncLock.objects
             .select_for_update()
-            .get(name=DISCORD_ROLE_SYNC_LOCK_NAME)
+            .get(name=name)
         )
 
         is_running = (
@@ -81,19 +82,19 @@ def _acquire_role_sync_lock():
     return lock_token, None
 
 
-def _refresh_role_sync_lock(lock_token):
+def _refresh_role_sync_lock(lock_token, name=DISCORD_ROLE_SYNC_LOCK_NAME):
     return bool(
         DiscordRoleSyncLock.objects.filter(
-            name=DISCORD_ROLE_SYNC_LOCK_NAME,
+            name=name,
             owner_token=lock_token,
         ).update(heartbeat_at=timezone.now())
     )
 
 
-def _release_role_sync_lock(lock_token):
+def _release_role_sync_lock(lock_token, name=DISCORD_ROLE_SYNC_LOCK_NAME):
     now = timezone.now()
     DiscordRoleSyncLock.objects.filter(
-        name=DISCORD_ROLE_SYNC_LOCK_NAME,
+        name=name,
         owner_token=lock_token,
     ).update(owner_token=None, heartbeat_at=now, released_at=now)
 
@@ -390,4 +391,67 @@ def sync_discord_roles(request):
         'success': True,
         'message': 'Discord role sync started in background',
         'batch_size': batch_size,
+    }, status=status.HTTP_202_ACCEPTED)
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([IsCronToken])
+def assign_earned_discord_roles(request):
+    """Trigger a background assignment of earned community roles (Synapse/Brain)."""
+    from .earned_roles import assign_earned_community_roles
+
+    lock_token, elapsed_seconds = _acquire_role_sync_lock(DISCORD_EARNED_ROLE_LOCK_NAME)
+    if lock_token is None:
+        elapsed = f' ({elapsed_seconds:.0f}s since last heartbeat)' if elapsed_seconds is not None else ''
+        return Response({
+            'success': False,
+            'message': f'Earned role assignment already in progress{elapsed}',
+        }, status=status.HTTP_409_CONFLICT)
+
+    heartbeat_stop = threading.Event()
+
+    def _heartbeat():
+        from django.db import connection as db_connection
+
+        try:
+            while not heartbeat_stop.wait(DISCORD_ROLE_SYNC_HEARTBEAT_INTERVAL_SECONDS):
+                if not _refresh_role_sync_lock(lock_token, DISCORD_EARNED_ROLE_LOCK_NAME):
+                    return
+        finally:
+            db_connection.close()
+
+    def _run_assignment():
+        from django.db import connection as db_connection
+
+        start = time.time()
+        try:
+            stats = assign_earned_community_roles()
+            stats.pop('assignments', None)
+            logger.info(
+                "Background earned role assignment completed in %.1fs: %s",
+                time.time() - start,
+                stats,
+            )
+        except Exception as e:
+            logger.error("Background earned role assignment failed: %s", e, exc_info=True)
+        finally:
+            heartbeat_stop.set()
+            heartbeat_thread.join(timeout=1)
+            _release_role_sync_lock(lock_token, DISCORD_EARNED_ROLE_LOCK_NAME)
+            db_connection.close()
+
+    heartbeat_thread = threading.Thread(target=_heartbeat, daemon=True)
+    assign_thread = threading.Thread(target=_run_assignment, daemon=True)
+    try:
+        heartbeat_thread.start()
+        assign_thread.start()
+    except Exception:
+        heartbeat_stop.set()
+        _release_role_sync_lock(lock_token, DISCORD_EARNED_ROLE_LOCK_NAME)
+        raise
+
+    return Response({
+        'success': True,
+        'message': 'Earned role assignment started in background',
     }, status=status.HTTP_202_ACCEPTED)

@@ -298,6 +298,11 @@ DISCORD_MANUAL_ROLE_SYNC_COOLDOWN_SECONDS = int(
 DISCORD_ROLE_SUBMISSION_SYNC_GRACE_SECONDS = int(
     os.environ.get('DISCORD_ROLE_SUBMISSION_SYNC_GRACE_SECONDS', '30')
 )
+# Earned community role automation (Synapse/Brain). All three role IDs must be
+# set or the assignment job is a no-op.
+DISCORD_SYNAPSE_ROLE_ID = os.environ.get('DISCORD_SYNAPSE_ROLE_ID', '')
+DISCORD_BRAIN_ROLE_ID = os.environ.get('DISCORD_BRAIN_ROLE_ID', '')
+DISCORD_NEUROCREATIVE_ROLE_ID = os.environ.get('DISCORD_NEUROCREATIVE_ROLE_ID', '')
 
 # Investor overview metrics
 GITHUB_METRICS_REPO = os.environ.get('GITHUB_METRICS_REPO', GITHUB_REPO_TO_STAR)

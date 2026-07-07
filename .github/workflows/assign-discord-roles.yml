@@ -1,0 +1,34 @@
+name: Assign Earned Discord Roles
+
+on:
+  schedule:
+    # Daily, shortly after the 00:00 UTC MEE6 XP sync so fresh XP counts.
+    - cron: '30 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  assign:
+    runs-on: ubuntu-latest
+    environment: cron-job
+    steps:
+      - name: Trigger Earned Role Assignment
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-Cron-Token: ${{ secrets.CRON_SYNC_TOKEN }}" \
+            "${{ secrets.API_BASE_URL }}/api/v1/users/discord/assign-earned-roles/")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "Response: $body"
+          echo "HTTP Code: $http_code"
+
+          if [ "$http_code" = "200" ] || [ "$http_code" = "202" ]; then
+            echo "Earned role assignment triggered successfully"
+          elif [ "$http_code" = "409" ]; then
+            echo "Earned role assignment already in progress, skipping"
+          else
+            echo "Earned role assignment failed with status $http_code"
+            exit 1
+          fi
