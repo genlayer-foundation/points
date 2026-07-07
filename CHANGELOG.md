@@ -4,6 +4,7 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Portal translations now cover the pages people use daily, in Spanish, Korean, Simplified Chinese, and Turkish: contributions and their filters, the submit and edit forms with all validation messages, profiles, leaderboards, my submissions, notifications, missions, email verification, the builder and community journeys, the role landing pages, and the how-it-works sections; dates on these pages follow the selected language too (0a0edfd9)
 - The portal can now be used in Spanish, Korean, Simplified Chinese, and Turkish: a language selector in the top bar (and mobile menu) remembers your choice, first-time visitors start in their browser's language, and the navigation is fully translated with dates and numbers formatted per language; page-by-page translation of the remaining content rolls out next, falling back to English until then (4c4ce945)
 - Grafana dashboards can now read a dedicated minimal validator roster endpoint that lists every validator wallet with its network, on-chain node address, display name, status, operator address, and (for visible operators) linked account, kept intentionally small and separate from the Wall of Shame so monitoring can join validator identity onto live node metrics (2aaf68f)
 
