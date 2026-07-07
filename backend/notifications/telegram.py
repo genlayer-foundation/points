@@ -40,30 +40,101 @@ STALE_SENDING_MINUTES = 10
 # Rendering
 # ---------------------------------------------------------------------------
 
-def render_notification_text(notification):
-    """Render a Notification row as a Telegram HTML message."""
-    header = f"<b>{escape(notification.title)}</b>"
+# Per-event accents; the category map is the fallback for future events.
+EVENT_EMOJI = {
+    'submission.accepted': '✅',
+    'submission.rejected': '❌',
+    'submission.more_info_needed': '📝',
+    'submission.proposal_questioned': '❓',
+    'submission.appealed': '⚖️',
+    'submission.more_info_resubmitted': '📨',
+    'contribution.highlighted': '🌟',
+    'validator.graduated': '🎓',
+    'mission.published': '🎯',
+    'node_version.published': '🚀',
+    'alert.published': '🚨',
+    'custom.announcement': '📣',
+}
+CATEGORY_EMOJI = {
+    'submission': '📄',
+    'contribution': '🏆',
+    'community': '👥',
+    'content': '📰',
+    'validator': '🖥️',
+    'system': '⚙️',
+    'announcement': '📣',
+}
+# Long bodies collapse behind Telegram's expandable quote so the card stays
+# compact in the chat list.
+EXPANDABLE_BODY_THRESHOLD = 400
 
-    link_html = ''
-    url = notification.link_url or ''
-    if url:
-        if url.startswith('#/'):
-            url = url[1:]
-        if not url.startswith(('http://', 'https://')):
-            url = f"{settings.FRONTEND_URL}{url}"
-        label = escape(notification.link_label or 'Open portal')
-        link_html = f'\n\n<a href="{escape(url)}">{label}</a>'
+
+def _emoji_for(notification):
+    return (
+        EVENT_EMOJI.get(notification.event_type)
+        or CATEGORY_EMOJI.get(notification.category)
+        or '🔔'
+    )
+
+
+def _absolute_link_url(notification):
+    url = (notification.link_url or '').strip()
+    if not url:
+        return ''
+    if url.startswith('#/'):
+        url = url[1:]
+    if not url.startswith(('http://', 'https://')):
+        url = f"{settings.FRONTEND_URL}{url}"
+    return url
+
+
+def notification_link_button(notification):
+    """Inline-keyboard reply_markup for the notification's link, or None.
+
+    The link travels as a button (not an <a> in the text): that is what makes
+    the message read as a card in Telegram.
+    """
+    url = _absolute_link_url(notification)
+    if not url:
+        return None
+    label = notification.link_label or 'Open in portal'
+    return {'inline_keyboard': [[{'text': label[:64], 'url': url}]]}
+
+
+def render_notification_text(notification):
+    """Render a Notification row as a Telegram HTML "card":
+
+        {emoji} <b>{title}</b>
+        <i>{category} · GenLayer Portal</i>
+
+        <blockquote>{body}</blockquote>
+
+    The blockquote draws Telegram's accent bar next to the body; the link is
+    delivered separately as an inline button (notification_link_button).
+    """
+    category_label = notification.get_category_display() if notification.category else ''
+    byline_parts = [part for part in (category_label, 'GenLayer Portal') if part]
+    header = (
+        f"{_emoji_for(notification)} <b>{escape(notification.title)}</b>\n"
+        f"<i>{escape(' · '.join(byline_parts))}</i>"
+    )
 
     body = (notification.body or '').strip()
-    # Truncate the raw body so title and link always survive. Escaping can
-    # still overshoot the limit in pathological cases; send_telegram_message's
-    # final truncate + plain-text parse fallback covers those.
-    budget = TELEGRAM_MAX_LEN - len(header) - len(link_html) - 2
-    if body and budget > 20:
-        if len(body) > budget:
-            body = body[: budget - 1] + '…'
-        return f"{header}\n\n{escape(body)}{link_html}"
-    return f"{header}{link_html}"
+    if not body:
+        return header
+
+    # Truncate the raw body so the header always survives. Escaping can still
+    # overshoot the limit in pathological cases; send_telegram_message's final
+    # truncate + plain-text parse fallback covers those.
+    budget = TELEGRAM_MAX_LEN - len(header) - len('\n\n<blockquote expandable></blockquote>')
+    if budget <= 20:
+        return header
+    if len(body) > budget:
+        body = body[: budget - 1] + '…'
+    open_tag = (
+        '<blockquote expandable>' if len(body) > EXPANDABLE_BODY_THRESHOLD else '<blockquote>'
+    )
+    return f"{header}\n\n{open_tag}{escape(body)}</blockquote>"
 
 
 # ---------------------------------------------------------------------------
@@ -230,7 +301,7 @@ def _claim_batch(size, exclude_pks):
     return list(
         TelegramMessage.objects
         .filter(pk__in=pks)
-        .select_related('connection')
+        .select_related('connection', 'notification')
         .order_by('created_at')
     )
 
@@ -278,8 +349,13 @@ def deliver_pending(limit=DEFAULT_RUN_LIMIT):
 
             # Send to the connection's LIVE chat id: if the user re-linked a
             # different Telegram account, message.chat_id is a stale record.
+            # The link button is built from the notification at send time, so
+            # the outbox stores only the rendered text.
             ok, retry_after, description = send_telegram_message(
-                conn.platform_user_id, message.text, connection=conn
+                conn.platform_user_id,
+                message.text,
+                connection=conn,
+                reply_markup=notification_link_button(message.notification),
             )
             if ok:
                 _finish(message, TelegramMessage.STATUS_SENT)

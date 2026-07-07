@@ -1332,7 +1332,7 @@ class TelegramEnqueueTests(TestCase):
         )
 
     def test_personal_telegram_event_enqueues_for_linked_recipient(self):
-        services.notify(
+        notification = services.notify(
             'submission.accepted',
             recipient=self.linked,
             title='Submission accepted <script>',
@@ -1341,9 +1341,17 @@ class TelegramEnqueueTests(TestCase):
         )
         row = self.outbox().get()
         self.assertEqual(row.connection, self.connection)
-        self.assertIn('<b>Submission accepted &lt;script&gt;</b>', row.text)
-        self.assertIn('/my-submissions', row.text)
-        self.assertIn('http', row.text)  # link absolutized with FRONTEND_URL
+        # Card layout: emoji + bold title, italic byline, body in blockquote.
+        self.assertIn('✅ <b>Submission accepted &lt;script&gt;</b>', row.text)
+        self.assertIn('<i>Submission · GenLayer Portal</i>', row.text)
+        self.assertIn('<blockquote>Nice work</blockquote>', row.text)
+        # The link travels as an inline button, not inside the text.
+        self.assertNotIn('/my-submissions', row.text)
+        from notifications.telegram import notification_link_button
+        button = notification_link_button(notification)
+        button_spec = button['inline_keyboard'][0][0]
+        self.assertTrue(button_spec['url'].startswith('http'))
+        self.assertTrue(button_spec['url'].endswith('/my-submissions'))
 
     def test_portal_only_event_enqueues_nothing(self):
         services.notify(
@@ -1530,6 +1538,8 @@ class TelegramDeliverEndpointTests(TestCase):
             'submission.accepted',
             recipient=self.user,
             title='Accepted',
+            link_url='/my-submissions',
+            link_label='Open My Submissions',
         )
 
     def drain(self, send_result=(True, None, '')):
@@ -1560,6 +1570,11 @@ class TelegramDeliverEndpointTests(TestCase):
         send_mock.assert_called_once()
         # Sends to the connection's live chat id.
         self.assertEqual(send_mock.call_args[0][0], '111')
+        # The notification link is delivered as an inline URL button.
+        reply_markup = send_mock.call_args.kwargs['reply_markup']
+        button_spec = reply_markup['inline_keyboard'][0][0]
+        self.assertEqual(button_spec['text'], 'Open My Submissions')
+        self.assertTrue(button_spec['url'].endswith('/my-submissions'))
         row = TelegramMessage.objects.get(direction=TelegramMessage.DIRECTION_OUT)
         self.assertEqual(row.status, TelegramMessage.STATUS_SENT)
         self.assertIsNotNone(row.sent_at)

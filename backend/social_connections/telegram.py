@@ -45,12 +45,18 @@ def _mark_blocked(connection):
     connection.save(update_fields=['blocked_at', 'notifications_enabled', 'updated_at'])
 
 
-def send_telegram_message(chat_id, text, *, connection=None, disable_web_page_preview=True):
+def send_telegram_message(
+    chat_id, text, *, connection=None, disable_web_page_preview=True, reply_markup=None
+):
     """Send one message. Returns (ok, retry_after_seconds_or_None, description).
+
+    reply_markup is an optional Bot API inline keyboard dict (URL buttons).
 
     Never raises. On 403 (user blocked the bot / account deactivated) the
     connection is disabled so future enqueues skip it; a later successful
-    /start re-link clears the flag.
+    /start re-link clears the flag. On a 400 the message is retried in
+    degraded form (drop HTML formatting, then the buttons) so a rendering
+    bug never bricks a delivery.
     """
     if not settings.TELEGRAM_BOT_TOKEN:
         return False, None, 'bot_token_not_configured'
@@ -61,8 +67,11 @@ def send_telegram_message(chat_id, text, *, connection=None, disable_web_page_pr
         'parse_mode': 'HTML',
         'disable_web_page_preview': disable_web_page_preview,
     }
+    if reply_markup:
+        payload['reply_markup'] = reply_markup
 
-    for attempt in ('html', 'plain'):
+    # Original attempt + up to two degraded retries (no parse_mode, no buttons).
+    for _ in range(3):
         try:
             response = requests.post(
                 telegram_api_url('sendMessage'), json=payload, timeout=REQUEST_TIMEOUT
@@ -90,15 +99,15 @@ def send_telegram_message(chat_id, text, *, connection=None, disable_web_page_pr
                 retry_after = 5
             return False, retry_after, 'rate_limited'
 
-        # A parse-entities 400 means our HTML assembly broke (bad truncation,
-        # unescaped content); retry once as plain text so the message still lands.
-        if (
-            attempt == 'html'
-            and response.status_code == 400
-            and "can't parse entities" in description.lower()
-        ):
-            payload.pop('parse_mode', None)
-            continue
+        if response.status_code == 400:
+            lowered = description.lower()
+            # Broken HTML assembly (bad truncation, unescaped content):
+            # retry as plain text so the message still lands.
+            if "can't parse entities" in lowered and payload.pop('parse_mode', None):
+                continue
+            # Rejected inline button (e.g. BUTTON_URL_INVALID): retry without it.
+            if ('button' in lowered or 'url' in lowered) and payload.pop('reply_markup', None):
+                continue
 
         logger.warning(
             f"Telegram sendMessage failed ({response.status_code}): {description[:200]}"

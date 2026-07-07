@@ -224,6 +224,25 @@ class SendTelegramMessageTests(TestCase):
         self.assertEqual(retry_after, 17)
         self.assertEqual(description, 'rate_limited')
 
+    def test_reply_markup_included_in_payload(self):
+        markup = {'inline_keyboard': [[{'text': 'Open', 'url': 'https://example.com'}]]}
+        with patch('social_connections.telegram.requests.post') as post:
+            post.return_value = self.mock_response(200, {'ok': True})
+            send_telegram_message('111', 'hi', reply_markup=markup)
+        self.assertEqual(post.call_args.kwargs['json']['reply_markup'], markup)
+
+    def test_rejected_button_retries_without_reply_markup(self):
+        bad = self.mock_response(
+            400, {'ok': False, 'description': 'Bad Request: BUTTON_URL_INVALID'}
+        )
+        good = self.mock_response(200, {'ok': True})
+        markup = {'inline_keyboard': [[{'text': 'Open', 'url': 'not-a-url'}]]}
+        with patch('social_connections.telegram.requests.post', side_effect=[bad, good]) as post:
+            ok, _, _ = send_telegram_message('111', 'hi', reply_markup=markup)
+        self.assertTrue(ok)
+        self.assertEqual(post.call_count, 2)
+        self.assertNotIn('reply_markup', post.call_args.kwargs['json'])
+
     def test_parse_error_retries_as_plain_text(self):
         bad = self.mock_response(
             400, {'ok': False, 'description': "Bad Request: can't parse entities: ..."}

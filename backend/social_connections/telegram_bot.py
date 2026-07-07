@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 LINK_TOKEN_MAX_AGE_MINUTES = 15
 
 HELP_TEXT = (
-    "<b>GenLayer Portal bot</b>\n\n"
+    "🤖 <b>GenLayer Portal bot</b>\n\n"
     "/rank – your leaderboard positions\n"
     "/points – your points totals\n"
     "/missions – active missions\n"
@@ -244,7 +244,7 @@ def _handle_start(chat_id, sender, token, connection):
     display_name = pending.user.name or pending.user.email
     _reply(
         chat_id, connection,
-        f"Linked to <b>{escape(display_name)}</b>. "
+        f"✅ Linked to <b>{escape(display_name)}</b>. "
         "You'll now receive portal notifications here.\n\n" + HELP_TEXT,
     )
 
@@ -275,7 +275,7 @@ def _handle_rank(chat_id, connection):
             f"{settings.FRONTEND_URL}/submit-contribution",
         )
         return
-    _reply(chat_id, connection, "<b>Your leaderboard positions</b>\n" + "\n".join(lines))
+    _reply(chat_id, connection, "🏆 <b>Your leaderboard positions</b>\n" + "\n".join(lines))
 
 
 def _handle_points(chat_id, connection):
@@ -287,7 +287,7 @@ def _handle_points(chat_id, connection):
             f"{settings.FRONTEND_URL}/submit-contribution",
         )
         return
-    _reply(chat_id, connection, "<b>Your points</b>\n" + "\n".join(lines))
+    _reply(chat_id, connection, "💎 <b>Your points</b>\n" + "\n".join(lines))
 
 
 def _handle_missions(chat_id, connection):
@@ -319,7 +319,7 @@ def _handle_missions(chat_id, connection):
         if mission.end_date:
             line += f" – ends {mission.end_date.strftime('%b %d')}"
         lines.append(line)
-    _reply(chat_id, connection, "<b>Active missions</b>\n" + "\n".join(lines))
+    _reply(chat_id, connection, "🎯 <b>Active missions</b>\n" + "\n".join(lines))
 
 
 def _handle_mute(chat_id, connection):
