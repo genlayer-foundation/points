@@ -5,6 +5,14 @@ on:
     # Daily, shortly after the 00:00 UTC MEE6 XP sync so fresh XP counts.
     - cron: '30 0 * * *'
   workflow_dispatch:
+    inputs:
+      target:
+        description: 'API to target (schedule always hits prod)'
+        type: choice
+        options:
+          - prod
+          - dev
+        default: prod
 
 jobs:
   assign:
@@ -12,11 +20,14 @@ jobs:
     environment: cron-job
     steps:
       - name: Trigger Earned Role Assignment
+        env:
+          BASE_URL: ${{ inputs.target == 'dev' && secrets.DEV_API_BASE_URL || secrets.API_BASE_URL }}
         run: |
+          echo "Target: ${{ inputs.target || 'prod' }}"
           response=$(curl -s -w "\n%{http_code}" -X POST \
             -H "Content-Type: application/json" \
             -H "X-Cron-Token: ${{ secrets.CRON_SYNC_TOKEN }}" \
-            "${{ secrets.API_BASE_URL }}/api/v1/users/discord/assign-earned-roles/")
+            "$BASE_URL/api/v1/users/discord/assign-earned-roles/")
 
           http_code=$(echo "$response" | tail -n1)
           body=$(echo "$response" | sed '$d')
