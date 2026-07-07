@@ -269,3 +269,45 @@ class TelegramDisconnectTests(TestCase):
 
         # Idempotent.
         self.assertEqual(self.client.post(DISCONNECT_URL).status_code, 200)
+
+
+@override_settings(**TELEGRAM_SETTINGS)
+class TelegramIdentityUniquenessTests(TestCase):
+    """One Telegram account can only link to one portal user: the /start
+    pre-check is racy on its own, so the DB constraint is the real guard."""
+
+    def test_platform_user_id_is_unique(self):
+        from django.db import IntegrityError, transaction
+        user_a = make_user('a@test.com', '0x1111111111111111111111111111111111111111')
+        user_b = make_user('b@test.com', '0x2222222222222222222222222222222222222222')
+        TelegramConnection.objects.create(
+            user=user_a,
+            platform_user_id='111',
+            platform_username='a',
+            linked_at=timezone.now(),
+        )
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            TelegramConnection.objects.create(
+                user=user_b,
+                platform_user_id='111',
+                platform_username='b',
+                linked_at=timezone.now(),
+            )
+
+    def test_start_race_loser_gets_friendly_reply(self):
+        from unittest.mock import patch
+        from django.db import IntegrityError
+        user = make_user('a@test.com', '0x1111111111111111111111111111111111111111')
+        PendingOAuthState.objects.create(state_id='race-token', platform='telegram', user=user)
+
+        with patch(
+            'social_connections.telegram_bot.send_telegram_message',
+            return_value=(True, None, ''),
+        ) as send_mock, patch.object(
+            TelegramConnection.objects, 'update_or_create', side_effect=IntegrityError
+        ):
+            from social_connections.telegram_bot import handle_update
+            handle_update(start_update(111, '/start race-token'))
+
+        self.assertFalse(TelegramConnection.objects.exists())
+        self.assertIn('different portal account', send_mock.call_args[0][1])

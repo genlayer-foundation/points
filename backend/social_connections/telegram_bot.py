@@ -15,6 +15,7 @@ import logging
 import secrets
 
 from django.conf import settings
+from django.db import IntegrityError
 from django.db.models import Q
 from django.http import HttpResponseForbidden, HttpResponseNotAllowed, JsonResponse
 from django.utils import timezone
@@ -211,29 +212,35 @@ def _handle_start(chat_id, sender, token, connection):
         return
 
     telegram_id = str(sender['id'])
+    already_linked_reply = (
+        "This Telegram account is already linked to a different portal account. "
+        "Unlink it there first (/unlink) if you want to move it."
+    )
     if (
         TelegramConnection.objects
         .exclude(user=pending.user)
         .filter(platform_user_id=telegram_id)
         .exists()
     ):
-        _reply(
-            chat_id, connection,
-            "This Telegram account is already linked to a different portal account. "
-            "Unlink it there first (/unlink) if you want to move it.",
-        )
+        _reply(chat_id, connection, already_linked_reply)
         return
 
-    connection, _ = TelegramConnection.objects.update_or_create(
-        user=pending.user,
-        defaults={
-            'platform_user_id': telegram_id,
-            'platform_username': sender.get('username') or '',
-            'linked_at': timezone.now(),
-            'notifications_enabled': True,
-            'blocked_at': None,
-        },
-    )
+    try:
+        connection, _ = TelegramConnection.objects.update_or_create(
+            user=pending.user,
+            defaults={
+                'platform_user_id': telegram_id,
+                'platform_username': sender.get('username') or '',
+                'linked_at': timezone.now(),
+                'notifications_enabled': True,
+                'blocked_at': None,
+            },
+        )
+    except IntegrityError:
+        # Lost the race with a concurrent /start for the same Telegram id;
+        # the unique constraint on platform_user_id is the real guard.
+        _reply(chat_id, connection, already_linked_reply)
+        return
     display_name = pending.user.name or pending.user.email
     _reply(
         chat_id, connection,

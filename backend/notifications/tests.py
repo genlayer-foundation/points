@@ -1601,3 +1601,62 @@ class TelegramDeliverEndpointTests(TestCase):
         self.assertEqual(row.status, TelegramMessage.STATUS_PENDING)
         self.assertEqual(row.attempts, 0)
         self.assertEqual(response.data['remaining'], 1)
+
+
+class TelegramRecallBroadcastTests(TestCase):
+    """Recalling a broadcast must cancel its queued Telegram deliveries
+    BEFORE the notification row is deleted (the FK is SET_NULL)."""
+
+    def setUp(self):
+        from social_connections.models import TelegramConnection
+        self.user = make_user('linked@test.com', '0x1111111111111111111111111111111111111111')
+        self.connection = TelegramConnection.objects.create(
+            user=self.user,
+            platform_user_id='111',
+            platform_username='linked',
+            linked_at=timezone.now(),
+        )
+        category = Category.objects.create(name='T', slug='t', description='t')
+        contribution_type = ContributionType.objects.create(
+            name='Type', slug='type', description='d', category=category,
+            min_points=1, max_points=10,
+        )
+        from contributions.models import Mission
+        self.mission = Mission.objects.create(
+            name='Mission', description='d', contribution_type=contribution_type,
+        )
+
+    def test_recall_broadcast_cancels_pending_telegram_rows(self):
+        from social_connections.models import TelegramMessage
+        services.broadcast_mission(self.mission)
+        self.assertEqual(
+            TelegramMessage.objects.filter(status=TelegramMessage.STATUS_PENDING).count(), 1
+        )
+
+        deleted = services.recall_broadcast('mission.published', self.mission)
+
+        self.assertEqual(deleted, 1)
+        self.assertEqual(TelegramMessage.objects.count(), 0)
+
+    def test_drain_never_sends_rows_whose_notification_was_deleted(self):
+        """Belt and braces: any other deletion path (e.g. admin) that orphans
+        a pending row must not deliver the recalled content."""
+        from unittest.mock import patch
+        from social_connections.models import TelegramMessage
+        services.broadcast_mission(self.mission)
+        # Simulate a deletion path that bypasses the cancel helper.
+        Notification.objects.all().delete()
+        row = TelegramMessage.objects.get()
+        self.assertIsNone(row.notification_id)
+        self.assertEqual(row.status, TelegramMessage.STATUS_PENDING)
+
+        from notifications.telegram import deliver_pending
+        with patch('notifications.telegram.send_telegram_message') as send_mock, \
+                patch('notifications.telegram.time.sleep'):
+            stats = deliver_pending()
+
+        send_mock.assert_not_called()
+        row.refresh_from_db()
+        self.assertEqual(row.status, TelegramMessage.STATUS_FAILED)
+        self.assertEqual(row.error, 'notification_recalled')
+        self.assertEqual(stats['failed'], 1)

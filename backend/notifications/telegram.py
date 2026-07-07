@@ -168,15 +168,26 @@ def enqueue_campaign(campaign, users):
         logger.exception("Telegram enqueue_campaign failed (campaign %s)", campaign.pk)
 
 
-def cancel_pending_for_campaign(campaign):
-    """Delete not-yet-sent outbox rows on campaign recall. Sent messages
-    cannot be recalled from Telegram."""
-    from .models import Notification
+def cancel_pending_for_notifications(notifications):
+    """Delete not-yet-sent outbox rows for the given notifications.
 
+    Must run BEFORE the notifications themselves are deleted: the FK is
+    SET_NULL, so deleting first would orphan the pending rows and the drain
+    would still send the recalled content. Sent messages cannot be recalled
+    from Telegram.
+    """
     return TelegramMessage.objects.filter(
-        notification__in=Notification.objects.filter(dedupe_key=campaign.dedupe_key),
+        notification__in=notifications,
         status__in=[TelegramMessage.STATUS_PENDING, TelegramMessage.STATUS_SENDING],
     ).delete()[0]
+
+
+def cancel_pending_for_campaign(campaign):
+    from .models import Notification
+
+    return cancel_pending_for_notifications(
+        Notification.objects.filter(dedupe_key=campaign.dedupe_key)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -251,6 +262,14 @@ def deliver_pending(limit=DEFAULT_RUN_LIMIT):
         batch_started = time.monotonic()
 
         for index, message in enumerate(batch):
+            # Enqueued rows always carry a notification; a null FK means the
+            # notification was deleted (recalled) after enqueue, so the
+            # content must not be sent.
+            if message.notification_id is None:
+                _finish(message, TelegramMessage.STATUS_FAILED, 'notification_recalled')
+                failed += 1
+                continue
+
             conn = message.connection
             if conn is None or not conn.notifications_enabled or conn.blocked_at:
                 _finish(message, TelegramMessage.STATUS_FAILED, 'connection_gone')

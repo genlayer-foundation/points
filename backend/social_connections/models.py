@@ -119,6 +119,16 @@ class TelegramConnection(SocialConnection):
         db_table = 'social_connections_telegram'
         verbose_name = 'Telegram Connection'
         verbose_name_plural = 'Telegram Connections'
+        constraints = [
+            # Inbound commands route portal accounts by Telegram id, so one
+            # Telegram account can only ever be linked to one portal user.
+            # The /start handler's friendly pre-check is racy on its own;
+            # this makes the invariant DB-enforced.
+            models.UniqueConstraint(
+                fields=['platform_user_id'],
+                name='uniq_telegram_platform_user_id',
+            ),
+        ]
 
 
 class TelegramMessage(models.Model):

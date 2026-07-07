@@ -180,7 +180,12 @@ def broadcast(
 
 
 def recall_broadcast(event_slug, source):
-    """Delete a source object's broadcast notification, if one exists."""
+    """Delete a source object's broadcast notification, if one exists.
+
+    Queued (not yet sent) Telegram deliveries are cancelled first; the FK is
+    SET_NULL, so deleting the notification first would orphan the pending
+    rows and the drain would still send the recalled content.
+    """
     if source is None or not source.pk:
         return 0
 
@@ -190,6 +195,8 @@ def recall_broadcast(event_slug, source):
         event_type=event.slug,
         dedupe_key=broadcast_dedupe_key(event.slug, source),
     )
+    from . import telegram
+    telegram.cancel_pending_for_notifications(queryset)
     count = queryset.count()
     queryset.delete()
     return count
