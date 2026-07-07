@@ -4,6 +4,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Community members who reach the role requirements now receive the Synapse (14,000 community points + 8 POAPs) and Brain (80,000 community points + 16 POAPs + Neurocreative) Discord roles automatically every day, instead of waiting for manual assignment (71c80f26)
+
 - Wallet addresses are now private: the portal only ever shows and serves the shortened form (0x1234...abcd) of other participants' addresses, with no way to copy or retrieve the complete address, while you keep full access to your own. Profiles are linked by account id (old address links still work), and searching by address now requires pasting the complete address, so ownership can still be verified without exposing anyone's wallet (287dfa61)
 
 - The Submit Contribution type and mission dropdown on mobile now overlaps the page content below it instead of being cut off at the bottom of the page container (73d4e752)

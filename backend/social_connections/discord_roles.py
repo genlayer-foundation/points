@@ -285,6 +285,31 @@ class DiscordRoleSyncService:
         connection.current_roles.set(roles)
         return MemberRoleSyncResult(connection=connection, is_member=True)
 
+    def add_member_role(self, discord_user_id, role_id):
+        """Assign one guild role to a member. Returns False if the member left."""
+        response = self._request(
+            'PUT',
+            f'/guilds/{self.guild_id}/members/{discord_user_id}/roles/{role_id}',
+            'add_member_role',
+        )
+
+        if response.status_code == 404:
+            return False
+
+        if response.status_code in (401, 403):
+            raise DiscordRoleSyncUnavailable(
+                'Discord bot is not authorized to manage guild roles',
+                status_code=response.status_code,
+            )
+
+        if response.status_code >= 400:
+            raise DiscordRoleSyncUnavailable(
+                f'Discord role assignment failed with {response.status_code}',
+                status_code=response.status_code,
+            )
+
+        return True
+
     def sync_oldest_connections(self, batch_size=None):
         """Sync a batch of linked Discord connections, oldest first."""
         batch_size = int(batch_size or getattr(settings, 'DISCORD_ROLE_SYNC_BATCH_SIZE', 500))

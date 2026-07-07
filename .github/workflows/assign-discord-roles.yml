@@ -1,8 +1,9 @@
-name: Sync Validator Grafana Status
+name: Assign Earned Discord Roles
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    # Daily, shortly after the 00:00 UTC MEE6 XP sync so fresh XP counts.
+    - cron: '30 0 * * *'
   workflow_dispatch:
     inputs:
       target:
@@ -14,18 +15,19 @@ on:
         default: prod
 
 jobs:
-  sync:
+  assign:
     runs-on: ubuntu-latest
     environment: cron-job
     steps:
-      - name: Trigger Grafana Status Sync
+      - name: Trigger Earned Role Assignment
         env:
           BASE_URL: ${{ inputs.target == 'dev' && secrets.DEV_API_BASE_URL || secrets.API_BASE_URL }}
         run: |
           echo "Target: ${{ inputs.target || 'prod' }}"
           response=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "Content-Type: application/json" \
             -H "X-Cron-Token: ${{ secrets.CRON_SYNC_TOKEN }}" \
-            "$BASE_URL/api/v1/validators/wallets/sync-grafana/")
+            "$BASE_URL/api/v1/users/discord/assign-earned-roles/")
 
           http_code=$(echo "$response" | tail -n1)
           body=$(echo "$response" | sed '$d')
@@ -34,10 +36,12 @@ jobs:
           echo "HTTP Code: $http_code"
 
           if [ "$http_code" = "200" ] || [ "$http_code" = "202" ]; then
-            echo "Grafana sync triggered successfully"
+            echo "Earned role assignment triggered successfully"
           elif [ "$http_code" = "409" ]; then
-            echo "Grafana sync already in progress, skipping (not a failure)"
+            echo "Earned role assignment already in progress, skipping"
+          elif [ "$http_code" = "404" ]; then
+            echo "Endpoint not deployed on this target yet, skipping (not a failure)"
           else
-            echo "Grafana sync failed with status $http_code"
+            echo "Earned role assignment failed with status $http_code"
             exit 1
           fi

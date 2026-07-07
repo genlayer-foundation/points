@@ -4,6 +4,14 @@ on:
   schedule:
     - cron: '*/5 * * * *'
   workflow_dispatch:
+    inputs:
+      target:
+        description: 'API to target (schedule always hits prod)'
+        type: choice
+        options:
+          - prod
+          - dev
+        default: prod
 
 jobs:
   sync:
@@ -11,10 +19,13 @@ jobs:
     environment: cron-job
     steps:
       - name: Trigger Validator Sync
+        env:
+          BASE_URL: ${{ inputs.target == 'dev' && secrets.DEV_API_BASE_URL || secrets.API_BASE_URL }}
         run: |
+          echo "Target: ${{ inputs.target || 'prod' }}"
           response=$(curl -s -w "\n%{http_code}" -X POST \
             -H "X-Cron-Token: ${{ secrets.CRON_SYNC_TOKEN }}" \
-            "${{ secrets.API_BASE_URL }}/api/v1/validators/wallets/sync/")
+            "$BASE_URL/api/v1/validators/wallets/sync/")
 
           http_code=$(echo "$response" | tail -n1)
           body=$(echo "$response" | sed '$d')

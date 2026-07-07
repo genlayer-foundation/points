@@ -14,6 +14,7 @@ from .discord_oauth import (
     refresh_discord_username,
     sync_discord_roles,
     sync_my_discord_roles,
+    assign_earned_discord_roles,
 )
 
 urlpatterns = [
@@ -35,4 +36,5 @@ urlpatterns = [
     path('api/v1/users/discord/check-guild/', check_discord_guild, name='discord_check_guild'),
     path('api/v1/users/discord/sync-roles/', sync_discord_roles, name='discord_sync_roles'),
     path('api/v1/users/discord/sync-roles/me/', sync_my_discord_roles, name='discord_sync_my_roles'),
+    path('api/v1/users/discord/assign-earned-roles/', assign_earned_discord_roles, name='discord_assign_earned_roles'),
 ]

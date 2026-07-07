@@ -246,6 +246,9 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
           "DISCORD_ROLE_SYNC_BATCH_SIZE": "$SSM_PREFIX/prod/discord_role_sync_batch_size",
           "DISCORD_MANUAL_ROLE_SYNC_COOLDOWN_SECONDS": "$SSM_PREFIX/prod/discord_manual_role_sync_cooldown_seconds",
           "DISCORD_ROLE_SUBMISSION_SYNC_GRACE_SECONDS": "$SSM_PREFIX/prod/discord_role_submission_sync_grace_seconds",
+          "DISCORD_SYNAPSE_ROLE_ID": "$SSM_PREFIX/prod/discord_synapse_role_id",
+          "DISCORD_BRAIN_ROLE_ID": "$SSM_PREFIX/prod/discord_brain_role_id",
+          "DISCORD_NEUROCREATIVE_ROLE_ID": "$SSM_PREFIX/prod/discord_neurocreative_role_id",
           "DISCORD_REDIRECT_URI": "$SSM_PREFIX/prod/discord_redirect_uri"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 --access-logfile - --error-logfile - --capture-output --log-level info tally.wsgi:application"
@@ -361,6 +364,9 @@ else
           "DISCORD_ROLE_SYNC_BATCH_SIZE": "$SSM_PREFIX/prod/discord_role_sync_batch_size",
           "DISCORD_MANUAL_ROLE_SYNC_COOLDOWN_SECONDS": "$SSM_PREFIX/prod/discord_manual_role_sync_cooldown_seconds",
           "DISCORD_ROLE_SUBMISSION_SYNC_GRACE_SECONDS": "$SSM_PREFIX/prod/discord_role_submission_sync_grace_seconds",
+          "DISCORD_SYNAPSE_ROLE_ID": "$SSM_PREFIX/prod/discord_synapse_role_id",
+          "DISCORD_BRAIN_ROLE_ID": "$SSM_PREFIX/prod/discord_brain_role_id",
+          "DISCORD_NEUROCREATIVE_ROLE_ID": "$SSM_PREFIX/prod/discord_neurocreative_role_id",
           "DISCORD_REDIRECT_URI": "$SSM_PREFIX/prod/discord_redirect_uri"
         },
         "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 --access-logfile - --error-logfile - --capture-output --log-level info tally.wsgi:application"
