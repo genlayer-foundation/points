@@ -39,6 +39,8 @@ jobs:
             echo "Earned role assignment triggered successfully"
           elif [ "$http_code" = "409" ]; then
             echo "Earned role assignment already in progress, skipping"
+          elif [ "$http_code" = "404" ]; then
+            echo "Endpoint not deployed on this target yet, skipping (not a failure)"
           else
             echo "Earned role assignment failed with status $http_code"
             exit 1
