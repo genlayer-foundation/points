@@ -1,8 +1,9 @@
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework import status
-from contributions.models import ContributionType, Category
+from contributions.models import ContributionType, Category, SubmittedContribution
 from users.models import User
 
 
@@ -217,6 +218,93 @@ class ContributionTypeIsSubmittableTest(TestCase):
         data = response.json()
         result_ids = [item['id'] for item in data['results']]
         self.assertIn(self.non_submittable_type.id, result_ids)
+
+
+class NonSubmittableTypeUpdateTest(TestCase):
+    """Existing submissions stay editable after their type is made
+    non-submittable; only NEW submissions (and type switches) are gated."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            email='editor@example.com',
+            password='password123',
+            address='0x000000000000000000000000000000000000000a',
+        )
+        self.client.force_authenticate(user=self.user)
+        category, _ = Category.objects.get_or_create(
+            slug='test-edit',
+            defaults={'name': 'Test Edit', 'description': 'Test edit category'},
+        )
+        self.retired_type = ContributionType.objects.create(
+            name='Retired Type',
+            slug='retired-type',
+            description='Was submittable, now retired',
+            category=category,
+            min_points=1,
+            max_points=10,
+            is_submittable=False,
+        )
+        self.other_retired_type = ContributionType.objects.create(
+            name='Other Retired Type',
+            slug='other-retired-type',
+            description='Also retired',
+            category=category,
+            min_points=1,
+            max_points=10,
+            is_submittable=False,
+        )
+
+    def _make_submission(self, state='pending'):
+        return SubmittedContribution.objects.create(
+            user=self.user,
+            contribution_type=self.retired_type,
+            contribution_date=timezone.now(),
+            state=state,
+        )
+
+    def test_pending_submission_of_retired_type_can_be_edited(self):
+        submission = self._make_submission(state='pending')
+        response = self.client.patch(
+            f'/api/v1/submissions/{submission.id}/',
+            {'notes': 'Updated notes'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        submission.refresh_from_db()
+        self.assertEqual(submission.notes, 'Updated notes')
+
+    def test_more_info_needed_submission_of_retired_type_can_be_edited(self):
+        submission = self._make_submission(state='more_info_needed')
+        response = self.client.patch(
+            f'/api/v1/submissions/{submission.id}/',
+            {'notes': 'Here is the requested info'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        submission.refresh_from_db()
+        self.assertEqual(submission.state, 'pending')
+
+    def test_cannot_switch_to_a_different_non_submittable_type(self):
+        submission = self._make_submission(state='pending')
+        response = self.client.patch(
+            f'/api/v1/submissions/{submission.id}/',
+            {'contribution_type': self.other_retired_type.id},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_new_submission_of_retired_type_is_still_blocked(self):
+        response = self.client.post(
+            '/api/v1/submissions/',
+            {
+                'contribution_type': self.retired_type.id,
+                'contribution_date': timezone.now().isoformat(),
+                'notes': 'Trying a fresh submission',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class StewardModeTest(TestCase):
