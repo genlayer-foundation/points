@@ -634,6 +634,7 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         mission=None,
         skip_capacity_check=False,
         allow_existing_community_submission=False,
+        skip_submittable_check=False,
     ):
         """Validate role, category, and requirement gates for submissions."""
         if mission and contribution_type.id != mission.contribution_type_id:
@@ -642,7 +643,7 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if not contribution_type.is_submittable and mission is None:
+        if not skip_submittable_check and not contribution_type.is_submittable and mission is None:
             return Response(
                 {'error': 'This contribution type cannot be submitted directly. Submit through one of its active missions.'},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -937,6 +938,9 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             mission,
             skip_capacity_check=keeps_same_contribution_type,
             allow_existing_community_submission=keeps_same_contribution_type,
+            # A type made non-submittable after the fact must not lock users
+            # out of editing their existing pending/more-info submissions.
+            skip_submittable_check=keeps_same_contribution_type,
         )
         if contribution_type_error is not None:
             return contribution_type_error
