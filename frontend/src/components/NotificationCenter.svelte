@@ -5,6 +5,7 @@
   import { notificationStore } from '../lib/notificationStore.js';
   import { followNotificationLink } from '../lib/notificationUtils.js';
   import { relativeTime } from '../lib/relativeTime.js';
+  import { parseUserMarkdown } from '../lib/markdownLoader.js';
 
   let open = $state(false);
   let container = $state(null);
@@ -24,13 +25,16 @@
     open = false;
   }
 
-  function openNotification(notification) {
+  function openNotification(notification, event) {
     if (!notification.is_read) {
       // Don't block navigation on the mark-read call.
       notificationStore.markRead(notification.id).catch(() => {});
     }
 
     closePanel();
+    // A click on an inline body link should follow only that link, not also
+    // trigger the row's own redirect.
+    if (event?.target?.closest('a')) return;
     followNotificationLink(notification);
   }
 
@@ -120,22 +124,31 @@
             </div>
           {:else}
             {#each notifications as notification (notification.id)}
-              <button
-                type="button"
+              <!-- div[role=button] instead of <button>: markdown bodies can
+                   contain links, and nested <a> inside <button> is invalid. -->
+              <div
+                role="button"
+                tabindex="0"
                 class="w-full flex gap-3 px-4 py-3 text-left transition-colors {notification.link_url ? 'cursor-pointer' : 'cursor-default'} {notification.is_read ? 'hover:bg-gray-50' : 'bg-primary-50/60 hover:bg-primary-50'}"
-                onclick={() => openNotification(notification)}
+                onclick={(event) => openNotification(notification, event)}
+                onkeydown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openNotification(notification);
+                  }
+                }}
               >
                 <span class="mt-1.5 w-2 h-2 rounded-full shrink-0 {notification.is_read ? 'bg-transparent' : notification.priority >= 3 ? 'bg-red-500' : 'bg-primary-500'}"></span>
                 <span class="min-w-0 flex-1">
                   <span class="block text-sm font-medium text-gray-900 leading-snug">{notification.title}</span>
                   {#if notification.body}
-                    <span class="block text-xs text-gray-500 leading-snug mt-0.5 line-clamp-2">{notification.body}</span>
+                    <span class="notification-body block text-xs text-gray-500 leading-snug mt-0.5 break-words line-clamp-2">{@html parseUserMarkdown(notification.body)}</span>
                   {/if}
                   <span class="block text-xs text-gray-400 mt-1">
                     {notification.category_label || notification.category} &middot; {relativeTime(notification.created_at)}
                   </span>
                 </span>
-              </button>
+              </div>
             {/each}
           {/if}
         </div>
@@ -153,6 +166,20 @@
 {/if}
 
 <style>
+  /* Tailwind preflight zeroes default element styles; restore the few the
+     sanitized markdown bodies need. Block children (p, ul) collapse into the
+     two-line -webkit-box clamp, so only inline styling matters here. */
+  .notification-body :global(a) {
+    color: #0284c7;
+    text-decoration: underline;
+  }
+  .notification-body :global(code) {
+    font-size: 0.6875rem;
+    background: #f3f4f6;
+    padding: 0 0.25rem;
+    border-radius: 0.25rem;
+  }
+
   @media (max-width: 767px) {
     .notification-panel {
       position: fixed;
