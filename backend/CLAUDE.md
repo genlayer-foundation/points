@@ -336,6 +336,12 @@ backend/
   - `/api/v1/poaps/{slug}/` - Public read-only POAP drop detail.
 - **Admin**: `poaps/admin.py` - `PoapDropAdmin` keeps `created_by` as an autocomplete field, includes only `PoapDistributionInline` in `inlines`, and exposes claims through the read-only `claims_link` field instead of rendering `PoapClaim` rows inline. This keeps heavily claimed drops editable without exceeding Django's POST field limit. Ruff RUF012 warnings on the Django admin `inlines = [PoapDistributionInline]` list literal are intentional false positives for this standard admin pattern.
 
+### Earned Discord Roles (social_connections)
+- **Logic**: `social_connections/earned_roles.py:assign_earned_community_roles(dry_run=False)` assigns the Synapse (14,000 effective CP + 8 POAPs) and Brain (80,000 effective CP + 16 POAPs + Neurocreative role held) Discord roles to qualifying users. Add-only: never removes roles; each role's threshold is evaluated independently. CP comes from `community_xp.utils.build_effective_community_scores_queryset` (MEE6 baseline + pending portal points), POAPs from `PoapClaim` counts, held roles from `DiscordConnection.current_roles` (the 15-min sync is the reconciler; a successful assignment also updates the local cache). Aborts the run on 429/401/403 (rate limit, missing Manage Roles, hierarchy); other per-user failures log and continue. No-op unless all three `DISCORD_*_ROLE_ID` env vars are set.
+- **Service**: `DiscordRoleSyncService.add_member_role(discord_user_id, role_id)` PUTs to Discord; 404 (member left) returns False.
+- **Trigger**: `POST /api/v1/users/discord/assign-earned-roles/` (cron-protected, background thread + `DiscordRoleSyncLock` row `discord_earned_role_assign`), called daily at 00:30 UTC by `.github/workflows/assign-discord-roles.yml` (after the 00:00 MEE6 XP sync). Manual/backfill: `python manage.py assign_earned_discord_roles [--dry-run]`; dry run prints the would-assign list for review.
+- **Ops**: the bot needs Manage Roles and its role above Synapse/Brain in the guild hierarchy.
+
 ### Database & Migrations
 - **Migrations**: `{app}/migrations/`
 - **Database**: SQLite by default, configured in settings.py
@@ -415,6 +421,7 @@ POST   /api/v1/users/link_discord_account/  (requires auth, awards configured po
 POST   /api/v1/users/link_github_account/   (requires auth, awards community-link-github points; auto-fired by SocialLink.svelte on GitHub link)
 POST   /api/v1/users/start_builder_journey/    (requires auth, no-op: no longer awards points)
 POST   /api/v1/users/complete_builder_journey/ (requires auth, grants Builder role point-free; gated on the star-boilerplate social task)
+POST   /api/v1/users/discord/assign-earned-roles/ (cron-protected, X-Cron-Token, background; assigns earned Synapse/Brain Discord roles)
 
 # Social Tasks
 GET    /api/v1/social-tasks/                     (?status=active|completed&category=community|builder|validator)
@@ -519,6 +526,7 @@ Located in `.env` file:
 - `RECAPTCHA_PRIVATE_KEY` - Google reCAPTCHA secret key (required - use test key from .env.example for development)
 - `RECAPTCHA_ALLOW_TEST_KEYS` - Optional opt-in flag for non-production deployments that intentionally use Google's reCAPTCHA test keys with `DEBUG=False`. Set to `true` to silence `django_recaptcha.recaptcha_test_key_error`; production must not set this flag. The logic lives in `tally/settings.py` near `_RECAPTCHA_TEST_PUBLIC_KEY` and `SILENCED_SYSTEM_CHECKS`.
 - `CRON_SYNC_TOKEN` - Cron-protected endpoint auth (used by `sync` and `sync-grafana`)
+- `DISCORD_SYNAPSE_ROLE_ID` / `DISCORD_BRAIN_ROLE_ID` / `DISCORD_NEUROCREATIVE_ROLE_ID` - Discord role IDs for the earned community role automation (Synapse/Brain assignment). All three must be set or the assignment job is a no-op.
 - `GRAFANA_BASE_URL` - Grafana Cloud base URL (default `https://genlayerfoundation.grafana.net`)
 - `GRAFANA_API_TOKEN` - Grafana service-account bearer token (required for Wall of Shame). Store in AWS SSM (`/tally/{env}/grafana_api_token`) for production.
 - `GRAFANA_PROM_DS_UID` - Prometheus datasource UID (default `grafanacloud-prom`)

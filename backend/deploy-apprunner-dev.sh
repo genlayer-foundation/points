@@ -107,6 +107,9 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
           "DISCORD_ROLE_SYNC_BATCH_SIZE": "$SSM_PREFIX/$SSM_ENV/discord_role_sync_batch_size",
           "DISCORD_MANUAL_ROLE_SYNC_COOLDOWN_SECONDS": "$SSM_PREFIX/$SSM_ENV/discord_manual_role_sync_cooldown_seconds",
           "DISCORD_ROLE_SUBMISSION_SYNC_GRACE_SECONDS": "$SSM_PREFIX/$SSM_ENV/discord_role_submission_sync_grace_seconds",
+          "DISCORD_SYNAPSE_ROLE_ID": "$SSM_PREFIX/$SSM_ENV/discord_synapse_role_id",
+          "DISCORD_BRAIN_ROLE_ID": "$SSM_PREFIX/$SSM_ENV/discord_brain_role_id",
+          "DISCORD_NEUROCREATIVE_ROLE_ID": "$SSM_PREFIX/$SSM_ENV/discord_neurocreative_role_id",
           "TWITTER_REDIRECT_URI": "$SSM_PREFIX/$SSM_ENV/twitter_redirect_uri",
           "DISCORD_REDIRECT_URI": "$SSM_PREFIX/$SSM_ENV/discord_redirect_uri"
         },
@@ -298,6 +301,9 @@ EOF
           "DISCORD_ROLE_SYNC_BATCH_SIZE": "$SSM_PREFIX/$SSM_ENV/discord_role_sync_batch_size",
           "DISCORD_MANUAL_ROLE_SYNC_COOLDOWN_SECONDS": "$SSM_PREFIX/$SSM_ENV/discord_manual_role_sync_cooldown_seconds",
           "DISCORD_ROLE_SUBMISSION_SYNC_GRACE_SECONDS": "$SSM_PREFIX/$SSM_ENV/discord_role_submission_sync_grace_seconds",
+          "DISCORD_SYNAPSE_ROLE_ID": "$SSM_PREFIX/$SSM_ENV/discord_synapse_role_id",
+          "DISCORD_BRAIN_ROLE_ID": "$SSM_PREFIX/$SSM_ENV/discord_brain_role_id",
+          "DISCORD_NEUROCREATIVE_ROLE_ID": "$SSM_PREFIX/$SSM_ENV/discord_neurocreative_role_id",
           "TWITTER_REDIRECT_URI": "$SSM_PREFIX/$SSM_ENV/twitter_redirect_uri",
           "DISCORD_REDIRECT_URI": "$SSM_PREFIX/$SSM_ENV/discord_redirect_uri"
         },
