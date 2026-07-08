@@ -232,7 +232,7 @@ class NonSubmittableTypeUpdateTest(TestCase):
             address='0x000000000000000000000000000000000000000a',
         )
         self.client.force_authenticate(user=self.user)
-        category, _ = Category.objects.get_or_create(
+        self.category, _ = Category.objects.get_or_create(
             slug='test-edit',
             defaults={'name': 'Test Edit', 'description': 'Test edit category'},
         )
@@ -240,7 +240,7 @@ class NonSubmittableTypeUpdateTest(TestCase):
             name='Retired Type',
             slug='retired-type',
             description='Was submittable, now retired',
-            category=category,
+            category=self.category,
             min_points=1,
             max_points=10,
             is_submittable=False,
@@ -249,13 +249,13 @@ class NonSubmittableTypeUpdateTest(TestCase):
             name='Other Retired Type',
             slug='other-retired-type',
             description='Also retired',
-            category=category,
+            category=self.category,
             min_points=1,
             max_points=10,
             is_submittable=False,
         )
 
-    def _make_submission(self, state='pending'):
+    def _make_submission(self, state='pending') -> SubmittedContribution:
         return SubmittedContribution.objects.create(
             user=self.user,
             contribution_type=self.retired_type,
@@ -293,6 +293,28 @@ class NonSubmittableTypeUpdateTest(TestCase):
             format='json',
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        submission.refresh_from_db()
+        self.assertEqual(submission.contribution_type_id, self.retired_type.id)
+
+    def test_can_switch_from_retired_to_submittable_type(self):
+        submittable_type = ContributionType.objects.create(
+            name='Active Type',
+            slug='active-type',
+            description='Still submittable',
+            category=self.category,
+            min_points=1,
+            max_points=10,
+            is_submittable=True,
+        )
+        submission = self._make_submission(state='pending')
+        response = self.client.patch(
+            f'/api/v1/submissions/{submission.id}/',
+            {'contribution_type': submittable_type.id},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        submission.refresh_from_db()
+        self.assertEqual(submission.contribution_type_id, submittable_type.id)
 
     def test_new_submission_of_retired_type_is_still_blocked(self):
         response = self.client.post(
