@@ -1982,6 +1982,19 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
     ]
     ordering = ['-created_at']
 
+    def _active_review_proposal(self, submission):
+        return (
+            ReviewProposal.objects
+            .select_for_update()
+            .filter(
+                submitted_contribution=submission,
+                proposer_id=submission.proposed_by_id,
+                decided_at__isnull=True,
+            )
+            .order_by('-created_at', '-id')
+            .first()
+        )
+
     def _visible_submission_queryset(self, queryset=None):
         # Filter by the steward's permitted contribution types and actions.
         # Proposal-only stewards can inspect pending submissions they can
@@ -2152,17 +2165,7 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
 
         active_proposal = None
         if submission.proposed_by_id:
-            active_proposal = (
-                ReviewProposal.objects
-                .select_for_update()
-                .filter(
-                    submitted_contribution=submission,
-                    proposer_id=submission.proposed_by_id,
-                    decided_at__isnull=True,
-                )
-                .order_by('-created_at', '-id')
-                .first()
-            )
+            active_proposal = self._active_review_proposal(submission)
 
         # Update submission fields
         submission.reviewed_by = request.user
@@ -2333,15 +2336,22 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             )
 
             if reward_eligible:
-                reward_points = compute_reviewer_reward(
+                computed_reward_points = compute_reviewer_reward(
                     proposed_action=active_proposal.action,
                     proposed_sections=active_proposal.sections,
                     final_action=action_name,
                     final_sections=final_sections,
                 )
-                if reward_points > 0:
-                    reward_contribution = grant_reviewer_reward(active_proposal, reward_points)
-                    reward_reason = 'matched'
+                if computed_reward_points > 0:
+                    reward_contribution = grant_reviewer_reward(
+                        active_proposal,
+                        computed_reward_points,
+                    )
+                    if reward_contribution:
+                        reward_points = reward_contribution.points
+                        reward_reason = 'matched'
+                    else:
+                        reward_reason = 'grant_failed'
                 elif action_name != active_proposal.action:
                     reward_reason = 'action_changed'
                 elif action_name not in ('accept', 'reject'):
@@ -2353,10 +2363,12 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                     active_proposal.proposer.name
                     or active_proposal.proposer.address[:10] + '...'
                 )
-                if reward_points > 0:
+                if reward_contribution:
                     reviewer_reward_note = (
                         f"\n\nReviewer reward: **{reward_points} points** to {proposer_name}."
                     )
+                elif reward_reason == 'grant_failed':
+                    reviewer_reward_note = "\n\nReviewer reward: eligible, but grant failed - see logs."
                 elif reward_reason == 'action_changed':
                     reviewer_reward_note = "\n\nReviewer reward: no reward - action changed."
                 elif reward_reason == 'non_terminal':
@@ -3360,17 +3372,7 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             'updated_at',
         ])
 
-        active_proposal = (
-            ReviewProposal.objects
-            .select_for_update()
-            .filter(
-                submitted_contribution=submission,
-                proposer_id=submission.proposed_by_id,
-                decided_at__isnull=True,
-            )
-            .order_by('-created_at', '-id')
-            .first()
-        )
+        active_proposal = self._active_review_proposal(submission)
         if active_proposal:
             active_proposal.questioned_by = request.user
             active_proposal.questioned_at = submission.proposal_questioned_at

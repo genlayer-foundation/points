@@ -63,6 +63,12 @@ def grant_reviewer_reward(proposal, reward_points):
 
     try:
         with transaction.atomic():
+            # Lock the contribution type row because multipliers are historical:
+            # multiple multiplier rows per type are valid, but the default row
+            # should only be auto-created once.
+            contribution_type = ContributionType.objects.select_for_update().get(
+                pk=contribution_type.pk,
+            )
             if not GlobalLeaderboardMultiplier.objects.filter(
                 contribution_type=contribution_type,
             ).exists():

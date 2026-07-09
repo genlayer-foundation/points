@@ -1418,7 +1418,7 @@
             showUser={false}
             variant="compact"
           />
-          {:else if showReviewForm && (submission.state === 'pending' || submission.state === 'more_info_needed')}
+          {:else if showReviewForm && isOpenReviewState}
             {#if submission.ai_analysis}
               <div class="rounded-lg border border-sky-200 bg-sky-50/70">
                 <button

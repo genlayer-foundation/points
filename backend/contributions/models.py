@@ -1022,7 +1022,7 @@ class ProjectMilestoneReview(BaseModel):
 
 
 class ReviewProposal(BaseModel):
-    """Append-only proposal snapshot for reviewer history and AI analysis."""
+    """Proposal snapshot enriched over time with question, decision, and reward metadata."""
 
     SOURCE_AI = 'ai'
     SOURCE_HUMAN = 'human'

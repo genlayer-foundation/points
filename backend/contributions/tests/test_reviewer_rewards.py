@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.test import override_settings
 from django.utils import timezone
@@ -241,6 +242,35 @@ class ReviewerRewardTests(APITestCase):
                 notes__contains=str(mismatch.id),
             ).exists()
         )
+
+    def test_reward_grant_failure_records_no_awarded_points(self):
+        submission = self.create_submission()
+        self.assertEqual(self.propose(submission).status_code, 200)
+
+        with patch('contributions.views.grant_reviewer_reward', return_value=None):
+            review_response = self.review(submission)
+        self.assertEqual(review_response.status_code, 200)
+
+        proposal = ReviewProposal.objects.get(submitted_contribution=submission)
+        self.assertEqual(proposal.reward_points, 0)
+        self.assertIsNone(proposal.reward_contribution)
+        self.assertFalse(
+            Contribution.objects.filter(
+                user=self.proposer,
+                contribution_type=self.reward_type,
+                notes__contains=str(submission.id),
+            ).exists()
+        )
+
+        note = SubmissionNote.objects.filter(
+            submitted_contribution=submission,
+            is_proposal=False,
+            data__action='accept',
+        ).first()
+        self.assertEqual(note.data['reviewer_reward']['reason'], 'grant_failed')
+        self.assertEqual(note.data['reviewer_reward']['points'], 0)
+        self.assertIsNone(note.data['reviewer_reward']['contribution_id'])
+        self.assertIn('Reviewer reward: eligible, but grant failed', note.message)
 
     def test_questioned_revision_appends_and_outcome_lands_on_latest(self):
         submission = self.create_submission()
