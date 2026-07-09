@@ -691,6 +691,12 @@
     loadSubmissions();
   }
 
+  function applyQuickSearch(query) {
+    searchQuery = query;
+    currentPage = 1;
+    loadSubmissions();
+  }
+
   // Bulk selection handlers
   function toggleSubmissionSelection(submissionId) {
     if (selectedSubmissions.has(submissionId)) {
@@ -805,8 +811,17 @@
       </div>
     </div>
 
-    <div class="mt-3 text-sm text-gray-600">
-      Total: <span class="font-semibold text-gray-900">{totalCount}</span> submissions
+    <div class="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
+      <div>
+        Total: <span class="font-semibold text-gray-900">{totalCount}</span> submissions
+      </div>
+      <button
+        type="button"
+        onclick={() => applyQuickSearch('is:ai-reviewed assigned:unassigned')}
+        class="inline-flex items-center rounded-md border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-800 transition-colors hover:bg-sky-100"
+      >
+        AI-reviewed, unassigned
+      </button>
     </div>
   </div>
 

@@ -5,4 +5,5 @@ METRICS_POINTS_EXCLUDED_TYPE_SLUGS = [
     'validator',
     'community-link-x',
     'community-link-discord',
+    'project-review-reward',
 ]

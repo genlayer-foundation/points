@@ -22,6 +22,7 @@ ONBOARDING_CONTRIBUTION_TYPE_SLUGS = [
     'validator',
     'community-link-x',
     'community-link-discord',
+    'project-review-reward',
 ]
 JOURNEY_AUTO_AWARD_SLUGS = ONBOARDING_CONTRIBUTION_TYPE_SLUGS
 COMMUNITY_RANKING_MIN_POINTS = 2500

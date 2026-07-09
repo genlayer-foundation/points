@@ -335,6 +335,7 @@ class AIReviewProposeSerializer(serializers.Serializer):
         required=False, allow_blank=True, default='',
     )
     reasoning = serializers.CharField(required=False, allow_blank=True, default='')
+    synthesis = serializers.CharField(required=False, allow_blank=True, default='')
     confidence = serializers.ChoiceField(
         choices=['high', 'medium', 'low'],
         required=False,

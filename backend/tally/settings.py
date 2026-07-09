@@ -310,6 +310,11 @@ GITHUB_METRICS_TOKEN = os.environ.get('GITHUB_METRICS_TOKEN', '')
 DEFILLAMA_FEES_RANK = os.environ.get('DEFILLAMA_FEES_RANK', '')
 DEFILLAMA_FEES_RANK_URL = os.environ.get('DEFILLAMA_FEES_RANK_URL', 'https://defillama.com/fees/chains')
 OVERVIEW_TOP_VALIDATORS = os.environ.get('OVERVIEW_TOP_VALIDATORS', '')
+
+REVIEWER_REWARD_BASE_POINTS = int(os.environ.get('REVIEWER_REWARD_BASE_POINTS', '10') or '10')
+REVIEWER_REWARD_PENALTY_PER_SCORE_POINT = int(
+    os.environ.get('REVIEWER_REWARD_PENALTY_PER_SCORE_POINT', '2') or '2'
+)
 # Telegram members: a bot reads the live count when both are set, else fall back to a curated number.
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')
