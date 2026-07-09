@@ -4,7 +4,7 @@ from .models import (
     ContributionType, Contribution, SubmittedContribution, Evidence,
     ContributionHighlight, Mission, StartupRequest, SubmissionNote,
     FeaturedContent, Alert, EvidenceURLType, ContributionDiscordXPState,
-    DiscordXPDistributionEvent, ProjectMilestoneReview,
+    DiscordXPDistributionEvent, ProjectMilestoneReview, ReviewProposal,
 )
 from .rubric_review import (
     normalize_rubric_review_payload,
@@ -1353,6 +1353,7 @@ class StewardSubmissionSerializer(MoreInfoRequestsMixin, serializers.ModelSerial
     proposed_template_name = serializers.SerializerMethodField()
     notes_count = serializers.SerializerMethodField()
     rubric_review = serializers.SerializerMethodField()
+    ai_analysis = serializers.SerializerMethodField()
     project_contribution = LightProjectContributionSerializer(read_only=True)
 
     class Meta:
@@ -1370,7 +1371,7 @@ class StewardSubmissionSerializer(MoreInfoRequestsMixin, serializers.ModelSerial
                   'proposal_review_status', 'proposal_review_feedback',
                   'proposal_questioned_by', 'proposal_questioned_by_details',
                   'proposal_questioned_at',
-                  'rubric_review',
+                  'rubric_review', 'ai_analysis',
                   'notes_count', 'is_interesting', 'gate_reviewed',
                   'has_appeal', 'appeal_reason', 'more_info_requests',
                   'created_at', 'updated_at', 'last_edited_at', 'converted_contribution', 'contribution',
@@ -1536,6 +1537,39 @@ class StewardSubmissionSerializer(MoreInfoRequestsMixin, serializers.ModelSerial
         except ProjectMilestoneReview.DoesNotExist:
             return None
         return ProjectMilestoneReviewSerializer(review).data
+
+    def get_ai_analysis(self, obj):
+        proposals = getattr(obj, 'ai_proposal_rows', None)
+        if proposals is not None:
+            proposal = proposals[0] if proposals else None
+        else:
+            proposal = (
+                obj.review_proposals
+                .filter(source=ReviewProposal.SOURCE_AI)
+                .order_by('-created_at', '-id')
+                .first()
+            )
+        if not proposal:
+            return None
+
+        sections = {
+            key: value
+            for key, value in (proposal.sections or {}).items()
+            if key != 'frontend_ux'
+        }
+        return {
+            'id': proposal.id,
+            'action': proposal.action,
+            'points': proposal.points,
+            'confidence': proposal.confidence,
+            'gate_failures': proposal.gate_failures,
+            'sections': sections,
+            'extras': proposal.extras,
+            'overall_reason': proposal.overall_reason,
+            'synthesis': proposal.synthesis,
+            'created_at': proposal.created_at,
+            'service_account_name': proposal.service_account_name,
+        }
 
     def get_notes_count(self, obj):
         if hasattr(obj, 'internal_notes_count'):

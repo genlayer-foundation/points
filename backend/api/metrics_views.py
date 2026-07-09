@@ -106,7 +106,7 @@ class ParticipantsGrowthView(APIView):
     """
     permission_classes = [permissions.AllowAny]
 
-    EXCLUDED_BUILDER_SLUGS = ('builder-welcome', 'builder')
+    EXCLUDED_BUILDER_SLUGS = ('builder-welcome', 'builder', 'project-review-reward')
 
     def _add_first_seen(self, first_seen_by_user, user_id, seen_at):
         if not user_id or not seen_at:
@@ -342,4 +342,3 @@ class ParticipantsGrowthView(APIView):
             current_date += timedelta(days=1)
 
         return Response({'data': data})
-

@@ -268,6 +268,13 @@ export function searchToParams(parsed, options = {}) {
     params.is_interesting = false;
   }
 
+  // is:ai-reviewed / not:ai-reviewed → durable AI-analysis filter
+  if (hasValue(filters.is, ['ai-reviewed', 'ai_reviewed'])) {
+    params.has_ai_analysis = true;
+  } else if (hasValue(filters.not, ['ai-reviewed', 'ai_reviewed'])) {
+    params.has_ai_analysis = false;
+  }
+
   const resubmittedAliases = ['resubmitted', 'more-info-resubmitted', 'more_info_resubmitted'];
   // is:resubmitted / not:resubmitted → pending submissions edited after more-info was requested
   if (hasValue(filters.is, resubmittedAliases)) {

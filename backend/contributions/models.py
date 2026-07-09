@@ -1021,6 +1021,92 @@ class ProjectMilestoneReview(BaseModel):
         return super().save(*args, **kwargs)
 
 
+class ReviewProposal(BaseModel):
+    """Append-only proposal snapshot for reviewer history and AI analysis."""
+
+    SOURCE_AI = 'ai'
+    SOURCE_HUMAN = 'human'
+    SOURCE_CHOICES = [
+        (SOURCE_AI, 'AI'),
+        (SOURCE_HUMAN, 'Human'),
+    ]
+
+    submitted_contribution = models.ForeignKey(
+        SubmittedContribution,
+        on_delete=models.CASCADE,
+        related_name='review_proposals',
+    )
+    proposer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='review_proposal_snapshots',
+    )
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, db_index=True)
+    service_account_name = models.CharField(max_length=255, blank=True, default='')
+
+    action = models.CharField(max_length=20, choices=ProjectMilestoneReview.ACTION_CHOICES)
+    points = models.PositiveIntegerField(null=True, blank=True)
+    staff_reply = models.TextField(blank=True)
+    confidence = models.CharField(
+        max_length=10,
+        choices=ProjectMilestoneReview.CONFIDENCE_CHOICES,
+        null=True,
+        blank=True,
+    )
+    gate_failures = models.JSONField(default=list, blank=True)
+    sections = models.JSONField(default=dict, blank=True)
+    extras = models.JSONField(default=list, blank=True)
+    overall_reason = models.TextField(blank=True)
+    synthesis = models.TextField(blank=True)
+
+    questioned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='questioned_review_proposal_snapshots',
+    )
+    questioned_at = models.DateTimeField(null=True, blank=True)
+    question_feedback = models.TextField(blank=True)
+
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='decided_review_proposal_snapshots',
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    final_action = models.CharField(
+        max_length=20,
+        choices=ProjectMilestoneReview.ACTION_CHOICES,
+        null=True,
+        blank=True,
+    )
+    final_points = models.PositiveIntegerField(null=True, blank=True)
+    final_sections = models.JSONField(default=dict, blank=True)
+    reward_points = models.PositiveIntegerField(null=True, blank=True)
+    reward_contribution = models.ForeignKey(
+        'Contribution',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='review_reward_proposals',
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['submitted_contribution', 'created_at']),
+            models.Index(fields=['proposer', 'decided_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.submitted_contribution_id} - {self.source} - {self.action}"
+
+
 class Evidence(BaseModel):
     """
     Represents evidence for a contribution or submitted contribution.

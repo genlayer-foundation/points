@@ -68,6 +68,7 @@
   let questionFeedback = $state('');
   let questionSubmitting = $state(false);
   let lastQuestionSubmissionId = $state(null);
+  let aiAnalysisExpanded = $state(false);
   /** @type {string[]} */
   let rubricGateFailures = $state([]);
   let rubricSections = $state(defaultRubricSections());
@@ -103,6 +104,28 @@
     submission.proposed_by &&
     String(submission.proposed_by) === String(currentUserId)
   ));
+  let aiAnalysisSections = $derived.by(() => {
+    const sections = submission.ai_analysis?.sections || {};
+    return RUBRIC_SECTIONS
+      .filter(section => section.key !== 'frontend_ux' && sections[section.key])
+      .map(section => ({
+        ...section,
+        score: sections[section.key]?.score,
+        reason: sections[section.key]?.reason || ''
+      }));
+  });
+  let aiGateFailureLabels = $derived.by(() => {
+    const failures = new Set(submission.ai_analysis?.gate_failures || []);
+    return RUBRIC_GATE_FAILURES
+      .filter(failure => failures.has(failure.key))
+      .map(failure => failure.label);
+  });
+  let aiExtraLabels = $derived.by(() => {
+    const extras = new Set(submission.ai_analysis?.extras || []);
+    return RUBRIC_EXTRAS
+      .filter(extra => extras.has(extra.key))
+      .map(extra => extra.label);
+  });
 
   async function writeClipboard(text) {
     if (navigator.clipboard?.writeText) {
@@ -1395,9 +1418,82 @@
             showUser={false}
             variant="compact"
           />
-        {:else if showReviewForm && (submission.state === 'pending' || submission.state === 'more_info_needed')}
-          <!-- Proposal Notice -->
-          {#if submission.has_proposal}
+          {:else if showReviewForm && (submission.state === 'pending' || submission.state === 'more_info_needed')}
+            {#if submission.ai_analysis}
+              <div class="rounded-lg border border-sky-200 bg-sky-50/70">
+                <button
+                  type="button"
+                  onclick={() => aiAnalysisExpanded = !aiAnalysisExpanded}
+                  class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
+                  title="{aiAnalysisExpanded ? 'Hide' : 'Show'} AI review analysis"
+                >
+                  <span class="flex min-w-0 items-center gap-2">
+                    <span class="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-sky-100 text-sky-700">
+                      <Icons name="sparkle" size="sm" />
+                    </span>
+                    <span class="min-w-0">
+                      <span class="block text-sm font-semibold text-sky-950">AI review analysis</span>
+                      {#if submission.ai_analysis.created_at}
+                        <span class="block truncate text-xs text-sky-700">{formatDate(submission.ai_analysis.created_at)}</span>
+                      {/if}
+                    </span>
+                  </span>
+                  <span class="flex flex-shrink-0 items-center gap-2">
+                    {#if submission.ai_analysis.confidence}
+                      <span class="rounded-full bg-white px-2 py-0.5 text-xs font-semibold capitalize text-sky-800 ring-1 ring-sky-200">
+                        {submission.ai_analysis.confidence}
+                      </span>
+                    {/if}
+                    <Icons name="chevronDown" size="sm" className="text-sky-700 transition-transform {aiAnalysisExpanded ? 'rotate-180' : ''}" />
+                  </span>
+                </button>
+
+                {#if aiAnalysisExpanded}
+                  <div class="border-t border-sky-200 px-3 py-3">
+                    {#if aiAnalysisSections.length > 0}
+                      <div class="mb-3 flex flex-wrap gap-2">
+                        {#each aiAnalysisSections as section}
+                          <span class="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-sky-950 ring-1 ring-sky-200">
+                            <span>{section.label}</span>
+                            <span class="font-bold">{section.score}/5</span>
+                          </span>
+                        {/each}
+                      </div>
+                    {/if}
+
+                    {#if aiGateFailureLabels.length > 0}
+                      <div class="mb-3 rounded-md border border-red-200 bg-white px-3 py-2">
+                        <div class="mb-1 text-xs font-semibold text-red-800">Gate failures</div>
+                        <ul class="space-y-1">
+                          {#each aiGateFailureLabels as label}
+                            <li class="text-sm text-red-950">{label}</li>
+                          {/each}
+                        </ul>
+                      </div>
+                    {/if}
+
+                    {#if aiExtraLabels.length > 0}
+                      <div class="mb-3 flex flex-wrap gap-2">
+                        {#each aiExtraLabels as label}
+                          <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800 ring-1 ring-emerald-200">
+                            {label}
+                          </span>
+                        {/each}
+                      </div>
+                    {/if}
+
+                    {#if submission.ai_analysis.synthesis}
+                      <div class="markdown-content text-sm text-sky-950">{@html parseUserMarkdown(submission.ai_analysis.synthesis)}</div>
+                    {:else if submission.ai_analysis.overall_reason}
+                      <p class="text-sm text-sky-950 whitespace-pre-wrap">{submission.ai_analysis.overall_reason}</p>
+                    {/if}
+                  </div>
+                {/if}
+              </div>
+            {/if}
+
+            <!-- Proposal Notice -->
+            {#if submission.has_proposal}
             <div class="{isProposalQuestioned ? 'bg-orange-50 border-orange-300' : `${proposalNoticeTone.container} ${proposalNoticeTone.border}`} border rounded-lg px-3 py-2">
               <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div class="flex items-center gap-2">
