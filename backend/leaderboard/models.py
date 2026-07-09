@@ -37,13 +37,19 @@ def _lock_leaderboard_rank_update(leaderboard_type):
 # These are signup markers and journey milestones, not actual contribution work.
 # Gate 1 (user eligibility) is handled by get_eligible_referred_user_ids().
 # Gate 2 (contribution exclusion) uses this constant.
-REFERRAL_EXCLUDED_SLUGS = ['builder', 'builder-welcome', 'validator-waitlist']
+REFERRAL_EXCLUDED_SLUGS = [
+    'builder',
+    'builder-welcome',
+    'validator-waitlist',
+    'project-review-reward',
+]
 # These do not qualify a Builder for public leaderboard display by themselves.
 # Their earned/frozen points still count after the user has an eligible accepted submission.
 BUILDER_LEADERBOARD_ELIGIBILITY_EXCLUDED_CONTRIBUTION_TYPE_SLUGS = [
     'builder-welcome',
     'builder',
     'community-link-github',
+    'project-review-reward',
 ]
 
 

@@ -1,6 +1,7 @@
 from django.db.models import Count, F, Q
 from django.db.models.functions import Coalesce
 from django.db.models.expressions import Exists, OuterRef
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters import BooleanFilter, CharFilter, FilterSet, NumberFilter
@@ -13,6 +14,7 @@ from contributions.ai_attribution import AI_STEWARD_EMAIL, get_ai_steward
 from contributions.models import (
     Evidence,
     ProjectMilestoneReview,
+    ReviewProposal,
     SubmissionNote,
     SubmittedContribution,
 )
@@ -514,6 +516,23 @@ class AIReviewViewSet(
                     'overall_reason': rubric_review['overall_reason'],
                 },
             )
+            review_proposal = ReviewProposal.objects.create(
+                submitted_contribution=submission,
+                proposer=ai_user,
+                source=ReviewProposal.SOURCE_AI,
+                service_account_name=service_account_name,
+                action=data['proposed_action'],
+                points=data.get('proposed_points'),
+                staff_reply=data.get('proposed_staff_reply', ''),
+                confidence=data.get('confidence', 'medium'),
+                gate_failures=rubric_review['gate_failures'],
+                sections=rubric_review['sections'],
+                extras=rubric_review['extras'],
+                overall_reason=rubric_review['overall_reason'],
+                synthesis=data.get('synthesis', ''),
+            )
+        else:
+            review_proposal = None
 
         # Create CRM note
         action_str = data['proposed_action']
@@ -548,6 +567,8 @@ class AIReviewViewSet(
                 'confidence': confidence,
                 'reasoning': reasoning,
                 'rubric_review_id': rubric_record.id if rubric_record else None,
+                'review_proposal_id': review_proposal.id if review_proposal else None,
+                'synthesis': data.get('synthesis', ''),
                 # Audit trail: which service account authenticated the proposal
                 'service_account': service_account_name,
             },
@@ -559,6 +580,7 @@ class AIReviewViewSet(
         )
 
     @action(detail=True, methods=['post', 'put'], url_path='propose')
+    @transaction.atomic
     def propose(self, request, pk=None):
         """
         Submit or update a review proposal for a submission.
@@ -567,7 +589,7 @@ class AIReviewViewSet(
         PUT: Update an existing proposal (fails if none exists).
         """
         submission = get_object_or_404(
-            SubmittedContribution.objects.select_related(
+            SubmittedContribution.objects.select_for_update(of=('self',)).select_related(
                 'contribution_type',
                 'contribution_type__category',
                 'user',

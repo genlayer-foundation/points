@@ -3,6 +3,7 @@ const HIDDEN_WELCOME_CONTRIBUTION_SLUGS = new Set([
   'builder_welcome',
   'community-welcome',
   'community_welcome',
+  'project-review-reward',
 ]);
 
 const HIDDEN_WELCOME_CONTRIBUTION_NAMES = [
