@@ -3160,11 +3160,15 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
+            # Queryset update bypasses auto_now, so bump updated_at explicitly
+            # to match what save() does on the single-review path.
+            now = timezone.now()
             SubmittedContribution.objects.filter(id__in=rejected_ids).update(
                 state='rejected',
                 staff_reply=staff_reply,
                 reviewed_by=request.user,
-                reviewed_at=timezone.now()
+                reviewed_at=now,
+                updated_at=now,
             )
 
             SubmissionStateTransition.objects.bulk_create([

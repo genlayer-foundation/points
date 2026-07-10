@@ -189,7 +189,7 @@ Use the exact filter for the question being asked:
 | Need | Endpoint | Filter |
 |---|---|---|
 | Submissions currently waiting on submitter info | `/api/v1/ai-review/reviewed/` or steward search | `state=more_info_needed` |
-| Pending submissions resubmitted after more info was requested | No query param exists. Retrieve `/api/v1/ai-review/{id}/` and inspect `internal_notes` for a prior `more_info` decision note | |
+| Pending submissions resubmitted after more info was requested | `/api/v1/ai-review/{id}/` | No query param exists; inspect `internal_notes` for a prior `more_info` decision note |
 | Active proposals recommending more info | `/api/v1/ai-review/proposed/` | `proposed_action=more_info` |
 | Reviewed submissions where final steward decision was more info | `/api/v1/ai-review/reviewed/` | `state=more_info_needed` |
 | Exclude current more-info submissions | Any list endpoint where state is not fixed | `exclude_state=more_info_needed` |
