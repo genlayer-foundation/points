@@ -159,3 +159,34 @@ class PublicExplorerFiltersTest(TestCase):
         result_ids = {item['id'] for item in response.json()['results']}
         self.assertIn(self.inactive_mission.id, result_ids)
         self.assertIn(self.active_mission.id, result_ids)
+
+    def test_mission_summary_includes_inactive_filter_options(self):
+        response = self.client.get('/api/v1/missions/', {
+            'include_inactive': 'true',
+            'summary': 'true',
+            'contribution_type': self.submittable_type.id,
+            'page_size': 50,
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = {item['id']: item for item in response.json()['results']}
+        self.assertEqual(
+            set(results[self.inactive_mission.id]),
+            {
+                'id', 'name', 'start_date', 'end_date',
+                'contribution_type', 'is_active',
+            },
+        )
+        self.assertFalse(results[self.inactive_mission.id]['is_active'])
+        self.assertTrue(results[self.active_mission.id]['is_active'])
+
+    def test_statistics_can_limit_aggregation_to_one_contribution_type(self):
+        response = self.client.get('/api/v1/contribution-types/statistics/', {
+            'contribution_type': self.submittable_type.id,
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [item['id'] for item in response.json()],
+            [self.submittable_type.id],
+        )

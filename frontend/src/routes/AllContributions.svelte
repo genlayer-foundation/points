@@ -97,7 +97,9 @@
   });
   let missionsForType = $derived.by(() => {
     if (!typeId) return [];
-    const filtered = allMissions.filter(m => String(m.contribution_type) === String(typeId));
+    const filtered = allMissions
+      .filter(m => String(m.contribution_type) === String(typeId))
+      .sort(compareMissions);
     if (
       missionId &&
       !filtered.some(m => String(m.id) === String(missionId)) &&
@@ -122,6 +124,19 @@
 
   function isPublicContributionType(type) {
     return type?.is_submittable === true || type?.show_in_contributions === true;
+  }
+
+  function isMissionEnded(mission) {
+    return !!mission?.end_date && new Date(mission.end_date).getTime() <= Date.now();
+  }
+
+  function compareMissions(a, b) {
+    const aEnded = isMissionEnded(a);
+    const bEnded = isMissionEnded(b);
+    if (aEnded !== bEnded) return aEnded ? 1 : -1;
+    const aEnd = a.end_date ? new Date(a.end_date).getTime() : 0;
+    const bEnd = b.end_date ? new Date(b.end_date).getTime() : 0;
+    return bEnd - aEnd;
   }
 
   // === Search syntax ===
@@ -490,7 +505,7 @@
     try {
       const [types, missions] = await Promise.all([
         contributionsAPI.getAllContributionTypes().then((r) => r.data),
-        getMissions({ include_inactive: true }),
+        getMissions({ include_inactive: true, summary: true }),
       ]);
       allTypes = Array.isArray(types)
         ? types.filter(isPublicContributionType).sort((a, b) => a.name.localeCompare(b.name))
@@ -790,7 +805,9 @@
         >
           <option value="" selected={!missionId}>{typeId ? (missionsForType.length === 0 ? 'No missions' : 'Any mission') : 'Select a type first'}</option>
           {#each missionsForType as mission (mission.id)}
-            <option value={String(mission.id)} selected={String(mission.id) === String(missionId)}>{mission.name}</option>
+            <option value={String(mission.id)} selected={String(mission.id) === String(missionId)}>
+              {mission.name}{isMissionEnded(mission) ? ' (Ended)' : ''}
+            </option>
           {/each}
         </select>
       </div>
