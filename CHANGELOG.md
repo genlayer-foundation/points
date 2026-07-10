@@ -4,6 +4,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Bulk rejections now appear in the submission review history like individual rejections, every review decision and submission change is permanently recorded for auditing, and steward search suggests the is:ai-reviewed filter (664f0978)
+
 - The Overview network activity chart now keeps showing its latest complete Studio and testnet data when a source temporarily fails (582161d4)
 
 - Pending submissions (including those awaiting more information) can be edited again even after their contribution type stops accepting new submissions; only brand-new submissions of retired types stay blocked (f258b1f4)
