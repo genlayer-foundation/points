@@ -704,6 +704,7 @@ class NetworkActivityViewTests(TestCase):
         self.assertEqual(latest_observed['sources']['asimov']['chain_transactions'], 225)
         studio_call = next(call for call in mock_get.call_args_list if 'executive' in call.args[0])
         self.assertEqual(studio_call.kwargs['params'], {'instanceId': 'all', 'range': 'year'})
+        self.assertEqual(studio_call.kwargs['timeout'], (12, 60))
         history_calls = [call for call in mock_get.call_args_list if 'kpi-histories' in call.args[0]]
         self.assertEqual(len(history_calls), 4)
         self.assertEqual(

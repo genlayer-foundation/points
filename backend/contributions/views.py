@@ -43,7 +43,8 @@ from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          StewardSubmissionTypeUpdateSerializer,
                          SubmissionNoteSerializer, SubmissionProposeSerializer,
                          SubmissionQuestionProposalSerializer,
-                         MissionSerializer, StartupRequestListSerializer, StartupRequestDetailSerializer,
+                         MissionSerializer, MissionSummarySerializer,
+                         StartupRequestListSerializer, StartupRequestDetailSerializer,
                          FeaturedContentSerializer, AlertSerializer,
                          ContributionDiscordXPStateSerializer)
 from .permissions import IsSteward, steward_has_permission, steward_permitted_type_ids
@@ -127,6 +128,7 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
     def statistics(self, request):
         """
         Get aggregated statistics for each contribution type.
+        Pass contribution_type=<id> to limit aggregation to one type.
         Returns:
             - count of each contribution type
             - current points multiplier
@@ -144,6 +146,16 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
             # Exclude Builder Welcome when filtering for builder category
             if category == 'builder':
                 queryset = queryset.exclude(slug='builder-welcome')
+
+        contribution_type = request.query_params.get('contribution_type')
+        if contribution_type not in (None, ''):
+            try:
+                contribution_type = int(contribution_type)
+            except (TypeError, ValueError) as err:
+                raise serializers.ValidationError({
+                    'contribution_type': 'Must be a valid contribution type id.'
+                }) from err
+            queryset = queryset.filter(pk=contribution_type)
         
         multiplier_field = DecimalField(max_digits=10, decimal_places=2)
         current_multiplier = GlobalLeaderboardMultiplier.objects.filter(
@@ -3581,75 +3593,101 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = MissionSerializer
     permission_classes = [permissions.AllowAny]
 
+    def _summary_requested(self):
+        return (
+            getattr(self, 'action', None) == 'list'
+            and self.request.query_params.get('summary', '').lower()
+            in ['1', 'true', 'yes']
+        )
+
+    def get_serializer_class(self):
+        if self._summary_requested():
+            return MissionSummarySerializer
+        return MissionSerializer
+
     def get_queryset(self):
         """
         Return active missions by default.
-        Supports filtering by contribution_type and category.
+        Supports filtering by contribution_type and category. Use
+        summary=true for the lightweight browse/filter payload.
         """
-        active_submissions = SubmittedContribution.objects.exclude(
-            state__in=['rejected', 'canceled']
-        )
-        mission_submission_count = active_submissions.filter(
-            mission_id=OuterRef('pk')
-        ).values('mission_id').annotate(
-            count=Count('pk')
-        ).values('count')
-        contribution_type_submission_count = active_submissions.filter(
-            contribution_type_id=OuterRef('contribution_type_id')
-        ).values('contribution_type_id').annotate(
-            count=Count('pk')
-        ).values('count')
-        multiplier_field = DecimalField(max_digits=10, decimal_places=2)
-        current_multiplier = GlobalLeaderboardMultiplier.objects.filter(
-            contribution_type_id=OuterRef('contribution_type_id')
-        ).order_by('-valid_from').values('multiplier_value')[:1]
-
-        annotations = {
-            'submission_count': Coalesce(
-                Subquery(mission_submission_count, output_field=IntegerField()),
-                Value(0),
-                output_field=IntegerField(),
-            ),
-            'contribution_type_submission_count': Coalesce(
-                Subquery(
-                    contribution_type_submission_count,
-                    output_field=IntegerField(),
-                ),
-                Value(0),
-                output_field=IntegerField(),
-            ),
-            'contribution_type_current_multiplier_value': Coalesce(
-                Subquery(current_multiplier, output_field=multiplier_field),
-                Value(1.0, output_field=multiplier_field),
-                output_field=multiplier_field,
-            ),
-            'contributions_count': Count('contributions', distinct=True),
-            'unique_users': Count('contributions__user', distinct=True),
-            'points_earned': Coalesce(
-                Sum('contributions__frozen_global_points'),
-                Value(0),
-                output_field=IntegerField(),
-            ),
-        }
-
-        user = getattr(self.request, 'user', None)
-        if user and getattr(user, 'is_authenticated', False):
-            user_submission_count = active_submissions.filter(
-                mission_id=OuterRef('pk'),
-                user_id=user.id,
+        if self._summary_requested():
+            # Browse lists only need mission identity and dates. Avoid the
+            # capacity, multiplier, and contribution aggregate work used by
+            # full mission cards and detail pages.
+            queryset = Mission.objects.only(
+                'id',
+                'name',
+                'start_date',
+                'end_date',
+                'contribution_type_id',
+                'created_at',
+            ).order_by('-created_at', '-id')
+        else:
+            active_submissions = SubmittedContribution.objects.exclude(
+                state__in=['rejected', 'canceled']
+            )
+            mission_submission_count = active_submissions.filter(
+                mission_id=OuterRef('pk')
             ).values('mission_id').annotate(
                 count=Count('pk')
             ).values('count')
-            annotations['user_submission_count'] = Coalesce(
-                Subquery(user_submission_count, output_field=IntegerField()),
-                Value(0),
-                output_field=IntegerField(),
-            )
+            contribution_type_submission_count = active_submissions.filter(
+                contribution_type_id=OuterRef('contribution_type_id')
+            ).values('contribution_type_id').annotate(
+                count=Count('pk')
+            ).values('count')
+            multiplier_field = DecimalField(max_digits=10, decimal_places=2)
+            current_multiplier = GlobalLeaderboardMultiplier.objects.filter(
+                contribution_type_id=OuterRef('contribution_type_id')
+            ).order_by('-valid_from').values('multiplier_value')[:1]
 
-        queryset = Mission.objects.all().select_related(
-            'contribution_type',
-            'contribution_type__category',
-        ).annotate(**annotations).order_by('-created_at', '-id')
+            annotations = {
+                'submission_count': Coalesce(
+                    Subquery(mission_submission_count, output_field=IntegerField()),
+                    Value(0),
+                    output_field=IntegerField(),
+                ),
+                'contribution_type_submission_count': Coalesce(
+                    Subquery(
+                        contribution_type_submission_count,
+                        output_field=IntegerField(),
+                    ),
+                    Value(0),
+                    output_field=IntegerField(),
+                ),
+                'contribution_type_current_multiplier_value': Coalesce(
+                    Subquery(current_multiplier, output_field=multiplier_field),
+                    Value(1.0, output_field=multiplier_field),
+                    output_field=multiplier_field,
+                ),
+                'contributions_count': Count('contributions', distinct=True),
+                'unique_users': Count('contributions__user', distinct=True),
+                'points_earned': Coalesce(
+                    Sum('contributions__frozen_global_points'),
+                    Value(0),
+                    output_field=IntegerField(),
+                ),
+            }
+
+            user = getattr(self.request, 'user', None)
+            if user and getattr(user, 'is_authenticated', False):
+                user_submission_count = active_submissions.filter(
+                    mission_id=OuterRef('pk'),
+                    user_id=user.id,
+                ).values('mission_id').annotate(
+                    count=Count('pk')
+                ).values('count')
+                annotations['user_submission_count'] = Coalesce(
+                    Subquery(user_submission_count, output_field=IntegerField()),
+                    Value(0),
+                    output_field=IntegerField(),
+                )
+
+            queryset = Mission.objects.all().select_related(
+                'contribution_type',
+                'contribution_type__category',
+            ).annotate(**annotations).order_by('-created_at', '-id')
 
         include_inactive = (
             self.request.query_params.get('include_inactive', '').lower()

@@ -3,6 +3,7 @@
   import { push, location, loc } from 'svelte-spa-router';
   import { contributionsAPI, usersAPI } from '../lib/api';
   import { truncateAddress } from '../lib/address.js';
+  import { compareMissions, isMissionEnded } from '../lib/missionUtils.js';
   import { getMissions } from '../lib/missionsStore.js';
   import HighlightCard from '../components/portal/HighlightCard.svelte';
   import HighlightsSlider from '../components/portal/HighlightsSlider.svelte';
@@ -97,7 +98,9 @@
   });
   let missionsForType = $derived.by(() => {
     if (!typeId) return [];
-    const filtered = allMissions.filter(m => String(m.contribution_type) === String(typeId));
+    const filtered = allMissions
+      .filter(m => String(m.contribution_type) === String(typeId))
+      .sort(compareMissions);
     if (
       missionId &&
       !filtered.some(m => String(m.id) === String(missionId)) &&
@@ -490,7 +493,7 @@
     try {
       const [types, missions] = await Promise.all([
         contributionsAPI.getAllContributionTypes().then((r) => r.data),
-        getMissions({ include_inactive: true }),
+        getMissions({ include_inactive: true, summary: true }),
       ]);
       allTypes = Array.isArray(types)
         ? types.filter(isPublicContributionType).sort((a, b) => a.name.localeCompare(b.name))
@@ -790,7 +793,9 @@
         >
           <option value="" selected={!missionId}>{typeId ? (missionsForType.length === 0 ? 'No missions' : 'Any mission') : 'Select a type first'}</option>
           {#each missionsForType as mission (mission.id)}
-            <option value={String(mission.id)} selected={String(mission.id) === String(missionId)}>{mission.name}</option>
+            <option value={String(mission.id)} selected={String(mission.id) === String(missionId)}>
+              {mission.name}{isMissionEnded(mission) ? ' (Ended)' : ''}
+            </option>
           {/each}
         </select>
       </div>

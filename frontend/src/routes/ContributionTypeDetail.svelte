@@ -4,6 +4,8 @@
   import { format } from '../lib/dates.js';
   import { push } from 'svelte-spa-router';
   import { contributionsAPI } from '../lib/api';
+  import { compareMissions, isMissionEnded } from '../lib/missionUtils.js';
+  import { getMissions } from '../lib/missionsStore.js';
   import HighlightsSlider from '../components/portal/HighlightsSlider.svelte';
   import PortalContributionCard from '../components/portal/PortalContributionCard.svelte';
   import { getCategoryButtonStyle, getCategoryGradientStyle } from '../lib/categoryPresentation.js';
@@ -80,6 +82,16 @@
     return Number(value || 0).toLocaleString();
   }
 
+  function missionDateLabel(mission) {
+    const now = Date.now();
+    const startsAt = mission.start_date ? new Date(mission.start_date).getTime() : null;
+
+    if (startsAt && startsAt > now) return `Starts ${formatDate(mission.start_date)}`;
+    if (isMissionEnded(mission)) return `Ended ${formatDate(mission.end_date)}`;
+    if (mission.end_date) return `Ends ${formatDate(mission.end_date)}`;
+    return 'Ongoing';
+  }
+
   function formatPoints(stats) {
     if (stats?.min_points == null || stats?.max_points == null || stats?.current_multiplier == null) {
       return '0 pts';
@@ -102,10 +114,14 @@
       loading = true;
       error = null;
 
-      const [typeRes, statsRes, missionsRes, highlightsRes, contributionsRes] = await Promise.all([
+      const [typeRes, statsRes, missionList, highlightsRes, contributionsRes] = await Promise.all([
         contributionsAPI.getContributionType(params.id),
-        contributionsAPI.getContributionTypeStatistics(),
-        contributionsAPI.getAllMissions({ contribution_type: params.id }),
+        contributionsAPI.getContributionTypeStatistics({ contribution_type: params.id }),
+        getMissions({
+          contribution_type: params.id,
+          include_inactive: true,
+          summary: true,
+        }),
         contributionsAPI.getContributionTypeHighlights(params.id),
         contributionsAPI.getContributions({
           contribution_type: params.id,
@@ -118,7 +134,7 @@
       contributionType = typeRes.data;
       const allStats = statsRes.data || [];
       statistics = allStats.find((stat) => String(stat.id) === String(params.id)) || {};
-      missions = missionsRes.data || [];
+      missions = Array.isArray(missionList) ? [...missionList].sort(compareMissions) : [];
       highlights = visibleContributions(highlightsRes.data || []);
       contributions = visibleContributions(contributionsRes.data?.results || []);
     } catch (err) {
@@ -325,7 +341,7 @@
                 <span class="min-w-0 flex-1">
                   <span class="block truncate text-[15px] font-semibold text-black">{mission.name}</span>
                   <span class="mt-1 block text-[12px] text-[#7b8798]">
-                    {mission.end_date ? `Ends ${formatDate(mission.end_date)}` : 'Ongoing'}
+                    {missionDateLabel(mission)}
                   </span>
                 </span>
                 <img src="/assets/icons/arrow-right-line.svg" alt="" class="h-4 w-4 flex-shrink-0" />
