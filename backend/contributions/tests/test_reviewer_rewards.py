@@ -1,15 +1,19 @@
 from datetime import timedelta
+from io import StringIO
 from unittest.mock import patch
 
+from django.core.management import call_command
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient, APITestCase
 
+from contributions.ai_attribution import get_ai_steward
 from contributions.models import (
     Category,
     Contribution,
     ContributionType,
     Evidence,
+    ProjectMilestoneReview,
     ReviewProposal,
     SubmissionNote,
     SubmittedContribution,
@@ -466,3 +470,75 @@ class ReviewerRewardMathTests(APITestCase):
             ),
             15,
         )
+
+
+@override_settings(ALLOWED_HOSTS=['*'])
+class BackfillAIReviewProposalsCommandTests(APITestCase):
+    def setUp(self):
+        category, _ = Category.objects.get_or_create(
+            slug='builder',
+            defaults={'name': 'Builder', 'description': 'Builder category'},
+        )
+        self.project_type = ContributionType.objects.create(
+            name='Backfill Project',
+            slug='backfill-project',
+            category=category,
+            min_points=0,
+            max_points=100,
+            review_flow=ContributionType.REVIEW_FLOW_BUILDER_PROJECT,
+        )
+        self.submitter = User.objects.create_user(
+            email='backfill-submitter@example.com',
+            address='0x1000000000000000000000000000000000000010',
+        )
+        self.ai_user = get_ai_steward()
+
+    def create_legacy_ai_submission(self):
+        payload = rubric_payload()
+        submission = SubmittedContribution.objects.create(
+            user=self.submitter,
+            contribution_type=self.project_type,
+            contribution_date=timezone.now(),
+            state='pending',
+            proposed_action='accept',
+            proposed_points=25,
+            proposed_staff_reply='Looks good.',
+            proposed_by=self.ai_user,
+            proposed_at=timezone.now() - timedelta(days=2),
+            proposed_confidence='high',
+        )
+        ProjectMilestoneReview.objects.create(
+            submitted_contribution=submission,
+            proposer=self.ai_user,
+            review_flow=ContributionType.REVIEW_FLOW_BUILDER_PROJECT,
+            action='accept',
+            confidence='high',
+            **payload,
+        )
+        SubmissionNote.objects.create(
+            submitted_contribution=submission,
+            user=self.ai_user,
+            message='Proposed: accept',
+            is_proposal=True,
+            data={'service_account': 'review-pipeline'},
+        )
+        return submission
+
+    def test_backfill_creates_ai_snapshot_once(self):
+        submission = self.create_legacy_ai_submission()
+
+        call_command('backfill_ai_review_proposals', '--dry-run', stdout=StringIO())
+        self.assertEqual(ReviewProposal.objects.count(), 0)
+
+        call_command('backfill_ai_review_proposals', stdout=StringIO())
+        call_command('backfill_ai_review_proposals', stdout=StringIO())
+
+        proposal = ReviewProposal.objects.get(submitted_contribution=submission)
+        self.assertEqual(proposal.source, ReviewProposal.SOURCE_AI)
+        self.assertEqual(proposal.proposer, self.ai_user)
+        self.assertEqual(proposal.service_account_name, 'review-pipeline')
+        self.assertEqual(proposal.action, 'accept')
+        self.assertEqual(proposal.points, 25)
+        self.assertEqual(proposal.sections['genlayer_fit']['score'], 4)
+        self.assertEqual(proposal.synthesis, '')
+        self.assertEqual(proposal.created_at, submission.proposed_at)
