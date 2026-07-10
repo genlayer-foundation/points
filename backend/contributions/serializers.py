@@ -95,6 +95,26 @@ class LightMissionSerializer(serializers.Serializer):
     max_submissions_per_user = serializers.IntegerField(read_only=True)
 
 
+class MissionSummarySerializer(serializers.ModelSerializer):
+    """Mission fields needed by browse lists and filter controls."""
+    contribution_type = serializers.IntegerField(
+        source='contribution_type_id',
+        read_only=True,
+    )
+    is_active = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Mission
+        fields = [
+            'id', 'name', 'start_date', 'end_date', 'contribution_type',
+            'is_active',
+        ]
+        read_only_fields = fields
+
+    def get_is_active(self, obj):
+        return obj.is_active()
+
+
 class LightProjectContributionSerializer(serializers.Serializer):
     """Minimal data for the accepted Projects contribution a milestone links to."""
     id = serializers.IntegerField(read_only=True)

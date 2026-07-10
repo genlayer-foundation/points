@@ -73,15 +73,27 @@
         contributionType?.submissions_remaining != null &&
         Number(contributionType.submissions_remaining) <= 0)
   );
-  let submissionClosed = $derived(missionIsFull || contributionTypeIsFull);
+  let missionEnded = $derived(
+    mission?.is_active === false &&
+      !!mission?.end_date &&
+      new Date(mission.end_date).getTime() <= Date.now()
+  );
+  let missionUnavailable = $derived(mission?.is_active === false);
+  let submissionClosed = $derived(missionUnavailable || missionIsFull || contributionTypeIsFull);
   let submitButtonLabel = $derived(
-    mission?.user_is_full === true
-      ? 'Limit reached'
-      : submissionClosed
-        ? 'Submissions closed'
-        : 'Submit to mission'
+    missionEnded
+      ? 'Mission ended'
+      : missionUnavailable
+        ? 'Mission not started'
+        : mission?.user_is_full === true
+          ? 'Limit reached'
+          : submissionClosed
+            ? 'Submissions closed'
+            : 'Submit to mission'
   );
   let capacityLabel = $derived.by(() => {
+    if (missionEnded) return 'Ended';
+    if (missionUnavailable) return 'Not started';
     if (mission?.user_is_full === true) return 'Your limit reached';
     if (mission?.max_submissions == null) {
       return contributionTypeIsFull ? 'Submissions closed' : 'Unlimited';
@@ -122,9 +134,8 @@
       loading = true;
       error = null;
 
-      const [missionRes, statsRes, contributionsRes] = await Promise.all([
+      const [missionRes, contributionsRes] = await Promise.all([
         contributionsAPI.getMission(params.id),
-        contributionsAPI.getMissionStats(params.id).catch(() => null),
         contributionsAPI.getContributions({
           mission: params.id,
           ordering: '-contribution_date',
@@ -134,13 +145,13 @@
       ]);
 
       mission = missionRes.data;
-      stats = statsRes?.data || { unique_users: 0, contributions_count: 0, points_earned: 0 };
+      stats = {
+        unique_users: mission?.unique_users || 0,
+        contributions_count: mission?.contributions_count || 0,
+        points_earned: mission?.points_earned || 0,
+      };
+      contributionType = mission?.contribution_type_details || null;
       contributions = visibleContributions(contributionsRes.data?.results || []);
-
-      if (mission?.contribution_type) {
-        const typeRes = await contributionsAPI.getContributionType(mission.contribution_type);
-        contributionType = typeRes.data;
-      }
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to load mission';
     } finally {
@@ -269,7 +280,9 @@
             <div class="mt-4 space-y-3">
               <div class="flex items-center justify-between gap-4">
                 <span class="text-[12px] font-semibold uppercase text-[#7b8798]">Status</span>
-                <span class="text-[13px] font-semibold text-black">{mission.is_active ? 'Active' : 'Inactive'}</span>
+                <span class="text-[13px] font-semibold text-black">
+                  {mission.is_active ? 'Active' : missionEnded ? 'Ended' : 'Upcoming'}
+                </span>
               </div>
               <div class="flex items-center justify-between gap-4">
                 <span class="text-[12px] font-semibold uppercase text-[#7b8798]">Start</span>
