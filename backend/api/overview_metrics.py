@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 HTTP_TIMEOUT_SECONDS = 12
 GEN_DECIMALS = 18
 TESTNET_NETWORKS = ('asimov', 'bradbury')
+NETWORK_ACTIVITY_SOURCES = ('studio', *TESTNET_NETWORKS)
 EXPLORER_BASE_URLS = {
     'asimov': 'https://explorer-asimov.genlayer.com',
     'bradbury': 'https://explorer-bradbury.genlayer.com',
@@ -67,7 +68,7 @@ def snapshot(metric_key, source, value, unit='count', label='', dimensions=None,
     )
 
 
-def snapshot_error(metric_key, source, error, label='', dimensions=None):
+def snapshot_error(metric_key, source, error, label='', dimensions=None, raw_payload=None):
     logger.warning('Overview metric %s from %s failed: %s', metric_key, source, error)
     return snapshot(
         metric_key,
@@ -75,6 +76,7 @@ def snapshot_error(metric_key, source, error, label='', dimensions=None):
         None,
         label=label,
         dimensions=dimensions,
+        raw_payload=raw_payload,
         status=MetricSnapshot.STATUS_ERROR,
         error=str(error),
     )
@@ -673,14 +675,63 @@ def build_network_activity():
     }
 
 
+def _network_activity_source_keys(payload):
+    if not isinstance(payload, dict):
+        return []
+    series = payload.get('series')
+    if not isinstance(series, list):
+        return []
+    return [
+        item.get('key')
+        for item in series
+        if isinstance(item, dict) and isinstance(item.get('key'), str) and item.get('key')
+    ]
+
+
+def _network_activity_missing_sources(payload):
+    source_keys = set(_network_activity_source_keys(payload))
+    return [source for source in NETWORK_ACTIVITY_SOURCES if source not in source_keys]
+
+
+def _network_activity_payload_is_servable(payload):
+    if not isinstance(payload, dict):
+        return False
+    if (
+        payload.get('interval') != NETWORK_ACTIVITY_INTERVAL
+        or payload.get('version') not in (3, 4, NETWORK_ACTIVITY_PAYLOAD_VERSION)
+    ):
+        return False
+    source_keys = _network_activity_source_keys(payload)
+    return len(source_keys) == len(set(source_keys)) and not _network_activity_missing_sources(payload)
+
+
 def collect_network_activity():
     try:
         payload = build_network_activity()
     except Exception as exc:
         return snapshot_error('network_activity', 'composite', exc)
-    # Don't overwrite a good snapshot with an empty one if every source failed.
-    if not payload.get('series'):
-        return snapshot_error('network_activity', 'composite', 'no network-activity sources resolved')
+    # A partial upstream result must not become the new public source of truth.
+    # Keep the attempted payload on an error snapshot for debugging; public reads
+    # only consider complete OK snapshots and therefore retain the last known-good
+    # Studio + testnet dataset until all sources resolve again.
+    resolved_sources = _network_activity_source_keys(payload)
+    missing_sources = _network_activity_missing_sources(payload)
+    if missing_sources or len(resolved_sources) != len(set(resolved_sources)):
+        if missing_sources:
+            error = f'missing network-activity sources: {", ".join(missing_sources)}'
+        else:
+            error = 'duplicate network-activity sources resolved'
+        return snapshot_error(
+            'network_activity',
+            'composite',
+            error,
+            dimensions={
+                'expected_sources': list(NETWORK_ACTIVITY_SOURCES),
+                'resolved_sources': resolved_sources,
+                'missing_sources': missing_sources,
+            },
+            raw_payload=payload,
+        )
     return snapshot(
         'network_activity',
         'composite',
@@ -692,10 +743,15 @@ def collect_network_activity():
 
 
 def _latest_network_activity_payload():
-    snap = latest_snapshot('network_activity')
-    if snap is None or not isinstance(snap.raw_payload, dict) or not snap.raw_payload.get('series'):
-        return None
-    return snap, dict(snap.raw_payload)
+    snapshots = (
+        MetricSnapshot.objects
+        .filter(metric_key='network_activity', status=MetricSnapshot.STATUS_OK)
+        .order_by('-observed_at', '-created_at')
+    )
+    for snap in snapshots.iterator(chunk_size=100):
+        if _network_activity_payload_is_servable(snap.raw_payload):
+            return snap, dict(snap.raw_payload)
+    return None
 
 
 def latest_network_activity():
@@ -707,11 +763,6 @@ def latest_network_activity():
     # different semantics. Versions 3 and 4 already have the same weekly graph
     # semantics; they just lack the v5 six-month heatmap window, so keep serving
     # the graph while the cron catches up and normalize the missing fields below.
-    if (
-        payload.get('interval') != NETWORK_ACTIVITY_INTERVAL
-        or payload.get('version') not in (3, 4, NETWORK_ACTIVITY_PAYLOAD_VERSION)
-    ):
-        return None
     payload['version'] = NETWORK_ACTIVITY_PAYLOAD_VERSION
     payload.setdefault('activity', [])
     payload.setdefault('activity_window', None)

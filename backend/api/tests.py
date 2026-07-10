@@ -777,7 +777,11 @@ class NetworkActivityViewTests(TestCase):
         mock_get.side_effect = AssertionError('upstreams must not be hit when a snapshot exists')
         stored = {
             'labels': ['Jun 1-7', 'Jun 8-14', 'Jun 15-21'],
-            'series': [{'key': 'studio', 'label': 'Studio', 'values': [None, 5, 9]}],
+            'series': [
+                {'key': 'studio', 'label': 'Studio', 'values': [None, 5, 9]},
+                {'key': 'asimov', 'label': 'Asimov', 'values': [1, 2, 3]},
+                {'key': 'bradbury', 'label': 'Bradbury', 'values': [4, 5, 6]},
+            ],
             'version': 5,
             'interval': 'week',
             'activity_window': {'start': '2026-01-01', 'end': '2026-06-30'},
@@ -809,7 +813,7 @@ class NetworkActivityViewTests(TestCase):
         self.assertEqual(resp.data['interval'], 'week')
         self.assertEqual(resp.data['version'], 5)
         self.assertEqual(resp.data['totals']['decisions_made'], 4242)
-        self.assertEqual([s['key'] for s in resp.data['series']], ['studio'])
+        self.assertEqual([s['key'] for s in resp.data['series']], ['studio', 'asimov', 'bradbury'])
         self.assertEqual(resp.data['series'][0]['values'], [None, 5, 9])  # null padding preserved
         self.assertEqual(resp.data['activity'][0]['date'], '2026-06-15')
         mock_get.assert_not_called()
@@ -819,7 +823,11 @@ class NetworkActivityViewTests(TestCase):
         mock_get.side_effect = AssertionError('public read must not fetch upstreams')
         stored = {
             'labels': ['Jun 1-7'],
-            'series': [{'key': 'studio', 'label': 'Studio', 'values': [42]}],
+            'series': [
+                {'key': 'studio', 'label': 'Studio', 'values': [42]},
+                {'key': 'asimov', 'label': 'Asimov', 'values': [0]},
+                {'key': 'bradbury', 'label': 'Bradbury', 'values': [0]},
+            ],
             'version': 3,
             'interval': 'week',
             'latest_week': {'week_start': '2026-06-01', 'week_end': '2026-06-07', 'label': 'Jun 1-7'},
@@ -888,7 +896,11 @@ class NetworkActivityViewTests(TestCase):
         # overwrite it — it records an error snapshot and the OK one keeps serving.
         good = {
             'labels': ['Jun 1'],
-            'series': [{'key': 'studio', 'label': 'Studio', 'values': [7]}],
+            'series': [
+                {'key': 'studio', 'label': 'Studio', 'values': [7]},
+                {'key': 'asimov', 'label': 'Asimov', 'values': [0]},
+                {'key': 'bradbury', 'label': 'Bradbury', 'values': [0]},
+            ],
             'version': 4,
             'interval': 'week',
             'activity': [],
@@ -913,6 +925,85 @@ class NetworkActivityViewTests(TestCase):
         self.assertEqual(snap.status, MetricSnapshot.STATUS_ERROR)
         # The latest *OK* snapshot is still the good one.
         self.assertEqual(latest_network_activity()['totals']['decisions_made'], 1234)
+
+    @patch('api.overview_metrics.requests.get')
+    def test_partial_source_failure_is_saved_as_error_and_keeps_complete_snapshot(self, mock_get):
+        good = {
+            'labels': ['Jun 1'],
+            'series': [
+                {'key': 'studio', 'label': 'Studio', 'values': [7]},
+                {'key': 'asimov', 'label': 'Asimov', 'values': [8]},
+                {'key': 'bradbury', 'label': 'Bradbury', 'values': [9]},
+            ],
+            'version': 5,
+            'interval': 'week',
+            'activity': [],
+            'latest_week': {'week_start': '2026-05-26', 'week_end': '2026-06-01', 'label': 'May 26 - Jun 1'},
+            'totals': {
+                'decisions_made': 1234,
+                'chain_transactions': 5,
+                'daily_decisions_made': 176,
+                'daily_chain_transactions': 1,
+                'transactions_per_second': 5 / (7 * 24 * 60 * 60),
+            },
+        }
+        MetricSnapshot.objects.create(
+            metric_key='network_activity', source='composite', value=1234,
+            unit='count', raw_payload=good,
+        )
+
+        def partial(url, params=None, timeout=None, **kwargs):
+            if 'executive' in url or 'studio' in url:
+                raise RuntimeError('studio down')
+            return self._fake_get(url, params=params, timeout=timeout, **kwargs)
+
+        mock_get.side_effect = partial
+        from api.overview_metrics import collect_network_activity, latest_network_activity
+        snap = collect_network_activity()
+
+        self.assertEqual(snap.status, MetricSnapshot.STATUS_ERROR)
+        self.assertEqual(snap.error, 'missing network-activity sources: studio')
+        self.assertEqual(snap.dimensions['resolved_sources'], ['asimov', 'bradbury'])
+        self.assertEqual([s['key'] for s in snap.raw_payload['series']], ['asimov', 'bradbury'])
+        self.assertEqual(latest_network_activity()['totals']['decisions_made'], 1234)
+
+    def test_latest_network_activity_skips_preexisting_incomplete_ok_snapshot(self):
+        complete = {
+            'labels': ['Jun 1'],
+            'series': [
+                {'key': 'studio', 'label': 'Studio', 'values': [7]},
+                {'key': 'asimov', 'label': 'Asimov', 'values': [8]},
+                {'key': 'bradbury', 'label': 'Bradbury', 'values': [9]},
+            ],
+            'version': 5,
+            'interval': 'week',
+            'activity': [],
+            'latest_week': {'week_start': '2026-05-26', 'week_end': '2026-06-01', 'label': 'May 26 - Jun 1'},
+            'totals': {'decisions_made': 24, 'chain_transactions': 5},
+        }
+        incomplete = {
+            **complete,
+            'series': complete['series'][1:],
+            'totals': {'decisions_made': 17, 'chain_transactions': 0},
+        }
+        MetricSnapshot.objects.create(
+            metric_key='network_activity', source='composite', value=24,
+            raw_payload=complete, observed_at=self.fixed_now - timedelta(minutes=15),
+        )
+        MetricSnapshot.objects.create(
+            metric_key='network_activity', source='composite', value=17,
+            raw_payload=incomplete, observed_at=self.fixed_now,
+        )
+
+        from api.overview_metrics import latest_network_activity
+        payload = latest_network_activity()
+
+        self.assertEqual([s['key'] for s in payload['series']], ['studio', 'asimov', 'bradbury'])
+        self.assertEqual(payload['totals']['decisions_made'], 24)
+        self.assertEqual(
+            payload['generated_at'],
+            (self.fixed_now - timedelta(minutes=15)).isoformat(),
+        )
 
     @patch('api.overview_metrics.requests.get')
     def test_partial_source_failure_uses_only_sources_that_resolved_this_run(self, mock_get):
@@ -973,7 +1064,12 @@ class NetworkActivityViewTests(TestCase):
     def test_refresh_endpoint_invalidates_network_activity_cache(self, mock_get):
         mock_get.side_effect = AssertionError('served from DB, no upstream calls expected')
         first = {
-            'labels': ['Jun 1'], 'series': [{'key': 'studio', 'label': 'Studio', 'values': [1]}],
+            'labels': ['Jun 1'],
+            'series': [
+                {'key': 'studio', 'label': 'Studio', 'values': [1]},
+                {'key': 'asimov', 'label': 'Asimov', 'values': [0]},
+                {'key': 'bradbury', 'label': 'Bradbury', 'values': [0]},
+            ],
             'version': 4,
             'interval': 'week',
             'activity': [],
@@ -994,7 +1090,12 @@ class NetworkActivityViewTests(TestCase):
 
         # A newer snapshot lands (as the cron would persist it).
         second = {
-            'labels': ['Jun 2'], 'series': [{'key': 'studio', 'label': 'Studio', 'values': [2]}],
+            'labels': ['Jun 2'],
+            'series': [
+                {'key': 'studio', 'label': 'Studio', 'values': [2]},
+                {'key': 'asimov', 'label': 'Asimov', 'values': [0]},
+                {'key': 'bradbury', 'label': 'Bradbury', 'values': [0]},
+            ],
             'version': 4,
             'interval': 'week',
             'activity': [],

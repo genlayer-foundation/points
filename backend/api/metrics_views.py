@@ -59,6 +59,8 @@ class RefreshOverviewMetricsView(APIView):
                     'metric_key': item.metric_key,
                     'source': item.source,
                     'status': item.status,
+                    'error': item.error,
+                    'dimensions': item.dimensions,
                     'observed_at': item.observed_at,
                 }
                 for item in results

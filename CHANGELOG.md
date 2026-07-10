@@ -4,6 +4,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- The Overview network activity chart now keeps showing its latest complete Studio and testnet data when a source temporarily fails (582161d4)
+
 - Pending submissions (including those awaiting more information) can be edited again even after their contribution type stops accepting new submissions; only brand-new submissions of retired types stay blocked (f258b1f4)
 
 - Notification previews in the navbar dropdown now display formatted text and clickable links instead of raw markdown symbols, trimmed to two lines (1bfdbb35)
