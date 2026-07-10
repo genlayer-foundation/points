@@ -76,7 +76,7 @@ const endedMission = {
   name: 'Archived mission',
   contribution_type: 7,
   start_date: '2024-01-01T00:00:00Z',
-  end_date: '2024-02-01T00:00:00Z',
+  end_date: '2024-02-01T12:00:00Z',
   is_active: false,
 };
 

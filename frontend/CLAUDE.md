@@ -601,6 +601,7 @@ Investor-oriented home page (`routes/Overview.svelte`), top to bottom: hero → 
 - URL params drive filter state: `?category=builder|validator|community|all`, `?type=ID`, `?mission=ID`, `?user=name|0x...`, `?sort=...`, `?view=both|highlights|all`, `?page=N`, `?hpage=N`.
 - Type dropdown only lists `is_submittable: true` contribution types. Non-submittable type IDs in the URL still apply (chip with × shown to clear).
 - Mission options use the lightweight `summary=true&include_inactive=true` catalog, so ended missions remain available for historical filters without loading mission aggregates.
+- Shared mission lifecycle and browsing-order helpers live in `src/lib/missionUtils.js`; use them instead of redefining route-local checks.
 - Highlights endpoint only honors `category` server-side; type/mission/user filters are applied client-side.
 - Renders two sections: Highlights (capped at `HIGHLIGHTS_PREVIEW_COUNT = 15` in `view=both`, paginated in `view=highlights` at `PAGE_SIZE = 20`) and Contributions (always paginated at `PAGE_SIZE = 20`).
 - Contributions are always individual — no consecutive-grouping. Sends `?submittable_only=true` to `/contributions/` to hide non-submittable types (badges, journey rewards) from the explorer; non-submittable types are also filtered out of `/highlights/` client-side.
