@@ -107,6 +107,7 @@ curl -s -X PUT \
 | `confidence` | Optional | `high`, `medium`, `low`; defaults to `medium` |
 | `template_id` | Optional | ID from `/api/v1/ai-review/templates/`; template `action` must match `proposed_action` |
 | `rubric_review` | `review_flow=builder_project` | Gate failures, section scores, optional section reasons, extras, and overall reason |
+| `synthesis` | Optional; always send it for `review_flow=builder_project` | Markdown analysis of the submission (merged adversarial + merit passes). Steward-only: shown to human reviewers in an expandable "AI review analysis" panel on the submission card. Unlike the other proposal fields, it is preserved permanently even after a human steward re-proposes on top |
 
 ## Internal Notes
 
@@ -289,6 +290,11 @@ Valid gate failure keys:
 When the gate passes, score all four sections from 0 to 5. Section reasons are
 optional; `overall_reason` is required.
 
+The payload requires all four sections, but `frontend_ux` is a human-only
+dimension: the portal hides the AI's `frontend_ux` score from stewards and a
+human reviewer supplies the real one. Score it conservatively (it is not
+displayed); put real effort into the other three.
+
 Required section keys:
 
 | Key | Section |
@@ -355,6 +361,7 @@ curl -s -X POST \
     "proposed_action": "accept",
     "confidence": "medium",
     "reasoning": "The repository passes the Project gate and has enough implementation evidence.",
+    "synthesis": "## Overview\nA prediction-market dApp where a GenLayer contract adjudicates contested outcomes...\n\n## Strengths\n- Real non-deterministic contract logic...\n\n## Concerns\n- Thin test coverage; the resolution path is only exercised manually...",
     "rubric_review": {
       "gate_failures": [],
       "sections": {
