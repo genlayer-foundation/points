@@ -12,6 +12,10 @@ from .models import MetricSnapshot
 logger = logging.getLogger(__name__)
 
 HTTP_TIMEOUT_SECONDS = 12
+# Studio computes an uncached year-wide aggregate and can legitimately take
+# longer than the other overview providers. Keep connection failures fast while
+# allowing up to a minute for Studio to produce its response.
+STUDIO_HTTP_TIMEOUT = (HTTP_TIMEOUT_SECONDS, 60)
 GEN_DECIMALS = 18
 TESTNET_NETWORKS = ('asimov', 'bradbury')
 NETWORK_ACTIVITY_SOURCES = ('studio', *TESTNET_NETWORKS)
@@ -495,7 +499,7 @@ def fetch_studio_activity(now, anchor_date):
     response = requests.get(
         url,
         params={'instanceId': 'all', 'range': STUDIO_NETWORK_ACTIVITY_RANGE},
-        timeout=HTTP_TIMEOUT_SECONDS,
+        timeout=STUDIO_HTTP_TIMEOUT,
     )
     response.raise_for_status()
     metrics = {m.get('id'): m for m in (response.json() or {}).get('metrics', []) if isinstance(m, dict)}
