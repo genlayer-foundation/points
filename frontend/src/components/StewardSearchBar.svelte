@@ -51,8 +51,8 @@
     { name: 'include', description: 'Only show submissions containing text', values: () => [] },
     { name: 'has', description: 'Filter by presence', values: () => ['url', 'evidence', 'proposal', 'appeal'] },
     { name: 'no', description: 'Filter by absence', values: () => ['url', 'evidence', 'proposal', 'appeal'] },
-    { name: 'is', description: 'Filter by internal flag', values: () => ['interesting', 'appealed', 'resubmitted'] },
-    { name: 'not', description: 'Exclude by internal flag', values: () => ['interesting', 'appealed', 'resubmitted'] },
+    { name: 'is', description: 'Filter by internal flag', values: () => ['interesting', 'appealed', 'ai-reviewed'] },
+    { name: 'not', description: 'Exclude by internal flag', values: () => ['interesting', 'appealed', 'ai-reviewed'] },
     { name: 'proposal', description: 'Filter by proposed action', values: () => ['accept', 'reject', 'more-info'] },
     { name: 'proposal-status', description: 'Filter by proposal review status', values: () => ['pending', 'questioned'] },
     { name: 'confidence', description: 'Filter by proposal confidence', values: () => ['high', 'medium', 'low'] },
@@ -285,7 +285,7 @@
           <div class="help-row"><code>has:url</code><span>Only submissions with URL evidence</span></div>
           <div class="help-row"><code>no:url</code><span>Only submissions without URL evidence</span></div>
           <div class="help-row"><code>is:interesting</code><span>Flagged as interesting</span></div>
-          <div class="help-row"><code>is:resubmitted</code><span>More-info requests resubmitted for review</span></div>
+          <div class="help-row"><code>is:ai-reviewed</code><span>Has an AI review analysis</span></div>
         </div>
         <div class="help-section">
           <div class="help-subtitle">Status and Sorting</div>
@@ -323,7 +323,7 @@
           <div class="help-example">assigned:Pavel Kolosov has:proposal</div>
           <div class="help-example">-assigned:unassigned,Joaquin has:url</div>
           <div class="help-example">https://x.com/user/status/123</div>
-          <div class="help-example">type:bug-report -mission:wallet-login is:resubmitted</div>
+          <div class="help-example">type:bug-report -mission:wallet-login is:ai-reviewed</div>
         </div>
         <div class="help-note">Untagged text and URLs search submitter, title, notes, and evidence. Use quotes for values with spaces.</div>
       </div>

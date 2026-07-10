@@ -24,6 +24,7 @@ import logging
 from collections import defaultdict
 
 from django.core.management.base import BaseCommand
+from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
 
@@ -33,6 +34,7 @@ from contributions.models import (
     ContributionType,
     Evidence,
     SubmissionNote,
+    SubmissionStateTransition,
     SubmittedContribution,
 )
 from stewards.models import ReviewTemplate, Steward, StewardPermission
@@ -483,8 +485,10 @@ class Command(BaseCommand):
             return MISSING_TEMPLATE
         return template, crm_reason
 
+    @transaction.atomic
     def _apply_reject(self, submission, ai_user, template, crm_reason):
         """Apply a direct rejection."""
+        previous_state = submission.state
         submission.state = 'rejected'
         submission.staff_reply = template.text
         submission.reviewed_by = ai_user
@@ -523,6 +527,13 @@ class Command(BaseCommand):
                 'flags': [],
                 'reasoning': crm_reason,
             },
+        )
+
+        SubmissionStateTransition.record(
+            submission,
+            SubmissionStateTransition.EVENT_GATE_REJECT,
+            from_state=previous_state,
+            actor=ai_user,
         )
 
     def _mark_gate_reviewed(self, submission):

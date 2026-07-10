@@ -27,7 +27,8 @@ from django.db.models.functions import Coalesce, Greatest
 from django.shortcuts import get_object_or_404
 from .models import (
     ContributionType, Contribution, Evidence, SubmittedContribution,
-    SubmissionNote, ContributionHighlight, Mission, StartupRequest,
+    SubmissionNote, SubmissionStateTransition, ContributionHighlight,
+    Mission, StartupRequest,
     FeaturedContent, Alert, ContributionDiscordXPState,
     DiscordXPDistributionEvent, ProjectMilestoneReview, ReviewProposal,
     sync_discord_xp_state_for_contribution,
@@ -1022,6 +1023,13 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
 
             self.perform_update(serializer)
 
+            SubmissionStateTransition.record(
+                instance,
+                SubmissionStateTransition.EVENT_EDITED,
+                from_state='more_info_needed' if was_more_info_needed else 'pending',
+                actor=request.user,
+            )
+
             if was_more_info_needed:
                 from notifications.services import notify_submission_reopened_for_steward
                 notify_submission_reopened_for_steward(
@@ -1048,13 +1056,23 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             )
 
         # Soft delete - mark as canceled with cancellation note
+        previous_state = instance.state
         instance.state = 'canceled'
         # Preserve the original rejection reason if this submission was appealed;
         # otherwise record the cancellation in staff_reply.
         if not instance.has_appeal:
             instance.staff_reply = 'Canceled by user'
         instance.reviewed_at = timezone.now()
-        instance.save()
+
+        with transaction.atomic():
+            instance.save()
+
+            SubmissionStateTransition.record(
+                instance,
+                SubmissionStateTransition.EVENT_CANCELED,
+                from_state=previous_state,
+                actor=request.user,
+            )
 
         return Response(
             {'message': 'Submission canceled successfully'},
@@ -1170,6 +1188,13 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                 data={'kind': 'appeal'},
             )
 
+            SubmissionStateTransition.record(
+                submission,
+                SubmissionStateTransition.EVENT_APPEAL,
+                from_state='rejected',
+                actor=request.user,
+            )
+
             from notifications.services import notify_submission_reopened_for_steward
             notify_submission_reopened_for_steward(
                 submission,
@@ -1216,12 +1241,22 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             **serializer.validated_data
         )
         if submission.gate_reviewed or submission.reviewed_by_id or submission.reviewed_at:
-            submission.gate_reviewed = False
-            submission.reviewed_by = None
-            submission.reviewed_at = None
-            submission.save(update_fields=[
-                'gate_reviewed', 'reviewed_by', 'reviewed_at', 'updated_at',
-            ])
+            with transaction.atomic():
+                submission.gate_reviewed = False
+                submission.reviewed_by = None
+                submission.reviewed_at = None
+                submission.save(update_fields=[
+                    'gate_reviewed', 'reviewed_by', 'reviewed_at', 'updated_at',
+                ])
+
+                # State does not change, but review fields were just destroyed;
+                # log the event so the prior decision's erasure is traceable.
+                SubmissionStateTransition.record(
+                    submission,
+                    SubmissionStateTransition.EVENT_EVIDENCE_ADDED,
+                    from_state=submission.state,
+                    actor=request.user,
+                )
 
         return Response(
             SubmittedEvidenceSerializer(evidence).data,
@@ -1258,7 +1293,6 @@ class StewardSubmissionFilterSet(ProposalReviewStatusFilterMixin, FilterSet):
     mission = CharFilter(method='filter_mission')
     exclude_mission = CharFilter(method='filter_exclude_mission')
     has_appeal = BooleanFilter(field_name='has_appeal')
-    resubmitted_more_info = BooleanFilter(method='filter_resubmitted_more_info')
     has_ai_analysis = BooleanFilter(method='filter_has_ai_analysis')
 
     def _split_filter_values(self, value):
@@ -1557,20 +1591,6 @@ class StewardSubmissionFilterSet(ProposalReviewStatusFilterMixin, FilterSet):
             return queryset.exclude(mission__isnull=True)
         elif value:
             return queryset.exclude(mission_id=value)
-        return queryset
-
-    def filter_resubmitted_more_info(self, queryset, name, value):
-        """Filter submissions resubmitted after a steward requested more information."""
-        condition = Q(
-            state='pending',
-            reviewed_at__isnull=False,
-            last_edited_at__isnull=False,
-            last_edited_at__gt=F('reviewed_at'),
-        )
-        if value is True:
-            return queryset.filter(condition)
-        elif value is False:
-            return queryset.exclude(condition)
         return queryset
 
     class Meta:
@@ -2180,6 +2200,7 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             active_proposal = self._active_review_proposal(submission)
 
         # Update submission fields
+        previous_state = submission.state
         submission.reviewed_by = request.user
         submission.reviewed_at = timezone.now()
 
@@ -2306,6 +2327,13 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
         submission.proposal_questioned_at = None
 
         submission.save()
+
+        SubmissionStateTransition.record(
+            submission,
+            SubmissionStateTransition.EVENT_REVIEW,
+            from_state=previous_state,
+            actor=request.user,
+        )
 
         requires_project_rubric = uses_project_rubric(
             final_contribution_type if action_name == 'accept' else submission.contribution_type
@@ -3117,20 +3145,57 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
         permitted = submissions.filter(contribution_type_id__in=permitted_reject_ids)
         skipped_count = submissions.count() - permitted.count()
 
-        rejected_ids = list(permitted.values_list('id', flat=True))
-        rejected_count = len(rejected_ids)
-        if rejected_count == 0:
-            return Response(
-                {'error': 'No valid submissions found to reject (you may lack reject permission on these types)'},
-                status=status.HTTP_400_BAD_REQUEST
+        reviewer_name = request.user.name or request.user.address[:10] + '...'
+        with transaction.atomic():
+            # Lock the rows so the captured pre-reject states can't change
+            # before the update lands.
+            previous_states = dict(
+                permitted.select_for_update().values_list('id', 'state')
+            )
+            rejected_ids = list(previous_states.keys())
+            rejected_count = len(rejected_ids)
+            if rejected_count == 0:
+                return Response(
+                    {'error': 'No valid submissions found to reject (you may lack reject permission on these types)'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            SubmittedContribution.objects.filter(id__in=rejected_ids).update(
+                state='rejected',
+                staff_reply=staff_reply,
+                reviewed_by=request.user,
+                reviewed_at=timezone.now()
             )
 
-        permitted.update(
-            state='rejected',
-            staff_reply=staff_reply,
-            reviewed_by=request.user,
-            reviewed_at=timezone.now()
-        )
+            SubmissionStateTransition.objects.bulk_create([
+                SubmissionStateTransition(
+                    submitted_contribution_id=submission_id,
+                    event=SubmissionStateTransition.EVENT_BULK_REJECT,
+                    from_state=previous_state,
+                    to_state='rejected',
+                    actor=request.user,
+                )
+                for submission_id, previous_state in previous_states.items()
+            ])
+
+            # Bulk rejections are real review decisions: record the same CRM
+            # decision note single rejects get, so per-decision history
+            # (steward timeline, event-based metrics) does not miss them.
+            SubmissionNote.objects.bulk_create([
+                SubmissionNote(
+                    submitted_contribution_id=submission_id,
+                    user=request.user,
+                    message=f"Reviewed: **reject** by {reviewer_name} (bulk)\n\n> {staff_reply}",
+                    is_proposal=False,
+                    data={
+                        'action': 'reject',
+                        'points': None,
+                        'staff_reply': staff_reply,
+                        'bulk': True,
+                    },
+                )
+                for submission_id in rejected_ids
+            ])
 
         from notifications.services import notify_submission_review
         reviewed_submissions = SubmittedContribution.objects.filter(
