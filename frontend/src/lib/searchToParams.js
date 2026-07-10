@@ -275,14 +275,6 @@ export function searchToParams(parsed, options = {}) {
     params.has_ai_analysis = false;
   }
 
-  const resubmittedAliases = ['resubmitted', 'more-info-resubmitted', 'more_info_resubmitted'];
-  // is:resubmitted / not:resubmitted → pending submissions edited after more-info was requested
-  if (hasValue(filters.is, resubmittedAliases)) {
-    params.resubmitted_more_info = true;
-  } else if (hasValue(filters.not, resubmittedAliases)) {
-    params.resubmitted_more_info = false;
-  }
-
   // min-contributions
   if (filters.minContributions !== null && filters.minContributions > 0) {
     params.min_accepted_contributions = filters.minContributions;

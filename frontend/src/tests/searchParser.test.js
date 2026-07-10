@@ -51,12 +51,12 @@ describe("steward search negation", () => {
   });
 
   it("normalizes negated flag filters to not filters", () => {
-    const { filters } = parseSearch("-is:interesting -is:resubmitted");
+    const { filters } = parseSearch("-is:interesting -is:ai-reviewed");
 
     expect(filters.is).toEqual([]);
-    expect(filters.not).toEqual(["interesting", "resubmitted"]);
+    expect(filters.not).toEqual(["interesting", "ai-reviewed"]);
     expect(paramsFor("-is:interesting")).toEqual({ is_interesting: false });
-    expect(paramsFor("-is:resubmitted")).toEqual({ resubmitted_more_info: false });
+    expect(paramsFor("-is:ai-reviewed")).toEqual({ has_ai_analysis: false });
   });
 
   it("supports NOT before multi-value filters", () => {
