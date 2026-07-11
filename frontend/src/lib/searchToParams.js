@@ -138,8 +138,10 @@ export function searchToParams(parsed, options = {}) {
     const val = normalizeLookup(assignedFilter.value);
     let assignedValue = null;
 
-    if (val === 'me' && currentUserId) {
-      assignedValue = currentUserId;
+    if (val === 'me') {
+      // Never fall through to name matching: "me" must resolve to the
+      // current user or to nothing (profile not loaded yet).
+      assignedValue = currentUserId || null;
     } else if (val === 'unassigned' || val === 'none') {
       assignedValue = 'unassigned';
     } else {
@@ -169,8 +171,8 @@ export function searchToParams(parsed, options = {}) {
     const val = normalizeLookup(reviewedFilter.value);
     let reviewedValue = null;
 
-    if (val === 'me' && currentUserId) {
-      reviewedValue = currentUserId;
+    if (val === 'me') {
+      reviewedValue = currentUserId || null;
     } else {
       const steward = stewardsList.find(s =>
         exactId(s.user_id, reviewedFilter.value) ||
@@ -199,8 +201,8 @@ export function searchToParams(parsed, options = {}) {
 
     if (val === 'ai') {
       proposedByValue = 'ai';
-    } else if (val === 'me' && currentUserId) {
-      proposedByValue = currentUserId;
+    } else if (val === 'me') {
+      proposedByValue = currentUserId || null;
     } else if (val === 'none' || val === 'unproposed') {
       proposedByValue = 'none';
     } else {
