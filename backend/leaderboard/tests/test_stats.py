@@ -1026,6 +1026,9 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(monthly_response.data[0]['total_points'], contribution.frozen_global_points)
 
     def test_monthly_community_leaderboard_combines_all_portal_awards(self):
+        link_points = self.community_link_x_type.max_points
+        social_task_points = 500
+        contribution_only_points = link_points + social_task_points - 50
         social_leader = self._create_user(
             'monthly-community-social@example.com',
             '0x0000000000000000000000000000000000000030',
@@ -1037,29 +1040,29 @@ class LeaderboardStatsTest(TestCase):
         Contribution.objects.create(
             user=social_leader,
             contribution_type=self.community_link_x_type,
-            points=500,
-            frozen_global_points=500,
+            points=link_points,
+            frozen_global_points=link_points,
             contribution_date=timezone.now(),
         )
         Contribution.objects.create(
             user=contribution_leader,
             contribution_type=self.community_type,
-            points=550,
-            frozen_global_points=550,
+            points=contribution_only_points,
+            frozen_global_points=contribution_only_points,
             contribution_date=timezone.now(),
         )
         task = SocialTask.objects.create(
             slug='monthly-community-social-task',
             name='Monthly community social task',
             category=self.community_category,
-            points=500,
+            points=social_task_points,
             verification_type='click_through',
             action_url='https://example.com',
         )
         SocialTaskCompletion.objects.create(
             user=social_leader,
             task=task,
-            points_awarded=500,
+            points_awarded=social_task_points,
             verification_type='click_through',
         )
 
@@ -1070,10 +1073,13 @@ class LeaderboardStatsTest(TestCase):
             social_leader.id,
             contribution_leader.id,
         ])
-        self.assertEqual(response.data[0]['contribution_points'], 500)
-        self.assertEqual(response.data[0]['social_task_points'], 500)
-        self.assertEqual(response.data[0]['total_points'], 1000)
-        self.assertEqual(response.data[1]['total_points'], 550)
+        self.assertEqual(response.data[0]['contribution_points'], link_points)
+        self.assertEqual(response.data[0]['social_task_points'], social_task_points)
+        self.assertEqual(
+            response.data[0]['total_points'],
+            link_points + social_task_points,
+        )
+        self.assertEqual(response.data[1]['total_points'], contribution_only_points)
 
     def test_monthly_builder_leaderboard_includes_social_tasks_after_eligibility(self):
         ranked_builder = self._create_builder_user(
