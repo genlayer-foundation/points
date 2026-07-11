@@ -9,6 +9,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from community_xp.services import acquire_sync_lock, release_sync_lock
 from contributions.models import (
     Category,
     Contribution,
@@ -337,6 +338,26 @@ class StewardDiscordXPTest(TestCase):
             DiscordXPDistributionEvent.ACTION_DISTRIBUTED,
             DiscordXPDistributionEvent.ACTION_UNSET,
         ])
+
+    def test_xp_mutations_are_blocked_while_sync_lock_is_active(self):
+        self.link_discord()
+        contribution = self.create_contribution(points=50)
+        state = contribution.discord_xp_state
+        owner_token, _ = acquire_sync_lock()
+        try:
+            for action in ('record-copy', 'mark-distributed', 'unset-distributed'):
+                response = self.client.post(
+                    f'/api/v1/steward-discord-xp/{state.id}/{action}/'
+                )
+                self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+                self.assertIn('synchronization is in progress', response.data['detail'])
+        finally:
+            release_sync_lock(owner_token)
+
+        state.refresh_from_db()
+        self.assertEqual(state.status, ContributionDiscordXPState.STATUS_PENDING)
+        self.assertEqual(state.awarded_amount, 0)
+        self.assertFalse(DiscordXPDistributionEvent.objects.filter(state=state).exists())
 
     def test_point_changes_create_pending_delta_or_needs_review(self):
         contribution = self.create_contribution(points=40)

@@ -13,10 +13,14 @@ from community_xp.models import (
     Mee6SyncRun,
 )
 from community_xp.services import (
+    Mee6SyncAlreadyRunning,
     Mee6FetchResult,
     Mee6SyncError,
     NormalizedMee6Player,
+    acquire_sync_lock,
     apply_sync_run,
+    refresh_sync_lock,
+    release_sync_lock,
     run_mee6_sync,
 )
 from community_xp.utils import get_effective_community_points
@@ -25,6 +29,7 @@ from creators.models import Creator
 from leaderboard.models import GlobalLeaderboardMultiplier
 from social_connections.serializers import DiscordConnectionSerializer
 from social_connections.models import DiscordConnection
+from social_tasks.models import SocialTask, SocialTaskCompletion
 from users.models import User
 
 
@@ -142,6 +147,30 @@ class Mee6SyncTest(TestCase):
     def mark_discord_xp_distributed(self, contribution):
         state = contribution.discord_xp_state
         state.awarded_amount = int(contribution.frozen_global_points or 0)
+        state.status = ContributionDiscordXPState.STATUS_DISTRIBUTED
+        state.distributed_at = timezone.now()
+        state.save(update_fields=['awarded_amount', 'status', 'distributed_at', 'updated_at'])
+        return state
+
+    def add_community_social_task_completion(self, points=500):
+        task = SocialTask.objects.create(
+            slug=f'community-task-{points}',
+            name=f'Community task {points}',
+            category=self.community_category,
+            points=points,
+            verification_type='click_through',
+            action_url='https://example.com',
+        )
+        return SocialTaskCompletion.objects.create(
+            user=self.user,
+            task=task,
+            points_awarded=points,
+            verification_type='click_through',
+        )
+
+    def mark_social_task_xp_distributed(self, completion):
+        state = completion.discord_xp_state
+        state.awarded_amount = completion.points_awarded
         state.status = ContributionDiscordXPState.STATUS_DISTRIBUTED
         state.distributed_at = timezone.now()
         state.save(update_fields=['awarded_amount', 'status', 'distributed_at', 'updated_at'])
@@ -361,6 +390,68 @@ class Mee6SyncTest(TestCase):
         self.assertEqual(second_breakdown['total_points'], 150)
         self.assertEqual(Contribution.objects.count(), 2)
 
+    def test_social_task_points_roll_into_mee6_baseline_without_double_counting(self):
+        self.link_discord(self.user)
+        self.fetch_and_apply_mee6_run([mee6_player('discord-1', 100)])
+        completion = self.add_community_social_task_completion(points=500)
+
+        pending = get_effective_community_points(self.user)
+        self.assertEqual(pending['discord_xp'], 100)
+        self.assertEqual(pending['pending_social_task_points'], 500)
+        self.assertEqual(pending['tracked_social_task_points_all_time'], 500)
+        self.assertEqual(pending['total_points'], 600)
+
+        self.mark_social_task_xp_distributed(completion)
+        distributed_not_yet_synced = get_effective_community_points(self.user)
+        self.assertEqual(distributed_not_yet_synced['pending_social_task_points'], 500)
+        self.assertEqual(distributed_not_yet_synced['total_points'], 600)
+
+        self.fetch_and_apply_mee6_run([mee6_player('discord-1', 600)])
+        synced = get_effective_community_points(self.user)
+        self.assertEqual(synced['discord_xp'], 600)
+        self.assertEqual(synced['pending_social_task_points'], 0)
+        self.assertEqual(synced['tracked_social_task_points_all_time'], 500)
+        self.assertEqual(synced['total_points'], 600)
+
+    def test_stale_snapshot_cannot_cover_newly_distributed_social_task_points(self):
+        self.link_discord(self.user)
+        completion = self.add_community_social_task_completion(points=500)
+        stale_run = self.fetch_mee6_run([mee6_player('discord-1', 100)])
+        self.mark_social_task_xp_distributed(completion)
+
+        with self.assertRaisesRegex(Mee6SyncError, 'social task completion'):
+            apply_sync_run(stale_run)
+
+        self.assertFalse(Mee6CurrentXP.objects.filter(discord_id='discord-1').exists())
+
+    def test_distribution_during_fetch_rejects_social_task_snapshot(self):
+        self.link_discord(self.user)
+        completion = self.add_community_social_task_completion(points=500)
+        run = self.fetch_mee6_run([mee6_player('discord-1', 100)])
+        during_fetch = run.started_at + ((run.completed_at - run.started_at) / 2)
+        state = self.mark_social_task_xp_distributed(completion)
+        state.distributed_at = during_fetch
+        state.save(update_fields=['distributed_at', 'updated_at'])
+
+        with self.assertRaisesRegex(Mee6SyncError, 'after this snapshot fetch started'):
+            apply_sync_run(run)
+
+        self.assertFalse(Mee6CurrentXP.objects.filter(discord_id='discord-1').exists())
+
+    def test_distribution_during_fetch_rejects_contribution_snapshot(self):
+        self.link_discord(self.user)
+        contribution = self.add_community_contribution(self.user, 500)
+        run = self.fetch_mee6_run([mee6_player('discord-1', 100)])
+        during_fetch = run.started_at + ((run.completed_at - run.started_at) / 2)
+        state = self.mark_discord_xp_distributed(contribution)
+        state.distributed_at = during_fetch
+        state.save(update_fields=['distributed_at', 'updated_at'])
+
+        with self.assertRaisesRegex(Mee6SyncError, 'after this snapshot fetch started'):
+            apply_sync_run(run)
+
+        self.assertFalse(Mee6CurrentXP.objects.filter(discord_id='discord-1').exists())
+
     def test_unmatched_snapshot_is_stored_without_creating_user(self):
         user_count = User.objects.count()
         run = self.fetch_mee6_run([mee6_player('unmatched-discord', 77)])
@@ -557,6 +648,29 @@ class Mee6SyncTest(TestCase):
         with self.assertRaises(Mee6SyncError):
             apply_sync_run(older_run)
 
+    def test_manual_apply_refuses_to_race_active_sync_lock(self):
+        self.link_discord(self.user)
+        run = self.fetch_mee6_run([mee6_player('discord-1', 100)])
+        owner_token, _ = acquire_sync_lock()
+        try:
+            with self.assertRaises(Mee6SyncAlreadyRunning):
+                apply_sync_run(run)
+        finally:
+            release_sync_lock(owner_token)
+
+        self.assertFalse(Mee6CurrentXP.objects.filter(discord_id='discord-1').exists())
+
+    def test_apply_accepts_and_preserves_existing_lock_ownership(self):
+        self.link_discord(self.user)
+        run = self.fetch_mee6_run([mee6_player('discord-1', 100)])
+        owner_token, _ = acquire_sync_lock()
+        try:
+            result = apply_sync_run(run, lock_owner_token=owner_token)
+            self.assertEqual(result['players_applied'], 1)
+            self.assertTrue(refresh_sync_lock(owner_token))
+        finally:
+            release_sync_lock(owner_token)
+
     @override_settings(CRON_SYNC_TOKEN='test-cron-token')
     def test_cron_endpoint_requires_token(self):
         response = self.api_client.post('/api/v1/community-xp/mee6/sync-and-apply/')
@@ -608,7 +722,7 @@ class Mee6SyncTest(TestCase):
             'unmatched_players': 0,
         }
 
-        fetch_result, apply_result = _run_mee6_fetch_and_apply()
+        fetch_result, apply_result = _run_mee6_fetch_and_apply(owner_token='lock-token')
 
         self.assertEqual(fetch_result['run_id'], run.pk)
         self.assertEqual(apply_result['run_id'], run.pk)
@@ -618,3 +732,7 @@ class Mee6SyncTest(TestCase):
             use_lock=False,
         )
         self.assertEqual(apply_sync_run_mock.call_args.args[0].pk, run.pk)
+        self.assertEqual(
+            apply_sync_run_mock.call_args.kwargs,
+            {'lock_owner_token': 'lock-token'},
+        )

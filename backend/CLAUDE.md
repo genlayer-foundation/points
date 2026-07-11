@@ -141,7 +141,7 @@ backend/
   - MultiplierPeriod - Time-based multiplier changes
 - **Views**: `leaderboard/views.py`
   - `/api/v1/leaderboard/` - Get rankings
-  - `/api/v1/leaderboard/monthly/` - Top contribution totals for the current month by default, or for an explicit `start_date`/`end_date` range
+  - `/api/v1/leaderboard/monthly/` - Top portal point totals for the current month by default, or for an explicit `start_date`/`end_date` range. Combines all category contributions (including onboarding/link awards) with social-task completions and returns `contribution_points`, `social_task_points`, and `total_points`. Non-community categories keep their normal leaderboard eligibility gate. Cumulative Discord chat XP is not included because it has no earning-event timestamp for monthly attribution.
   - `/api/v1/leaderboard/stats/` - Global statistics
   - `/api/v1/leaderboard/user_stats/by-address/{address}/` - User-specific stats
 - **Builder leaderboard eligibility is write-time**: a `type='builder'` LeaderboardEntry
@@ -164,12 +164,12 @@ backend/
   while replaying history on a fresh database, before `social_tasks` 0001 has run — the
   guard makes completions read as empty until the table exists (a try/except would abort
   the surrounding PostgreSQL migration transaction).
-  Note: the community leaderboard ranking (`community_xp.utils.effective_community_ranking_queryset`,
-  MEE6 + community contributions) does NOT include social-task points — community-category
-  task points are profile-only (`socialTaskTotal` in user stats) and reach the community
-  ranking only once a steward distributes them as Discord XP (steward Discord XP view →
-  MEE6 picks them up; see the Social Tasks "Discord XP integration" note). Builder /
-  validator category task points DO feed their leaderboards.
+  The community leaderboard ranking (`community_xp.utils.effective_community_ranking_queryset`)
+  uses the same effective total as community profiles and aggregate stats: MEE6 XP plus
+  contribution and community social-task points not covered by the applied MEE6 baseline.
+  Pending social-task points count immediately; after steward distribution they remain pending
+  until a newer MEE6 snapshot contains them, then roll into the baseline without double counting.
+  Builder/validator category task points feed their stored leaderboard totals directly.
 
 ### Social Tasks
 - **Models**: `social_tasks/models.py`
@@ -201,8 +201,11 @@ backend/
   DB check constraint); `target_amount` reads `frozen_global_points` or
   `points_awarded` accordingly. Detail actions (`record-copy`,
   `mark-distributed`, `unset-distributed`) are keyed by the **state id** (not
-  contribution id). Stewards with 'accept' permission on any community
-  contribution type can manage social-task XP rows. Migration
+  contribution id). These mutations share the MEE6 fetch/apply lock and return
+  409 while a sync is active; applied snapshots reject any distribution at or
+  after `run.started_at`, the conservative boundary that covers every fetched
+  page. Manual admin apply acquires the same lock. Stewards with 'accept'
+  permission on any community contribution type can manage social-task XP rows. Migration
   `contributions/0069` backfills states for pre-existing community completions.
 - **Verifier registry**: `social_tasks/verifiers/` package
   - `base.py` exposes `Verifier` base class, `VerifierResult` dataclass, `@register`
@@ -255,10 +258,10 @@ backend/
   Both are in the `community` category and award 500 points
   (migration 0002 bumped the seeds and changed the model default from 10 to
   500; migration 0003 deactivated `check-out-genlayer-on-x`; completions made
-  before the bump keep their frozen `points_awarded`). Community ranking is
-  MEE6-based and does not include social-task points, so these seeds award
-  profile-only points (`socialTaskTotal`); builder / validator category tasks feed
-  their leaderboards when created.
+  before the bump keep their frozen `points_awarded`). Community task points
+  count immediately in the shared effective community total and roll into the
+  MEE6 baseline after distribution without double counting; builder / validator
+  category tasks feed their stored leaderboards when created.
 
 ### Validators
 - **Models**: `validators/models.py`
@@ -337,7 +340,7 @@ backend/
 - **Admin**: `poaps/admin.py` - `PoapDropAdmin` keeps `created_by` as an autocomplete field, includes only `PoapDistributionInline` in `inlines`, and exposes claims through the read-only `claims_link` field instead of rendering `PoapClaim` rows inline. This keeps heavily claimed drops editable without exceeding Django's POST field limit. Ruff RUF012 warnings on the Django admin `inlines = [PoapDistributionInline]` list literal are intentional false positives for this standard admin pattern.
 
 ### Earned Discord Roles (social_connections)
-- **Logic**: `social_connections/earned_roles.py:assign_earned_community_roles(dry_run=False)` assigns the Synapse (14,000 effective CP + 8 POAPs) and Brain (80,000 effective CP + 16 POAPs + Neurocreative role held) Discord roles to qualifying users. Add-only: never removes roles; each role's threshold is evaluated independently. CP comes from `community_xp.utils.build_effective_community_scores_queryset` (MEE6 baseline + pending portal points), POAPs from `PoapClaim` counts, held roles from `DiscordConnection.current_roles` (the 15-min sync is the reconciler; a successful assignment also updates the local cache). Aborts the run on 429/401/403 (rate limit, missing Manage Roles, hierarchy); other per-user failures log and continue. No-op unless all three `DISCORD_*_ROLE_ID` env vars are set.
+- **Logic**: `social_connections/earned_roles.py:assign_earned_community_roles(dry_run=False)` assigns the Synapse (14,000 effective CP + 8 POAPs) and Brain (80,000 effective CP + 16 POAPs + Neurocreative role held) Discord roles to qualifying users. Add-only: never removes roles; each role's threshold is evaluated independently. CP comes from `community_xp.utils.build_effective_community_scores_queryset` (MEE6 baseline + pending contribution and community social-task points), POAPs from `PoapClaim` counts, held roles from `DiscordConnection.current_roles` (the 15-min sync is the reconciler; a successful assignment also updates the local cache). Aborts the run on 429/401/403 (rate limit, missing Manage Roles, hierarchy); other per-user failures log and continue. No-op unless all three `DISCORD_*_ROLE_ID` env vars are set.
 - **Service**: `DiscordRoleSyncService.add_member_role(discord_user_id, role_id)` PUTs to Discord; 404 (member left) returns False.
 - **Trigger**: `POST /api/v1/users/discord/assign-earned-roles/` (cron-protected, background thread + `DiscordRoleSyncLock` row `discord_earned_role_assign`), called daily at 00:30 UTC by `.github/workflows/assign-discord-roles.yml` (after the 00:00 MEE6 XP sync). Manual/backfill: `python manage.py assign_earned_discord_roles [--dry-run]`; dry run prints the would-assign list for review.
 - **Ops**: the bot needs Manage Roles and its role above Synapse/Brain in the guild hierarchy.

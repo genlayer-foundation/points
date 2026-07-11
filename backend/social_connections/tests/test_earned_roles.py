@@ -5,6 +5,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from community_xp.models import Mee6CurrentXP, Mee6SyncRun
+from contributions.models import Category
 from poaps.models import PoapClaim, PoapDrop
 from social_connections.discord_oauth import (
     DISCORD_EARNED_ROLE_LOCK_NAME,
@@ -22,6 +23,7 @@ from social_connections.earned_roles import (
     assign_earned_community_roles,
 )
 from social_connections.models import DiscordConnection, DiscordRole
+from social_tasks.models import SocialTask, SocialTaskCompletion
 from users.models import User
 
 
@@ -146,6 +148,38 @@ class AssignEarnedCommunityRolesTest(TestCase):
         self.assertIn(f'discord-{user.id}', args_url)
         self.assertTrue(connection.current_roles.filter(role_id='role-synapse').exists())
         self.assertEqual(stats['assignments'][0]['role'], 'synapse')
+
+    @patch('social_connections.discord_roles.requests.request')
+    def test_pending_social_task_points_count_toward_synapse(self, mock_request):
+        mock_request.return_value = mock_response(204)
+        user, _ = self.make_user(
+            'synapse-social-task@test.com',
+            SYNAPSE_CP - 500,
+            poaps=SYNAPSE_POAPS,
+        )
+        category, _ = Category.objects.get_or_create(
+            slug='community',
+            defaults={'name': 'Community'},
+        )
+        task = SocialTask.objects.create(
+            slug='synapse-social-task',
+            name='Synapse social task',
+            category=category,
+            points=500,
+            verification_type='click_through',
+            action_url='https://example.com',
+        )
+        SocialTaskCompletion.objects.create(
+            user=user,
+            task=task,
+            points_awarded=500,
+            verification_type='click_through',
+        )
+
+        stats = assign_earned_community_roles()
+
+        self.assertEqual(stats['synapse_assigned'], 1)
+        self.assertEqual(stats['assignments'][0]['total_points'], SYNAPSE_CP)
 
     @patch('social_connections.discord_roles.requests.request')
     def test_below_poap_threshold_assigns_nothing(self, mock_request):

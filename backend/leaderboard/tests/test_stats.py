@@ -429,6 +429,92 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(response.data['contribution_count'], 0)
         self.assertEqual(response.data['total_points'], link_points)
 
+    def test_recent_points_include_social_tasks_for_categories_and_global(self):
+        community_user = self._create_user(
+            'recent-community-task@example.com',
+            '0x0000000000000000000000000000000000000040',
+        )
+        builder_user = self._create_builder_user(
+            'recent-builder-task@example.com',
+            '0x0000000000000000000000000000000000000041',
+        )
+        hidden_user = self._create_user(
+            'recent-hidden-task@example.com',
+            '0x0000000000000000000000000000000000000042',
+            visible=False,
+        )
+        Contribution.objects.create(
+            user=community_user,
+            contribution_type=self.community_type,
+            points=10,
+            frozen_global_points=10,
+            contribution_date=timezone.now(),
+        )
+        Contribution.objects.create(
+            user=builder_user,
+            contribution_type=self.builder_type,
+            points=5,
+            frozen_global_points=5,
+            contribution_date=timezone.now(),
+        )
+        community_task = SocialTask.objects.create(
+            slug='recent-community-stats-task',
+            name='Recent community stats task',
+            category=self.community_category,
+            points=40,
+            verification_type='click_through',
+            action_url='https://example.com',
+        )
+        builder_task = SocialTask.objects.create(
+            slug='recent-builder-stats-task',
+            name='Recent builder stats task',
+            category=self.builder_category,
+            points=25,
+            verification_type='click_through',
+            action_url='https://example.com',
+        )
+        old_task = SocialTask.objects.create(
+            slug='old-community-stats-task',
+            name='Old community stats task',
+            category=self.community_category,
+            points=100,
+            verification_type='click_through',
+            action_url='https://example.com',
+        )
+        for user, task, points in (
+            (community_user, community_task, 40),
+            (builder_user, builder_task, 25),
+            (hidden_user, community_task, 200),
+            (community_user, old_task, 100),
+        ):
+            completion = SocialTaskCompletion.objects.create(
+                user=user,
+                task=task,
+                points_awarded=points,
+                verification_type='click_through',
+            )
+            if task == old_task:
+                SocialTaskCompletion.objects.filter(id=completion.id).update(
+                    completed_at=timezone.now() - timezone.timedelta(days=31),
+                )
+
+        community_response = self.client.get(
+            '/api/v1/leaderboard/stats/',
+            {'type': 'community'},
+        )
+        builder_response = self.client.get(
+            '/api/v1/leaderboard/stats/',
+            {'type': 'builder'},
+        )
+        global_response = self.client.get('/api/v1/leaderboard/stats/')
+
+        self.assertEqual(community_response.status_code, 200)
+        self.assertEqual(community_response.data['new_points_count'], 50)
+        self.assertEqual(builder_response.status_code, 200)
+        self.assertEqual(builder_response.data['new_points_count'], 30)
+        self.assertEqual(global_response.status_code, 200)
+        self.assertEqual(global_response.data['new_points_count'], 80)
+
     def test_builder_list_and_lookup_use_contribution_based_eligibility(self):
         role_only_user = self._create_builder_user(
             'builder-role-only@example.com',
@@ -675,6 +761,44 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(response.data['socialTaskTotal'], 32)
         self.assertEqual(response.data['socialTaskCount'], 2)
 
+    def test_ranked_builder_profile_and_leaderboard_use_same_social_task_total(self):
+        builder_user = self._create_builder_user(
+            'ranked-builder-social-parity@example.com',
+            '0x0000000000000000000000000000000000000029',
+        )
+        Contribution.objects.create(
+            user=builder_user,
+            contribution_type=self.builder_type,
+            points=10,
+            frozen_global_points=10,
+            contribution_date=timezone.now(),
+        )
+        task = SocialTask.objects.create(
+            slug='ranked-builder-social-parity-task',
+            name='Ranked builder social parity task',
+            category=self.builder_category,
+            points=25,
+            verification_type='click_through',
+            action_url='https://example.com',
+        )
+        SocialTaskCompletion.objects.create(
+            user=builder_user,
+            task=task,
+            points_awarded=25,
+            verification_type='click_through',
+        )
+
+        stats_response = self.client.get(
+            f'/api/v1/leaderboard/user_stats/by-address/{builder_user.address}/',
+            {'category': 'builder'},
+        )
+        entry = LeaderboardEntry.objects.get(user=builder_user, type='builder')
+
+        self.assertEqual(stats_response.status_code, 200)
+        self.assertEqual(stats_response.data['totalPoints'], 35)
+        self.assertEqual(stats_response.data['socialTaskTotal'], 25)
+        self.assertEqual(entry.total_points, 35)
+
     def test_community_stats_use_effective_mee6_points_and_members(self):
         mee6_only_user = self._create_user(
             'mee6-only@example.com',
@@ -770,6 +894,61 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(response.data['results'][1]['user_address'], truncate_address(portal_user.address))
         self.assertEqual(response.data['results'][1]['total_points'], 3000)
 
+    def test_community_profile_and_ranking_use_same_total_with_social_tasks(self):
+        user = self._create_user(
+            'community-social-ranking@example.com',
+            '0x0000000000000000000000000000000000000017',
+        )
+        self._create_current_mee6_xp(user, 'discord-community-social-ranking', 1018)
+        Contribution.objects.create(
+            user=user,
+            contribution_type=self.community_type,
+            points=1000,
+            frozen_global_points=1000,
+            contribution_date=timezone.now(),
+        )
+        for index, points in enumerate((500, 500, 1000), start=1):
+            task = SocialTask.objects.create(
+                slug=f'community-ranking-task-{index}',
+                name=f'Community ranking task {index}',
+                category=self.community_category,
+                points=points,
+                verification_type='click_through',
+                action_url='https://example.com',
+            )
+            SocialTaskCompletion.objects.create(
+                user=user,
+                task=task,
+                points_awarded=points,
+                verification_type='click_through',
+            )
+
+        stats_response = self.client.get(
+            f'/api/v1/leaderboard/user_stats/by-address/{user.address}/',
+            {'category': 'community'},
+        )
+        ranking_response = self.client.get('/api/v1/leaderboard/', {
+            'type': 'community',
+            'user_address': user.address,
+            'profile_context': 'true',
+        })
+
+        self.assertEqual(stats_response.status_code, 200)
+        self.assertEqual(stats_response.data['discord_xp'], 1018)
+        self.assertEqual(stats_response.data['pending_portal_points'], 1000)
+        self.assertEqual(stats_response.data['pending_social_task_points'], 2000)
+        self.assertEqual(stats_response.data['socialTaskTotal'], 2000)
+        self.assertEqual(stats_response.data['totalPoints'], 4018)
+
+        self.assertEqual(ranking_response.status_code, 200)
+        self.assertEqual(ranking_response.data['user_rank'], 1)
+        self.assertEqual(ranking_response.data['user_total_points'], 4018)
+        self.assertEqual(ranking_response.data['context_results'][0]['total_points'], 4018)
+        self.assertEqual(
+            ranking_response.data['context_results'][0]['pending_social_task_points'],
+            2000,
+        )
+
     def test_mission_backed_non_submittable_community_contribution_is_reflected(self):
         contributor = self._create_user(
             'mission-community@example.com',
@@ -815,6 +994,121 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(monthly_response.data[0]['user'], contributor.id)
         self.assertEqual(monthly_response.data[0]['total_points'], contribution.frozen_global_points)
 
+    def test_monthly_community_leaderboard_combines_all_portal_awards(self):
+        social_leader = self._create_user(
+            'monthly-community-social@example.com',
+            '0x0000000000000000000000000000000000000030',
+        )
+        contribution_leader = self._create_user(
+            'monthly-community-contribution@example.com',
+            '0x0000000000000000000000000000000000000031',
+        )
+        Contribution.objects.create(
+            user=social_leader,
+            contribution_type=self.community_link_x_type,
+            points=500,
+            frozen_global_points=500,
+            contribution_date=timezone.now(),
+        )
+        Contribution.objects.create(
+            user=contribution_leader,
+            contribution_type=self.community_type,
+            points=550,
+            frozen_global_points=550,
+            contribution_date=timezone.now(),
+        )
+        task = SocialTask.objects.create(
+            slug='monthly-community-social-task',
+            name='Monthly community social task',
+            category=self.community_category,
+            points=500,
+            verification_type='click_through',
+            action_url='https://example.com',
+        )
+        SocialTaskCompletion.objects.create(
+            user=social_leader,
+            task=task,
+            points_awarded=500,
+            verification_type='click_through',
+        )
+
+        response = self.client.get('/api/v1/leaderboard/monthly/', {'type': 'community'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([row['user'] for row in response.data], [
+            social_leader.id,
+            contribution_leader.id,
+        ])
+        self.assertEqual(response.data[0]['contribution_points'], 500)
+        self.assertEqual(response.data[0]['social_task_points'], 500)
+        self.assertEqual(response.data[0]['total_points'], 1000)
+        self.assertEqual(response.data[1]['total_points'], 550)
+
+    def test_monthly_builder_leaderboard_includes_social_tasks_after_eligibility(self):
+        ranked_builder = self._create_builder_user(
+            'monthly-ranked-builder@example.com',
+            '0x0000000000000000000000000000000000000032',
+        )
+        social_only_builder = self._create_builder_user(
+            'monthly-social-only-builder@example.com',
+            '0x0000000000000000000000000000000000000033',
+        )
+        Contribution.objects.create(
+            user=ranked_builder,
+            contribution_type=self.builder_type,
+            points=10,
+            frozen_global_points=10,
+            contribution_date=timezone.now(),
+        )
+        task = SocialTask.objects.create(
+            slug='monthly-builder-social-task',
+            name='Monthly builder social task',
+            category=self.builder_category,
+            points=25,
+            verification_type='click_through',
+            action_url='https://example.com',
+        )
+        for user in (ranked_builder, social_only_builder):
+            SocialTaskCompletion.objects.create(
+                user=user,
+                task=task,
+                points_awarded=25,
+                verification_type='click_through',
+            )
+
+        response = self.client.get('/api/v1/leaderboard/monthly/', {'type': 'builder'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['user'], ranked_builder.id)
+        self.assertEqual(response.data[0]['contribution_points'], 10)
+        self.assertEqual(response.data[0]['social_task_points'], 25)
+        self.assertEqual(response.data[0]['total_points'], 35)
+
+    def test_monthly_leaderboard_clamps_non_positive_limit(self):
+        for index, points in enumerate((30, 20, 10), start=1):
+            user = self._create_user(
+                f'monthly-limit-{index}@example.com',
+                f'0x{index:040x}',
+            )
+            Contribution.objects.create(
+                user=user,
+                contribution_type=self.community_type,
+                points=points,
+                frozen_global_points=points,
+                contribution_date=timezone.now(),
+            )
+
+        for limit in ('-1', '0'):
+            response = self.client.get('/api/v1/leaderboard/monthly/', {
+                'type': 'community',
+                'limit': limit,
+            })
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(len(response.data), 1)
+            self.assertEqual(response.data[0]['total_points'], 30)
+
     def test_monthly_leaderboard_accepts_explicit_date_range(self):
         contributor = self._create_user(
             'rolling-community@example.com',
@@ -844,6 +1138,23 @@ class LeaderboardStatsTest(TestCase):
             points=40,
             contribution_date=previous_month_date,
         )
+        task = SocialTask.objects.create(
+            slug='rolling-community-social-task',
+            name='Rolling community social task',
+            category=self.community_category,
+            points=25,
+            verification_type='click_through',
+            action_url='https://example.com',
+        )
+        completion = SocialTaskCompletion.objects.create(
+            user=contributor,
+            task=task,
+            points_awarded=25,
+            verification_type='click_through',
+        )
+        SocialTaskCompletion.objects.filter(id=completion.id).update(
+            completed_at=previous_month_date,
+        )
 
         default_response = self.client.get('/api/v1/leaderboard/monthly/', {'type': 'community'})
         ranged_response = self.client.get('/api/v1/leaderboard/monthly/', {
@@ -856,7 +1167,12 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(default_response.data, [])
         self.assertEqual(ranged_response.status_code, 200)
         self.assertEqual(ranged_response.data[0]['user'], contributor.id)
-        self.assertEqual(ranged_response.data[0]['total_points'], contribution.frozen_global_points)
+        self.assertEqual(ranged_response.data[0]['contribution_points'], contribution.frozen_global_points)
+        self.assertEqual(ranged_response.data[0]['social_task_points'], 25)
+        self.assertEqual(
+            ranged_response.data[0]['total_points'],
+            contribution.frozen_global_points + 25,
+        )
 
     def test_trending_uses_top_earning_category_for_badge_and_points(self):
         contributor = self._create_user(

@@ -11,6 +11,7 @@ from api.models import MetricSnapshot
 from builders.models import Builder
 from community_xp.models import Mee6CurrentXP, Mee6SyncRun
 from contributions.models import Category, Contribution, ContributionType
+from social_tasks.models import SocialTask, SocialTaskCompletion
 from users.models import User
 from validators.models import Validator, ValidatorWallet
 
@@ -156,6 +157,46 @@ class ParticipantsGrowthViewTests(TestCase):
             25,
             base,
         )
+
+        response = self.client.get('/api/v1/metrics/participants-growth/')
+
+        self.assertEqual(response.status_code, 200)
+        final_point = response.data['data'][-1]
+        self.assertEqual(final_point['community_members'], 1)
+        self.assertEqual(final_point['unique_contributors'], 1)
+        self.assertEqual(final_point['total'], 1)
+
+    def test_participants_growth_includes_community_social_task_members(self):
+        completed_at = timezone.now() - timedelta(days=2)
+        user = self._create_user(
+            'community-task-member@example.com',
+            '0x0000000000000000000000000000000000000103',
+        )
+        hidden_user = self._create_user(
+            'hidden-community-task-member@example.com',
+            '0x0000000000000000000000000000000000000104',
+            visible=False,
+        )
+        task = SocialTask.objects.create(
+            slug='metrics-community-task',
+            name='Metrics community task',
+            category=self.community_category,
+            points=500,
+            verification_type='click_through',
+            action_url='https://example.com',
+        )
+        completions = [
+            SocialTaskCompletion.objects.create(
+                user=member,
+                task=task,
+                points_awarded=500,
+                verification_type='click_through',
+            )
+            for member in (user, hidden_user)
+        ]
+        SocialTaskCompletion.objects.filter(
+            id__in=[completion.id for completion in completions]
+        ).update(completed_at=completed_at)
 
         response = self.client.get('/api/v1/metrics/participants-growth/')
 

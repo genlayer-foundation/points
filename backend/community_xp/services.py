@@ -374,14 +374,16 @@ def store_fetch_result(run, fetch_result):
     }
 
 
-def _validate_contribution_xp_state_before_applying(run):
+def _validate_xp_state_before_applying(run):
     from contributions.models import ContributionDiscordXPState
+    from django.db.models import Q
 
     late_distribution = (
         ContributionDiscordXPState.objects
         .filter(
-            contribution__contribution_type__category__slug='community',
-            distributed_at__gt=run.completed_at,
+            Q(contribution__contribution_type__category__slug='community') |
+            Q(social_task_completion__task__category__slug='community'),
+            distributed_at__gte=run.started_at,
             awarded_amount__gt=0,
         )
         .exclude(contribution__contribution_type__slug__in=COMMUNITY_XP_EXCLUDED_TYPE_SLUGS)
@@ -389,14 +391,18 @@ def _validate_contribution_xp_state_before_applying(run):
         .first()
     )
     if late_distribution:
+        if late_distribution.contribution_id:
+            source = f'contribution #{late_distribution.contribution_id}'
+        else:
+            source = f'social task completion #{late_distribution.social_task_completion_id}'
         raise Mee6SyncError(
-            f'Cannot apply MEE6 sync #{run.id}; contribution '
-            f'#{late_distribution.contribution_id} was marked distributed after this snapshot was fetched. '
+            f'Cannot apply MEE6 sync #{run.id}; {source} was marked distributed '
+            'after this snapshot fetch started. '
             'Fetch a newer MEE6 snapshot before applying a new baseline.'
         )
 
 
-def apply_sync_run(run, applied_by=None):
+def _apply_sync_run_unlocked(run, applied_by=None):
     if run.status != Mee6SyncRun.STATUS_SUCCESS:
         raise Mee6SyncError('Only successful MEE6 sync runs can be applied as the baseline')
     if not run.completed_at:
@@ -419,7 +425,7 @@ def apply_sync_run(run, applied_by=None):
             f'Cannot apply MEE6 sync #{run.id}; sync #{latest_applied_run.id} is newer and already applied'
         )
 
-    _validate_contribution_xp_state_before_applying(run)
+    _validate_xp_state_before_applying(run)
 
     now = timezone.now()
     snapshots = list(
@@ -485,6 +491,31 @@ def apply_sync_run(run, applied_by=None):
         'unmatched_players': run.unmatched_players,
         'applied_at': run.applied_at,
     }
+
+
+def apply_sync_run(run, applied_by=None, lock_owner_token=None):
+    """Apply a fetched snapshot while excluding concurrent XP mutations.
+
+    The scheduled fetch/apply workflow passes the lock token it already owns.
+    Manual/admin callers acquire the same lock for the duration of application.
+    """
+    acquired_here = False
+    owner_token = lock_owner_token
+
+    if owner_token:
+        if not refresh_sync_lock(owner_token):
+            raise Mee6SyncError('MEE6 XP sync lock ownership was lost before apply')
+    else:
+        owner_token, elapsed_seconds = acquire_sync_lock()
+        if not owner_token:
+            raise Mee6SyncAlreadyRunning(elapsed_seconds)
+        acquired_here = True
+
+    try:
+        return _apply_sync_run_unlocked(run, applied_by=applied_by)
+    finally:
+        if acquired_here:
+            release_sync_lock(owner_token)
 
 
 def run_mee6_sync(guild_id=None, page_size=None, client=None, use_lock=True):
