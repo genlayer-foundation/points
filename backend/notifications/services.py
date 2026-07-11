@@ -388,9 +388,9 @@ def submission_review_link(submission):
     return f"/my-submissions?{query}"
 
 
-def steward_submission_review_link(submission):
+def steward_submission_review_link(submission, status='pending'):
     query = urlencode({
-        'status': 'pending',
+        'status': status,
         'q': str(submission.id),
     })
     return f"/stewards/submissions?{query}"
@@ -495,7 +495,11 @@ def notify_submission_proposal_questioned(submission, actor=None):
         actor=actor or submission.proposal_questioned_by,
         title='Proposal questioned',
         body=f'Your proposal for {name} was questioned. Review the feedback and submit a revised proposal.',
-        link_url=steward_submission_review_link(submission),
+        # status='' = the All filter: questioned proposals can live on
+        # pending OR more_info_needed submissions, and the notification can
+        # be clicked after the submission moved on; a hard-coded 'pending'
+        # status filter would then show zero results.
+        link_url=steward_submission_review_link(submission, status=''),
         link_label='Open submission',
         payload={
             'submission_id': str(submission.id),
