@@ -24,7 +24,6 @@ ONBOARDING_CONTRIBUTION_TYPE_SLUGS = [
     'community-link-discord',
     'project-review-reward',
 ]
-JOURNEY_AUTO_AWARD_SLUGS = ONBOARDING_CONTRIBUTION_TYPE_SLUGS
 COMMUNITY_RANKING_MIN_POINTS = 2500
 
 
@@ -239,10 +238,14 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'])
     def monthly(self, request):
         """
-        Get top contributors for the current month, or an explicit date range.
+        Get top portal point earners for the current month, or an explicit date
+        range. Includes every contribution award and social-task completion in
+        the category. Discord chat XP is cumulative and has no earning-event
+        timestamp, so it cannot be attributed to a monthly window here.
         """
         from users.models import User
         from users.serializers import LightUserSerializer
+        from social_tasks.models import SocialTaskCompletion
 
         leaderboard_type = request.query_params.get('type', 'validator')
         monthly_types = set(LEADERBOARD_CONFIG.keys()) | {'community'}
@@ -256,6 +259,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             limit = int(request.query_params.get('limit', 10))
         except (TypeError, ValueError):
             limit = 10
+        limit = min(max(limit, 1), 100)
 
         start_date_param = request.query_params.get('start_date')
         end_date_param = request.query_params.get('end_date')
@@ -278,37 +282,85 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        date_filters = {}
         if start_date:
-            date_filters['contribution_date__date__gte'] = start_date
+            range_start = start_date
         else:
             now = timezone.localtime(timezone.now())
-            month_start = now.replace(day=1).date()
-            date_filters['contribution_date__date__gte'] = month_start
+            range_start = now.replace(day=1).date()
+
+        contribution_date_filters = {
+            'contribution_date__date__gte': range_start,
+        }
+        social_task_date_filters = {
+            'completed_at__date__gte': range_start,
+        }
         if end_date:
-            date_filters['contribution_date__date__lte'] = end_date
+            contribution_date_filters['contribution_date__date__lte'] = end_date
+            social_task_date_filters['completed_at__date__lte'] = end_date
 
         monthly_query = Contribution.objects.filter(
             user__visible=True,
             contribution_type__category__slug=leaderboard_type,
-            **date_filters,
+            **contribution_date_filters,
+        )
+        monthly_social_tasks = SocialTaskCompletion.objects.filter(
+            user__visible=True,
+            task__category__slug=leaderboard_type,
+            **social_task_date_filters,
         )
         if leaderboard_type != 'community':
             monthly_query = monthly_query.filter(user__leaderboard_entries__type=leaderboard_type)
+            monthly_social_tasks = monthly_social_tasks.filter(
+                user__leaderboard_entries__type=leaderboard_type,
+            )
 
-        monthly_totals = (
+        contribution_totals = (
             monthly_query
-            .exclude(contribution_type__slug__in=JOURNEY_AUTO_AWARD_SLUGS)
             .values('user_id')
             .annotate(total_points=Sum('frozen_global_points'))
-            .order_by('-total_points', 'user__name')[:limit]
+        )
+        social_task_totals = (
+            monthly_social_tasks
+            .values('user_id')
+            .annotate(total_points=Sum('points_awarded'))
         )
 
-        user_ids = [entry['user_id'] for entry in monthly_totals]
+        totals_by_user = {}
+        for entry in contribution_totals:
+            totals_by_user[entry['user_id']] = {
+                'contribution_points': entry['total_points'] or 0,
+                'social_task_points': 0,
+            }
+        for entry in social_task_totals:
+            totals = totals_by_user.setdefault(entry['user_id'], {
+                'contribution_points': 0,
+                'social_task_points': 0,
+            })
+            totals['social_task_points'] = entry['total_points'] or 0
+
         users_by_id = {
             user.id: user
-            for user in User.objects.filter(id__in=user_ids)
+            for user in User.objects.filter(id__in=totals_by_user)
         }
+        monthly_totals = sorted(
+            (
+                {
+                    'user_id': user_id,
+                    **totals,
+                    'total_points': (
+                        totals['contribution_points'] + totals['social_task_points']
+                    ),
+                }
+                for user_id, totals in totals_by_user.items()
+                if user_id in users_by_id
+                and totals['contribution_points'] + totals['social_task_points'] > 0
+            ),
+            key=lambda entry: (
+                -entry['total_points'],
+                (users_by_id[entry['user_id']].name or '').lower(),
+                entry['user_id'],
+            ),
+        )[:limit]
 
         result = []
         for rank, entry in enumerate(monthly_totals, 1):
@@ -320,7 +372,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 'user': user.id,
                 'user_details': LightUserSerializer(user).data,
                 'type': leaderboard_type,
-                'total_points': entry['total_points'] or 0,
+                'total_points': entry['total_points'],
+                'contribution_points': entry['contribution_points'],
+                'social_task_points': entry['social_task_points'],
                 'rank': rank,
             })
 
@@ -334,6 +388,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         """
         from django.db.models import Sum
         from contributions.models import Contribution
+        from social_tasks.models import SocialTaskCompletion
         from validators.models import Validator
 
         leaderboard_type = request.query_params.get('type')
@@ -393,26 +448,34 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 new_contributions_count = category_contributions.filter(
                     created_at__gte=last_month
                 ).count()
+                category_social_tasks = SocialTaskCompletion.objects.filter(
+                    user__visible=True,
+                    task__category__slug=category,
+                )
                 # Raw contribution counts stay audit/activity metrics. Community
                 # displayed score is MEE6 baseline + pending portal XP state.
                 if leaderboard_type == 'community':
                     community_summary = get_effective_community_summary()
                     total_points = community_summary['total_points']
                     participant_count = community_summary['member_count']
-                elif leaderboard_type == 'validator':
-                    total_points = category_contributions.aggregate(
-                        total=Sum('frozen_global_points')
-                    )['total'] or 0
-                    participant_count = get_validators().count()
                 else:
                     total_points = category_contributions.aggregate(
                         total=Sum('frozen_global_points')
                     )['total'] or 0
-                    participant_count = category_contributions.values('user_id').distinct().count()
+                    total_points += category_social_tasks.aggregate(
+                        total=Sum('points_awarded')
+                    )['total'] or 0
+                    if leaderboard_type == 'validator':
+                        participant_count = get_validators().count()
+                    else:
+                        participant_count = category_contributions.values('user_id').distinct().count()
 
                 new_points_count = category_contributions.filter(
                     created_at__gte=last_month
                 ).aggregate(total=Sum('frozen_global_points'))['total'] or 0
+                new_points_count += category_social_tasks.filter(
+                    completed_at__gte=last_month,
+                ).aggregate(total=Sum('points_awarded'))['total'] or 0
             else:
                 contribution_count = 0
                 new_contributions_count = 0
@@ -432,6 +495,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             non_community_contributions = all_contributions.exclude(
                 contribution_type__category__slug='community'
             )
+            non_community_social_tasks = SocialTaskCompletion.objects.filter(
+                user__visible=True,
+            ).exclude(task__category__slug='community')
             community_summary = get_effective_community_summary()
             participant_user_ids = set(
                 non_community_contributions
@@ -452,11 +518,19 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 non_community_contributions.aggregate(
                     total=Sum('frozen_global_points')
                 )['total'] or 0
+            ) + (
+                non_community_social_tasks.aggregate(
+                    total=Sum('points_awarded')
+                )['total'] or 0
             ) + community_summary['total_points']
 
             new_points_count = all_contributions.filter(
                 created_at__gte=last_month
             ).aggregate(total=Sum('frozen_global_points'))['total'] or 0
+            new_points_count += SocialTaskCompletion.objects.filter(
+                user__visible=True,
+                completed_at__gte=last_month,
+            ).aggregate(total=Sum('points_awarded'))['total'] or 0
 
         builder_contribs = Contribution.objects.filter(
             user__visible=True,
@@ -514,11 +588,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         include social-task points via
         `leaderboard.models.calculate_category_points`).
 
-        Deliberate exception: the community leaderboard ranking is MEE6-based
-        (`community_xp.utils.effective_community_ranking_queryset`) and does
-        NOT include social-task points, so community profile totals can sit
-        above the community ranking total by `socialTaskTotal`. Do not "fix"
-        one side to match the other without a product decision.
+        Community social-task points are part of the shared effective community
+        score. They remain separately reported as `socialTaskTotal` for the
+        profile breakdown, but must not be added to that score a second time.
         """
         from django.db.models import Sum, Count
         from contributions.models import Contribution
@@ -553,9 +625,10 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         else:
             base_points = raw_total_points
 
-        # Social-task points sit on top of the category's base — they are an
-        # independent earned stream (not tracked by MEE6 sync).
-        total_points = base_points + social_points
+        # The effective community base already includes social-task points that
+        # are not covered by the applied MEE6 snapshot. Other categories still
+        # add their social-task stream directly.
+        total_points = base_points if category == 'community' else base_points + social_points
 
         contribution_count = contributions.count()
         social_count = social_completions.count()
@@ -612,7 +685,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 'discord_xp': community_xp_breakdown['discord_xp'],
                 'discord_xp_synced_at': community_xp_breakdown['discord_xp_synced_at'],
                 'pending_portal_points': community_xp_breakdown['pending_portal_points'],
+                'pending_social_task_points': community_xp_breakdown['pending_social_task_points'],
                 'tracked_portal_points_all_time': community_xp_breakdown['tracked_portal_points_all_time'],
+                'tracked_social_task_points_all_time': community_xp_breakdown['tracked_social_task_points_all_time'],
                 'has_discord_xp_snapshot': community_xp_breakdown['has_discord_xp_snapshot'],
                 'latest_applied_sync_completed_at': community_xp_breakdown['latest_applied_sync_completed_at'],
                 'latest_applied_at': community_xp_breakdown['latest_applied_at'],
@@ -827,7 +902,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 'discord_xp': user.discord_xp,
                 'discord_xp_synced_at': user.discord_xp_synced_at,
                 'pending_portal_points': user.pending_portal_points,
+                'pending_social_task_points': user.pending_social_task_points,
                 'tracked_portal_points_all_time': user.tracked_portal_points_all_time,
+                'tracked_social_task_points_all_time': user.tracked_social_task_points_all_time,
                 'has_discord_xp_snapshot': user.has_discord_xp_snapshot,
                 'latest_applied_sync_completed_at': user.latest_applied_sync_completed_at,
                 'latest_applied_at': user.latest_applied_at,

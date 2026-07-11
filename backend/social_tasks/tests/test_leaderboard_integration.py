@@ -214,9 +214,8 @@ class SignalUpdatesLeaderboardTest(TestCase):
         self.assertEqual(entry.total_points, 35)
 
 
-class CommunityCategoryDoesNotMoveLeaderboardTest(TestCase):
-    """Confirms the explicit fact: community has no leaderboard, so community
-    social-task points stay invisible at the leaderboard layer."""
+class CommunityCategoryDoesNotCreateStoredLeaderboardEntryTest(TestCase):
+    """Community ranking is computed dynamically, not stored in LeaderboardEntry."""
 
     def test_no_leaderboard_entry_created_for_community_only(self):
         user = User.objects.create_user(email='c@example.com', password='x', visible=True)

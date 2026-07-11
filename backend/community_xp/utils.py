@@ -58,6 +58,17 @@ def _community_member_contributions(user_ids=None):
     return queryset
 
 
+def _community_social_task_completions(user_ids=None):
+    from social_tasks.models import SocialTaskCompletion
+
+    queryset = SocialTaskCompletion.objects.filter(
+        task__category__slug='community',
+    )
+    if user_ids is not None:
+        queryset = queryset.filter(user_id__in=user_ids)
+    return queryset
+
+
 def _discord_xp_states(user_ids=None):
     queryset = ContributionDiscordXPState.objects.filter(
         contribution__contribution_type__category__slug='community',
@@ -69,26 +80,31 @@ def _discord_xp_states(user_ids=None):
     return queryset
 
 
-def _community_points_case(baseline_completed_at=None):
+def _pending_points_case(points_field, state_field, baseline_completed_at=None):
+    points = F(points_field)
     if baseline_completed_at is None:
-        return F('frozen_global_points')
+        return points
 
     pending_expr = Greatest(
-        F('frozen_global_points') - F('discord_xp_state__awarded_amount'),
+        points - F(f'{state_field}__awarded_amount'),
         Value(0),
         output_field=IntegerField(),
     )
     return Case(
-        When(discord_xp_state__isnull=True, then=F('frozen_global_points')),
+        When(**{f'{state_field}__isnull': True}, then=points),
         When(
-            discord_xp_state__status=ContributionDiscordXPState.STATUS_DISTRIBUTED,
-            discord_xp_state__distributed_at__lte=baseline_completed_at,
+            **{
+                f'{state_field}__status': ContributionDiscordXPState.STATUS_DISTRIBUTED,
+                f'{state_field}__distributed_at__lte': baseline_completed_at,
+            },
             then=Value(0),
         ),
         When(
-            discord_xp_state__status=ContributionDiscordXPState.STATUS_DISTRIBUTED,
-            discord_xp_state__distributed_at__gt=baseline_completed_at,
-            then=F('frozen_global_points'),
+            **{
+                f'{state_field}__status': ContributionDiscordXPState.STATUS_DISTRIBUTED,
+                f'{state_field}__distributed_at__gt': baseline_completed_at,
+            },
+            then=points,
         ),
         default=pending_expr,
         output_field=IntegerField(),
@@ -99,8 +115,8 @@ def build_effective_community_scores_queryset(user_ids=None, guild_id=None, visi
     """
     Return users annotated with the same effective community score fields as
     build_effective_community_scores(), without materializing the full ranking.
-    Effective points are MEE6 current XP plus portal points not covered by the
-    applied MEE6 baseline.
+    Effective points are MEE6 current XP plus contribution and social-task
+    points not covered by the applied MEE6 baseline.
     """
     from users.models import User
 
@@ -127,10 +143,26 @@ def build_effective_community_scores_queryset(user_ids=None, guild_id=None, visi
         .exclude(contribution_type__slug__in=COMMUNITY_XP_EXCLUDED_TYPE_SLUGS)
         .values('user_id')
     )
+    community_social_tasks = (
+        _community_social_task_completions()
+        .filter(user_id=OuterRef('pk'))
+        .values('user_id')
+    )
     pending_points_queryset = (
         community_contributions
-        .annotate(pending_total=Sum(_community_points_case(
-            latest_sync.completed_at if latest_sync else None
+        .annotate(pending_total=Sum(_pending_points_case(
+            'frozen_global_points',
+            'discord_xp_state',
+            latest_sync.completed_at if latest_sync else None,
+        )))
+        .values('pending_total')[:1]
+    )
+    pending_social_task_points_queryset = (
+        community_social_tasks
+        .annotate(pending_total=Sum(_pending_points_case(
+            'points_awarded',
+            'discord_xp_state',
+            latest_sync.completed_at if latest_sync else None,
         )))
         .values('pending_total')[:1]
     )
@@ -141,6 +173,16 @@ def build_effective_community_scores_queryset(user_ids=None, guild_id=None, visi
     )
     contribution_count_queryset = (
         community_contributions
+        .annotate(count=Count('id'))
+        .values('count')[:1]
+    )
+    all_time_social_task_points_queryset = (
+        community_social_tasks
+        .annotate(total=Sum('points_awarded'))
+        .values('total')[:1]
+    )
+    social_task_count_queryset = (
+        community_social_tasks
         .annotate(count=Count('id'))
         .values('count')[:1]
     )
@@ -167,6 +209,11 @@ def build_effective_community_scores_queryset(user_ids=None, guild_id=None, visi
                 Value(0),
                 output_field=IntegerField(),
             ),
+            pending_social_task_points=Coalesce(
+                Subquery(pending_social_task_points_queryset, output_field=IntegerField()),
+                Value(0),
+                output_field=IntegerField(),
+            ),
             tracked_portal_points_all_time=Coalesce(
                 Subquery(all_time_points_queryset, output_field=IntegerField()),
                 Value(0),
@@ -174,6 +221,16 @@ def build_effective_community_scores_queryset(user_ids=None, guild_id=None, visi
             ),
             community_contribution_count=Coalesce(
                 Subquery(contribution_count_queryset, output_field=IntegerField()),
+                Value(0),
+                output_field=IntegerField(),
+            ),
+            tracked_social_task_points_all_time=Coalesce(
+                Subquery(all_time_social_task_points_queryset, output_field=IntegerField()),
+                Value(0),
+                output_field=IntegerField(),
+            ),
+            community_social_task_count=Coalesce(
+                Subquery(social_task_count_queryset, output_field=IntegerField()),
                 Value(0),
                 output_field=IntegerField(),
             ),
@@ -187,7 +244,11 @@ def build_effective_community_scores_queryset(user_ids=None, guild_id=None, visi
             ),
         )
         .annotate(
-            total_points=F('discord_xp') + F('pending_portal_points'),
+            total_points=(
+                F('discord_xp')
+                + F('pending_portal_points')
+                + F('pending_social_task_points')
+            ),
             has_discord_xp_snapshot=Case(
                 When(current_xp_row_id__isnull=False, then=Value(True)),
                 default=Value(False),
@@ -228,12 +289,15 @@ def build_effective_community_scores(user_ids=None, guild_id=None, visible_only=
             'discord_xp': user.discord_xp,
             'discord_xp_synced_at': user.discord_xp_synced_at,
             'pending_portal_points': user.pending_portal_points,
+            'pending_social_task_points': user.pending_social_task_points,
             'tracked_portal_points_all_time': user.tracked_portal_points_all_time,
+            'tracked_social_task_points_all_time': user.tracked_social_task_points_all_time,
             'total_points': user.total_points,
             'has_discord_xp_snapshot': user.has_discord_xp_snapshot,
             'latest_applied_sync_completed_at': user.latest_applied_sync_completed_at,
             'latest_applied_at': user.latest_applied_at,
             'community_contribution_count': user.community_contribution_count,
+            'community_social_task_count': user.community_social_task_count,
         }
 
     return scores
@@ -250,7 +314,7 @@ def get_community_member_user_ids(user_ids=None, guild_id=None, visible_only=Tru
     )
     score_member_user_ids = set(
         score_queryset
-        .filter(discord_xp__gt=0)
+        .filter(Q(discord_xp__gt=0) | Q(pending_social_task_points__gt=0))
         .values_list('id', flat=True)
     )
     member_contributions = _community_member_contributions(user_ids=user_ids)
@@ -285,6 +349,15 @@ def get_community_member_user_ids(user_ids=None, guild_id=None, visible_only=Tru
         member_user_ids.update(
             recent_effective_contributions
             .filter(created_at__gte=since)
+            .values_list('user_id', flat=True)
+            .distinct()
+        )
+        recent_social_tasks = _community_social_task_completions(user_ids=user_ids)
+        if visible_only:
+            recent_social_tasks = recent_social_tasks.filter(user__visible=True)
+        member_user_ids.update(
+            recent_social_tasks
+            .filter(completed_at__gte=since)
             .values_list('user_id', flat=True)
             .distinct()
         )
@@ -329,10 +402,13 @@ def get_effective_community_points(user, guild_id=None):
         'discord_xp': 0,
         'discord_xp_synced_at': None,
         'pending_portal_points': 0,
+        'pending_social_task_points': 0,
         'tracked_portal_points_all_time': 0,
+        'tracked_social_task_points_all_time': 0,
         'total_points': 0,
         'has_discord_xp_snapshot': False,
         'latest_applied_sync_completed_at': None,
         'latest_applied_at': None,
         'community_contribution_count': 0,
+        'community_social_task_count': 0,
     })

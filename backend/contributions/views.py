@@ -62,6 +62,7 @@ from .url_utils import normalize_url
 from leaderboard.models import GlobalLeaderboardMultiplier
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from ethereum_auth.authentication import EthereumAuthentication
+from community_xp.services import acquire_sync_lock, release_sync_lock
 from utils.dates import day_start
 import requests
 
@@ -1739,6 +1740,25 @@ class StewardDiscordXPViewSet(viewsets.ReadOnlyModelViewSet):
             category__slug='community',
         ).exists()
 
+    def _acquire_xp_mutation_lock(self):
+        owner_token, elapsed_seconds = acquire_sync_lock()
+        if owner_token:
+            return owner_token, None
+
+        elapsed = (
+            f' ({elapsed_seconds:.0f}s since the latest sync heartbeat)'
+            if elapsed_seconds is not None else ''
+        )
+        return None, Response(
+            {
+                'detail': (
+                    'Discord XP synchronization is in progress. '
+                    f'Retry this action after it completes{elapsed}.'
+                ),
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
+
     def get_queryset(self):
         queryset = ContributionDiscordXPState.objects.filter(
             Q(contribution__contribution_type__category__slug='community') |
@@ -1863,6 +1883,9 @@ class StewardDiscordXPViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='record-copy')
     def record_copy(self, request, pk=None):
+        owner_token, response = self._acquire_xp_mutation_lock()
+        if response:
+            return response
         try:
             with transaction.atomic():
                 state, response = self._get_locked_state(pk)
@@ -1912,9 +1935,14 @@ class StewardDiscordXPViewSet(viewsets.ReadOnlyModelViewSet):
                 return Response(self.get_serializer(state).data)
         except ContributionDiscordXPState.DoesNotExist:
             return self._not_found()
+        finally:
+            release_sync_lock(owner_token)
 
     @action(detail=True, methods=['post'], url_path='mark-distributed')
     def mark_distributed(self, request, pk=None):
+        owner_token, response = self._acquire_xp_mutation_lock()
+        if response:
+            return response
         try:
             with transaction.atomic():
                 state, response = self._get_locked_state(pk)
@@ -1954,9 +1982,14 @@ class StewardDiscordXPViewSet(viewsets.ReadOnlyModelViewSet):
                 return Response(self.get_serializer(state).data)
         except ContributionDiscordXPState.DoesNotExist:
             return self._not_found()
+        finally:
+            release_sync_lock(owner_token)
 
     @action(detail=True, methods=['post'], url_path='unset-distributed')
     def unset_distributed(self, request, pk=None):
+        owner_token, response = self._acquire_xp_mutation_lock()
+        if response:
+            return response
         try:
             with transaction.atomic():
                 state, response = self._get_locked_state(pk)
@@ -1983,6 +2016,8 @@ class StewardDiscordXPViewSet(viewsets.ReadOnlyModelViewSet):
                 return Response(self.get_serializer(state).data)
         except ContributionDiscordXPState.DoesNotExist:
             return self._not_found()
+        finally:
+            release_sync_lock(owner_token)
 
     def _not_found(self):
         return Response(
