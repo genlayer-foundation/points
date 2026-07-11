@@ -448,29 +448,32 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 new_contributions_count = category_contributions.filter(
                     created_at__gte=last_month
                 ).count()
+                category_social_tasks = SocialTaskCompletion.objects.filter(
+                    user__visible=True,
+                    task__category__slug=category,
+                )
                 # Raw contribution counts stay audit/activity metrics. Community
                 # displayed score is MEE6 baseline + pending portal XP state.
                 if leaderboard_type == 'community':
                     community_summary = get_effective_community_summary()
                     total_points = community_summary['total_points']
                     participant_count = community_summary['member_count']
-                elif leaderboard_type == 'validator':
-                    total_points = category_contributions.aggregate(
-                        total=Sum('frozen_global_points')
-                    )['total'] or 0
-                    participant_count = get_validators().count()
                 else:
                     total_points = category_contributions.aggregate(
                         total=Sum('frozen_global_points')
                     )['total'] or 0
-                    participant_count = category_contributions.values('user_id').distinct().count()
+                    total_points += category_social_tasks.aggregate(
+                        total=Sum('points_awarded')
+                    )['total'] or 0
+                    if leaderboard_type == 'validator':
+                        participant_count = get_validators().count()
+                    else:
+                        participant_count = category_contributions.values('user_id').distinct().count()
 
                 new_points_count = category_contributions.filter(
                     created_at__gte=last_month
                 ).aggregate(total=Sum('frozen_global_points'))['total'] or 0
-                new_points_count += SocialTaskCompletion.objects.filter(
-                    user__visible=True,
-                    task__category__slug=category,
+                new_points_count += category_social_tasks.filter(
                     completed_at__gte=last_month,
                 ).aggregate(total=Sum('points_awarded'))['total'] or 0
             else:
@@ -492,6 +495,9 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             non_community_contributions = all_contributions.exclude(
                 contribution_type__category__slug='community'
             )
+            non_community_social_tasks = SocialTaskCompletion.objects.filter(
+                user__visible=True,
+            ).exclude(task__category__slug='community')
             community_summary = get_effective_community_summary()
             participant_user_ids = set(
                 non_community_contributions
@@ -511,6 +517,10 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             total_points = (
                 non_community_contributions.aggregate(
                     total=Sum('frozen_global_points')
+                )['total'] or 0
+            ) + (
+                non_community_social_tasks.aggregate(
+                    total=Sum('points_awarded')
                 )['total'] or 0
             ) + community_summary['total_points']
 

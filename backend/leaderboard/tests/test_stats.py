@@ -438,6 +438,11 @@ class LeaderboardStatsTest(TestCase):
             'recent-builder-task@example.com',
             '0x0000000000000000000000000000000000000041',
         )
+        validator_user = self._create_user(
+            'recent-validator-task@example.com',
+            '0x0000000000000000000000000000000000000043',
+        )
+        Validator.objects.create(user=validator_user)
         hidden_user = self._create_user(
             'recent-hidden-task@example.com',
             '0x0000000000000000000000000000000000000042',
@@ -457,6 +462,13 @@ class LeaderboardStatsTest(TestCase):
             frozen_global_points=5,
             contribution_date=timezone.now(),
         )
+        Contribution.objects.create(
+            user=validator_user,
+            contribution_type=self.validator_type,
+            points=7,
+            frozen_global_points=7,
+            contribution_date=timezone.now(),
+        )
         community_task = SocialTask.objects.create(
             slug='recent-community-stats-task',
             name='Recent community stats task',
@@ -473,6 +485,14 @@ class LeaderboardStatsTest(TestCase):
             verification_type='click_through',
             action_url='https://example.com',
         )
+        validator_task = SocialTask.objects.create(
+            slug='recent-validator-stats-task',
+            name='Recent validator stats task',
+            category=self.validator_category,
+            points=35,
+            verification_type='click_through',
+            action_url='https://example.com',
+        )
         old_task = SocialTask.objects.create(
             slug='old-community-stats-task',
             name='Old community stats task',
@@ -484,6 +504,7 @@ class LeaderboardStatsTest(TestCase):
         for user, task, points in (
             (community_user, community_task, 40),
             (builder_user, builder_task, 25),
+            (validator_user, validator_task, 35),
             (hidden_user, community_task, 200),
             (community_user, old_task, 100),
         ):
@@ -506,14 +527,24 @@ class LeaderboardStatsTest(TestCase):
             '/api/v1/leaderboard/stats/',
             {'type': 'builder'},
         )
+        validator_response = self.client.get(
+            '/api/v1/leaderboard/stats/',
+            {'type': 'validator'},
+        )
         global_response = self.client.get('/api/v1/leaderboard/stats/')
 
         self.assertEqual(community_response.status_code, 200)
+        self.assertEqual(community_response.data['total_points'], 150)
         self.assertEqual(community_response.data['new_points_count'], 50)
         self.assertEqual(builder_response.status_code, 200)
+        self.assertEqual(builder_response.data['total_points'], 30)
         self.assertEqual(builder_response.data['new_points_count'], 30)
+        self.assertEqual(validator_response.status_code, 200)
+        self.assertEqual(validator_response.data['total_points'], 42)
+        self.assertEqual(validator_response.data['new_points_count'], 42)
         self.assertEqual(global_response.status_code, 200)
-        self.assertEqual(global_response.data['new_points_count'], 80)
+        self.assertEqual(global_response.data['total_points'], 222)
+        self.assertEqual(global_response.data['new_points_count'], 122)
 
     def test_builder_list_and_lookup_use_contribution_based_eligibility(self):
         role_only_user = self._create_builder_user(
