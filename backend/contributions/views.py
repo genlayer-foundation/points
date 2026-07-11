@@ -2050,10 +2050,14 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                     state='pending',
                     contribution_type_id__in=propose_type_ids,
                 )
-            if visibility_filter:
-                queryset = queryset.filter(visibility_filter)
-            else:
-                queryset = queryset.none()
+            # A steward always sees submissions where they are the active
+            # proposer, regardless of state or current per-type permissions:
+            # the portal notifies them when their proposal is questioned and
+            # blocks final review until THEY revise it, so they must be able
+            # to reach it (e.g. a propose-only steward whose proposal sits on
+            # a more_info_needed submission, or whose permissions changed).
+            visibility_filter |= Q(proposed_by=self.request.user)
+            queryset = queryset.filter(visibility_filter)
         else:
             queryset = queryset.none()
 

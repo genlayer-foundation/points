@@ -64,6 +64,23 @@ describe("steward search negation", () => {
     expect(paramsFor("NOT is:interesting")).toEqual({ is_interesting: false });
   });
 
+  it("resolves 'me' to the current user and never to a steward name match", () => {
+    const withNameContainingMe = {
+      currentUserId: 7,
+      stewardsList: [{ user_id: 9, name: "James Medina", address: "0xjames" }],
+    };
+    expect(paramsFor("proposed-by:me", withNameContainingMe)).toEqual({ proposed_by: 7 });
+    expect(paramsFor("assigned:me", withNameContainingMe)).toEqual({ assigned_to: 7 });
+    expect(paramsFor("reviewed:me", withNameContainingMe)).toEqual({ reviewed_by: 7 });
+
+    // Profile not loaded yet: "me" must resolve to nothing, not to
+    // whichever steward's name happens to contain the substring "me".
+    const userNotLoaded = { ...withNameContainingMe, currentUserId: undefined };
+    expect(paramsFor("proposed-by:me proposal-status:questioned", userNotLoaded)).toEqual({
+      proposal_review_status: "questioned",
+    });
+  });
+
   it("inverts explicit negative aliases when prefixed with a dash", () => {
     expect(paramsFor("-no:proposal")).toEqual({ has_proposal: true });
     expect(paramsFor("-not:interesting")).toEqual({ is_interesting: true });
