@@ -31,7 +31,7 @@
    *   feedbackError?: string,
    *   canFileFeedback?: boolean,
    *   currentUserId?: string | number | null,
-   *   onRequestFeedback?: (() => any) | null,
+   *   onRequestFeedback?: ((force?: boolean) => any) | null,
    *   onSaved?: ((record: FeedbackRecord) => any) | null
    * }} */
   let {
@@ -50,6 +50,8 @@
   let expanded = $state(false);
   let editing = $state(false);
   let submitting = $state(false);
+  /** @type {FeedbackRecord | null} */
+  let conflictRecord = $state(null);
   let submitRequestId = 0;
   let claimSequence = 0;
   /** @type {Set<string>} */
@@ -59,6 +61,7 @@
   /** @type {FeedbackState} */
   let feedbackState = $state({
     reviewProposalId: null,
+    expectedUpdatedAt: '',
     aiDecision: '',
     aiScores: {},
     persistedDecisionOverride: '',
@@ -135,6 +138,7 @@
       activeAnalysisKey = analysisKey;
       submitRequestId += 1;
       submitting = false;
+      conflictRecord = null;
       expanded = false;
       editing = false;
       expandedReasons = new Set();
@@ -143,8 +147,9 @@
     }
 
     const key = `${aiAnalysis?.id ?? 'none'}:${currentRecord?.id ?? 'none'}:${currentRecord?.updated_at ?? ''}`;
-    if (!editing && key !== hydratedKey) {
+    if (!editing && !submitting && !conflictRecord && key !== hydratedKey) {
       feedbackState = initFeedbackState(aiAnalysis, currentRecord);
+      conflictRecord = null;
       hydratedKey = key;
     }
   });
@@ -222,6 +227,7 @@
 
   function startEditing() {
     feedbackState = initFeedbackState(aiAnalysis, currentRecord);
+    conflictRecord = null;
     hydratedKey = `${aiAnalysis?.id ?? 'none'}:${currentRecord?.id ?? 'none'}:${currentRecord?.updated_at ?? ''}`;
     editing = true;
     expanded = true;
@@ -229,11 +235,28 @@
 
   function cancelEditing() {
     feedbackState = initFeedbackState(aiAnalysis, currentRecord);
+    conflictRecord = null;
     editing = false;
   }
 
   function resetFeedback() {
     feedbackState = initFeedbackState(aiAnalysis, currentRecord);
+    conflictRecord = null;
+  }
+
+  function loadLatestFeedback() {
+    if (!conflictRecord) return;
+    feedbackState = initFeedbackState(aiAnalysis, conflictRecord);
+    hydratedKey = `${aiAnalysis?.id ?? 'none'}:${conflictRecord.id ?? 'none'}:${conflictRecord.updated_at ?? ''}`;
+    conflictRecord = null;
+    editing = true;
+  }
+
+  function keepDraftAfterConflict() {
+    if (!conflictRecord?.updated_at) return;
+    feedbackState.expectedUpdatedAt = conflictRecord.updated_at;
+    conflictRecord = null;
+    editing = true;
   }
 
   /** @param {string} value */
@@ -336,13 +359,51 @@
       const response = await stewardAPI.submitAIFeedback(submission.id, payload);
       if (!isCurrentRequest()) return;
       const record = response.data;
-      if (onSaved) await onSaved(record);
+      let refreshFailed = false;
+      if (onSaved) {
+        try {
+          await onSaved(record);
+        } catch {
+          refreshFailed = true;
+        }
+      }
       if (!isCurrentRequest()) return;
       feedbackState = initFeedbackState(aiAnalysis, record);
+      conflictRecord = null;
       editing = false;
-      showSuccess(successMessage);
+      if (refreshFailed) {
+        showError('Feedback was saved, but the local view could not be refreshed.');
+      } else {
+        showSuccess(successMessage);
+      }
     } catch (error) {
       if (!isCurrentRequest()) return;
+      const requestError = /** @type {any} */ (error);
+      if (requestError.response?.status === 409) {
+        let records = null;
+        if (onRequestFeedback) {
+          try {
+            records = await onRequestFeedback(true);
+          } catch {
+            records = null;
+          }
+        }
+        if (!isCurrentRequest()) return;
+        const latestRecord = Array.isArray(records)
+          ? records.find(record => (
+              String(record.review_proposal_id) === String(aiAnalysis?.id) &&
+              String(record.reviewer_id) === String(currentUserId)
+            ))
+          : null;
+        if (latestRecord?.updated_at) {
+          conflictRecord = latestRecord;
+          expanded = true;
+          showError('Feedback changed in another session. Choose whether to load the latest feedback or keep your draft.');
+        } else {
+          showError('Feedback changed in another session. Reload the page before saving again.');
+        }
+        return;
+      }
       showError(`Failed to save AI review feedback: ${errorMessage(error)}`);
     } finally {
       if (isCurrentRequest()) submitting = false;
@@ -362,6 +423,7 @@
   }
 
   async function saveFeedback() {
+    if (conflictRecord) return;
     const validationError = validateFeedbackState(feedbackState);
     if (validationError) {
       showError(validationError);
@@ -664,15 +726,17 @@
               <div class="mt-2 grid gap-2 sm:grid-cols-[auto_1fr]">
                 <label class="flex min-h-10 items-center gap-2 text-xs font-semibold text-sky-900">
                   <span>Range to</span>
-                  <select
-                    onchange={(event) => setCriterionMaximum(section.key, event.currentTarget.value)}
-                    class="min-h-10 rounded-md border border-sky-200 bg-white px-2 text-sm text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
-                    aria-label="Maximum {section.label} score"
-                  >
-                    {#each [0, 1, 2, 3, 4, 5].filter(score => score >= (criterionState.min ?? 0)) as score}
-                      <option value={score} selected={score === criterionState.max}>{score}/5</option>
-                    {/each}
-                  </select>
+                  {#key `${criterionState.min}:${criterionState.max}`}
+                    <select
+                      onchange={(event) => setCriterionMaximum(section.key, event.currentTarget.value)}
+                      class="min-h-10 rounded-md border border-sky-200 bg-white px-2 text-sm text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                      aria-label="Maximum {section.label} score"
+                    >
+                      {#each [0, 1, 2, 3, 4, 5].filter(score => score >= (criterionState.min ?? 0)) as score}
+                        <option value={score} selected={score === criterionState.max}>{score}/5</option>
+                      {/each}
+                    </select>
+                  {/key}
                 </label>
                 <label>
                   <span class="sr-only">Reason for {section.label} score correction</span>
@@ -787,6 +851,35 @@
         {/if}
       </div>
 
+      {#if conflictRecord}
+        <div class="border-t border-amber-300 bg-amber-50 px-3 py-3" role="alert">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="min-w-0">
+              <p class="text-sm font-semibold text-amber-950">This feedback changed in another session.</p>
+              <p class="mt-0.5 text-xs text-amber-800">
+                Load latest discards this draft. Keep my draft will replace the latest saved feedback when you save.
+              </p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onclick={loadLatestFeedback}
+                class="min-h-10 rounded-md px-3 text-sm font-semibold text-amber-900 ring-1 ring-amber-300 hover:bg-amber-100 active:scale-[0.96]"
+              >
+                Load latest
+              </button>
+              <button
+                type="button"
+                onclick={keepDraftAfterConflict}
+                class="min-h-10 rounded-md bg-amber-700 px-3 text-sm font-semibold text-white hover:bg-amber-800 active:scale-[0.96]"
+              >
+                Keep my draft
+              </button>
+            </div>
+          </div>
+        </div>
+      {/if}
+
       {#if showFeedbackFooter}
         <div class="flex flex-wrap items-center justify-between gap-2 border-t border-sky-200 bg-white/85 px-3 py-2">
           <button
@@ -800,7 +893,7 @@
           <button
             type="button"
             onclick={saveFeedback}
-            disabled={submitting}
+            disabled={submitting || Boolean(conflictRecord)}
             class="inline-flex min-h-10 items-center gap-2 rounded-md bg-sky-700 px-4 text-sm font-semibold text-white hover:bg-sky-800 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {#if submitting}<span class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>{/if}

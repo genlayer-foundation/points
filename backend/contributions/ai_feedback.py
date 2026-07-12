@@ -8,7 +8,7 @@ from django.conf import settings
 from rest_framework import serializers
 
 from .ai_attribution import AI_STEWARD_EMAIL
-from .models import ReviewProposal, SubmissionNote
+from .models import AIReviewFeedback, ReviewProposal, SubmissionNote
 from .rubric_review import RUBRIC_GATE_FAILURES, RUBRIC_SECTIONS
 
 
@@ -289,7 +289,12 @@ def resolve_proposal_binding(submission, review_proposal_id=None):
             raise serializers.ValidationError({
                 'review_proposal_id': 'AI review proposal not found for this submission.',
             }) from exc
-        return proposal, proposal.created_at
+        return (
+            proposal,
+            proposal.created_at,
+            AIReviewFeedback.PROPOSAL_SOURCE_REVIEW,
+            proposal.id,
+        )
 
     proposal = (
         ReviewProposal.objects
@@ -301,7 +306,12 @@ def resolve_proposal_binding(submission, review_proposal_id=None):
         .first()
     )
     if proposal:
-        return proposal, proposal.created_at
+        return (
+            proposal,
+            proposal.created_at,
+            AIReviewFeedback.PROPOSAL_SOURCE_REVIEW,
+            proposal.id,
+        )
 
     proposal_note = (
         SubmissionNote.objects
@@ -314,7 +324,12 @@ def resolve_proposal_binding(submission, review_proposal_id=None):
         .first()
     )
     if proposal_note:
-        return None, proposal_note.created_at
+        return (
+            None,
+            proposal_note.created_at,
+            AIReviewFeedback.PROPOSAL_SOURCE_NOTE,
+            proposal_note.id,
+        )
 
     raise serializers.ValidationError({'detail': 'No AI proposal found for this submission.'})
 

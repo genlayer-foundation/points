@@ -935,8 +935,10 @@
     }
   }
 
-  async function loadAIFeedback() {
-    if (!submission.ai_analysis || aiFeedbackLoading || aiFeedbackLoaded) return;
+  /** @param {boolean} [force] */
+  async function loadAIFeedback(force = false) {
+    if (!submission.ai_analysis || aiFeedbackLoading) return null;
+    if (aiFeedbackLoaded && !force) return aiFeedbackRecords;
 
     const contextKey = `${submission.id}:${submission.ai_analysis.id ?? 'none'}`;
     const requestId = ++aiFeedbackRequestId;
@@ -946,10 +948,12 @@
     try {
       const response = await stewardAPI.getAIFeedback(submission.id);
       if (requestId !== aiFeedbackRequestId || contextKey !== aiFeedbackContextKey) return;
-      aiFeedbackRecords = Array.isArray(response.data)
+      const records = Array.isArray(response.data)
         ? response.data
         : response.data?.results || [];
+      aiFeedbackRecords = records;
       aiFeedbackLoaded = true;
+      return records;
     } catch (error) {
       if (requestId !== aiFeedbackRequestId || contextKey !== aiFeedbackContextKey) return;
       const requestError = /** @type {any} */ (error);
@@ -957,12 +961,13 @@
         aiFeedbackRecords = [];
         aiFeedbackLoaded = true;
         aiFeedbackError = '';
-        return;
+        return [];
       }
       aiFeedbackError = 'Could not load steward feedback.';
       showError('Failed to load AI review feedback: ' + (
         requestError.response?.data?.detail || requestError.message
       ));
+      return null;
     } finally {
       if (requestId === aiFeedbackRequestId && contextKey === aiFeedbackContextKey) {
         aiFeedbackLoading = false;

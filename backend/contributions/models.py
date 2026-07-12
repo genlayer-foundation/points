@@ -1197,6 +1197,12 @@ class ReviewProposal(BaseModel):
 class AIReviewFeedback(BaseModel):
     """A steward's revisable, proposal-specific AI review assessment."""
 
+    PROPOSAL_SOURCE_REVIEW = 'review_proposal'
+    PROPOSAL_SOURCE_NOTE = 'submission_note'
+    PROPOSAL_SOURCE_CHOICES = [
+        (PROPOSAL_SOURCE_REVIEW, 'Review proposal'),
+        (PROPOSAL_SOURCE_NOTE, 'Submission note'),
+    ]
     VERDICT_CHOICES = [
         ('agree', 'Agree'),
         ('agree_with_corrections', 'Agree with corrections'),
@@ -1221,6 +1227,11 @@ class AIReviewFeedback(BaseModel):
         blank=True,
         related_name='ai_feedback',
     )
+    proposal_source = models.CharField(
+        max_length=20,
+        choices=PROPOSAL_SOURCE_CHOICES,
+    )
+    proposal_source_id = models.PositiveBigIntegerField()
     proposal_ref = models.DateTimeField()
     reviewer = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -1242,8 +1253,13 @@ class AIReviewFeedback(BaseModel):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=['submitted_contribution', 'reviewer', 'proposal_ref'],
-                name='unique_ai_feedback_proposal_reviewer',
+                fields=[
+                    'submitted_contribution',
+                    'reviewer',
+                    'proposal_source',
+                    'proposal_source_id',
+                ],
+                name='unique_ai_feedback_source_reviewer',
             ),
         ]
         indexes = [

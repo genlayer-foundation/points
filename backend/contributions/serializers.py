@@ -1363,6 +1363,7 @@ class AIReviewFeedbackWriteSerializer(serializers.Serializer):
     """Strict write contract for proposal-specific AI review feedback."""
 
     review_proposal_id = serializers.IntegerField(required=False, min_value=1)
+    expected_updated_at = serializers.DateTimeField(required=False)
     verdict = serializers.CharField()
     correct_decision = serializers.CharField(
         required=False,
@@ -1386,9 +1387,12 @@ class AIReviewFeedbackWriteSerializer(serializers.Serializer):
 
     def validate(self, data):
         review_proposal_id = data.pop('review_proposal_id', None)
+        expected_updated_at = data.pop('expected_updated_at', None)
         normalized = normalize_feedback_payload(data)
         if review_proposal_id is not None:
             normalized['review_proposal_id'] = review_proposal_id
+        if expected_updated_at is not None:
+            normalized['expected_updated_at'] = expected_updated_at
         return normalized
 
 
@@ -1410,6 +1414,8 @@ class AIReviewFeedbackStewardSerializer(serializers.ModelSerializer):
             'id',
             'submission_id',
             'review_proposal_id',
+            'proposal_source',
+            'proposal_source_id',
             'proposal_ref',
             'reviewer',
             'reviewer_id',

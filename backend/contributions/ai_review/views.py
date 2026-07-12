@@ -377,7 +377,7 @@ class AIReviewFilterSet(ProposalReviewStatusFilterMixin, FilterSet):
 class AIReviewFeedbackFilterSet(FilterSet):
     """Incremental benchmark filters for structured feedback records."""
 
-    updated_after = DateTimeFilter(field_name='updated_at', lookup_expr='gt')
+    updated_after = DateTimeFilter(field_name='updated_at', lookup_expr='gte')
     submission = UUIDFilter(field_name='submitted_contribution_id')
 
     class Meta:

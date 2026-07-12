@@ -263,17 +263,20 @@ class AIReviewFeedbackAdmin(admin.ModelAdmin):
         'submitted_contribution',
         'review_proposal',
     )
-    list_filter = ('verdict', 'correct_decision')
+    list_filter = ('proposal_source', 'verdict', 'correct_decision')
     search_fields = (
         'submitted_contribution__id',
         'reviewer__email',
         'reviewer__name',
+        'proposal_source',
         'reviewed_commit_sha',
     )
     date_hierarchy = 'updated_at'
     readonly_fields = (
         'submitted_contribution',
         'review_proposal',
+        'proposal_source',
+        'proposal_source_id',
         'proposal_ref',
         'reviewer',
         'verdict',

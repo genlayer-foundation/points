@@ -135,6 +135,12 @@ class StewardAIFeedbackTests(APITestCase):
         payload.update(overrides)
         return payload
 
+    def _revision_payload(self, record, **overrides):
+        return self._payload(
+            expected_updated_at=record.data['updated_at'],
+            **overrides,
+        )
+
     def test_one_click_agree_binds_without_submission_side_effects(self):
         initial_updated_at = self.submission.updated_at
         initial_proposal_updated_at = self.proposal.updated_at
@@ -152,6 +158,11 @@ class StewardAIFeedbackTests(APITestCase):
         request_get.assert_not_called()
         feedback = AIReviewFeedback.objects.get()
         self.assertEqual(feedback.review_proposal, self.proposal)
+        self.assertEqual(
+            feedback.proposal_source,
+            AIReviewFeedback.PROPOSAL_SOURCE_REVIEW,
+        )
+        self.assertEqual(feedback.proposal_source_id, self.proposal.id)
         self.assertEqual(feedback.proposal_ref, self.proposal.created_at)
         self.assertEqual(feedback.reviewer, self.reviewer)
         self.assertEqual(feedback.verdict, 'agree')
@@ -191,6 +202,7 @@ class StewardAIFeedbackTests(APITestCase):
             self._payload(gate_failures=None),
             self._payload(criteria=None),
             self._payload(error_claims=None),
+            self._payload(expected_updated_at='not-a-timestamp'),
             self._payload(criteria={'unknown_section': {'agree': True}}),
             self._payload(criteria={'engineering': 4}),
             self._payload(criteria={'engineering': {'agree': False}}),
@@ -319,7 +331,8 @@ class StewardAIFeedbackTests(APITestCase):
 
         valid_correction = self.client.post(
             self.url,
-            self._payload(
+            self._revision_payload(
+                valid_disagreement,
                 verdict='agree_with_corrections',
                 criteria={
                     'engineering': {'range': [2, 3], 'reason': ''},
@@ -371,11 +384,12 @@ class StewardAIFeedbackTests(APITestCase):
             for claim in response.data['error_claims']
         ))
 
-    def test_upsert_and_two_reviewer_coexistence(self):
+    def test_revision_and_two_reviewer_coexistence(self):
         create = self.client.post(self.url, self._payload(), format='json')
         update = self.client.post(
             self.url,
-            self._payload(
+            self._revision_payload(
+                create,
                 verdict='agree_with_corrections',
                 criteria={
                     'contract_quality': {
@@ -411,6 +425,93 @@ class StewardAIFeedbackTests(APITestCase):
             {self.reviewer.id, second_reviewer.id},
         )
 
+    def test_revisions_require_the_current_version(self):
+        created = self.client.post(self.url, self._payload(), format='json')
+        self.assertEqual(created.status_code, 201, created.data)
+
+        missing_version = self.client.post(
+            self.url,
+            self._payload(verdict='disagree', correct_decision='skip'),
+            format='json',
+        )
+        self.assertEqual(missing_version.status_code, 409, missing_version.data)
+
+        winning = self.client.post(
+            self.url,
+            self._revision_payload(
+                created,
+                verdict='disagree',
+                correct_decision='skip',
+            ),
+            format='json',
+        )
+        self.assertEqual(winning.status_code, 200, winning.data)
+
+        stale = self.client.post(
+            self.url,
+            self._revision_payload(created, verdict='agree'),
+            format='json',
+        )
+        self.assertEqual(stale.status_code, 409, stale.data)
+        feedback = AIReviewFeedback.objects.get(pk=created.data['id'])
+        self.assertEqual(feedback.verdict, 'disagree')
+        self.assertEqual(feedback.correct_decision, 'skip')
+
+        uncreated_proposal = self._make_proposal(self.submission)
+        missing_record = self.client.post(
+            self.url,
+            {
+                'review_proposal_id': uncreated_proposal.id,
+                'expected_updated_at': winning.data['updated_at'],
+                'verdict': 'agree',
+            },
+            format='json',
+        )
+        self.assertEqual(missing_record.status_code, 409, missing_record.data)
+        self.assertEqual(AIReviewFeedback.objects.count(), 1)
+
+    def test_equal_proposal_timestamps_keep_distinct_source_records(self):
+        second_proposal = self._make_proposal(self.submission)
+        shared_timestamp = timezone.now() - timedelta(minutes=5)
+        ReviewProposal.objects.filter(
+            pk__in=(self.proposal.id, second_proposal.id),
+        ).update(created_at=shared_timestamp)
+        self.proposal.refresh_from_db()
+        second_proposal.refresh_from_db()
+
+        first = self.client.post(self.url, self._payload(), format='json')
+        second = self.client.post(
+            self.url,
+            {
+                'review_proposal_id': second_proposal.id,
+                'verdict': 'agree',
+            },
+            format='json',
+        )
+
+        self.assertEqual(first.status_code, 201, first.data)
+        self.assertEqual(second.status_code, 201, second.data)
+        self.assertNotEqual(first.data['id'], second.data['id'])
+        self.assertEqual(first.data['proposal_ref'], second.data['proposal_ref'])
+        self.assertEqual(
+            {first.data['proposal_source_id'], second.data['proposal_source_id']},
+            {self.proposal.id, second_proposal.id},
+        )
+        self.assertEqual(AIReviewFeedback.objects.count(), 2)
+
+        revised_first = self.client.post(
+            self.url,
+            self._revision_payload(
+                first,
+                verdict='disagree',
+                correct_decision='skip',
+            ),
+            format='json',
+        )
+        self.assertEqual(revised_first.status_code, 200, revised_first.data)
+        self.assertEqual(revised_first.data['id'], first.data['id'])
+        self.assertEqual(AIReviewFeedback.objects.count(), 2)
+
     def test_reproposal_creates_distinct_binding_and_stale_explicit_id_is_honored(self):
         first = self.client.post(self.url, self._payload(), format='json')
         self.assertEqual(first.status_code, 201, first.data)
@@ -433,7 +534,8 @@ class StewardAIFeedbackTests(APITestCase):
 
         stale_update = self.client.post(
             self.url,
-            self._payload(
+            self._revision_payload(
+                first,
                 verdict='agree_with_corrections',
                 error_claims=[{
                     'type': 'wrong_weight',
@@ -469,7 +571,56 @@ class StewardAIFeedbackTests(APITestCase):
         self.assertEqual(response.status_code, 201, response.data)
         feedback = AIReviewFeedback.objects.get(submitted_contribution=submission)
         self.assertIsNone(feedback.review_proposal)
+        self.assertEqual(
+            feedback.proposal_source,
+            AIReviewFeedback.PROPOSAL_SOURCE_NOTE,
+        )
+        self.assertEqual(feedback.proposal_source_id, note.id)
         self.assertEqual(feedback.proposal_ref, note.created_at)
+
+    def test_equal_standard_note_timestamps_keep_distinct_source_records(self):
+        self.contribution_type.review_flow = ContributionType.REVIEW_FLOW_STANDARD
+        self.contribution_type.save(update_fields=['review_flow', 'updated_at'])
+        submission = self._make_submission(proposed_by=None, proposed_action=None)
+        shared_timestamp = timezone.now() - timedelta(minutes=5)
+        first_note = SubmissionNote.objects.create(
+            submitted_contribution=submission,
+            user=self.ai_user,
+            message='First AI proposal fallback',
+            is_proposal=True,
+            data={'action': 'accept'},
+        )
+        SubmissionNote.objects.filter(pk=first_note.pk).update(
+            created_at=shared_timestamp,
+        )
+        url = f'/api/v1/steward-submissions/{submission.id}/ai-feedback/'
+        first = self.client.post(url, {'verdict': 'agree'}, format='json')
+
+        second_note = SubmissionNote.objects.create(
+            submitted_contribution=submission,
+            user=self.ai_user,
+            message='Second AI proposal fallback',
+            is_proposal=True,
+            data={'action': 'reject'},
+        )
+        SubmissionNote.objects.filter(pk=second_note.pk).update(
+            created_at=shared_timestamp,
+        )
+        second = self.client.post(url, {'verdict': 'agree'}, format='json')
+
+        self.assertEqual(first.status_code, 201, first.data)
+        self.assertEqual(second.status_code, 201, second.data)
+        self.assertEqual(first.data['proposal_ref'], second.data['proposal_ref'])
+        self.assertEqual(
+            {first.data['proposal_source_id'], second.data['proposal_source_id']},
+            {first_note.id, second_note.id},
+        )
+        self.assertEqual(
+            AIReviewFeedback.objects.filter(
+                submitted_contribution=submission,
+            ).count(),
+            2,
+        )
 
     def test_explicit_proposal_must_be_ai_owned_by_the_submission(self):
         other_submission = self._make_submission()
@@ -526,7 +677,8 @@ class StewardAIFeedbackTests(APITestCase):
 
         revised = self.client.post(
             self.url,
-            self._payload(
+            self._revision_payload(
+                initial,
                 verdict='disagree',
                 correct_decision='accept',
             ),
@@ -609,6 +761,8 @@ class StewardAIFeedbackTests(APITestCase):
         feedback = AIReviewFeedback.objects.create(
             submitted_contribution=self.submission,
             review_proposal=self.proposal,
+            proposal_source=AIReviewFeedback.PROPOSAL_SOURCE_REVIEW,
+            proposal_source_id=self.proposal.id,
             proposal_ref=self.proposal.created_at,
             reviewer=self.reviewer,
             verdict='agree_with_corrections',
@@ -667,7 +821,11 @@ class StewardAIFeedbackTests(APITestCase):
         request_get.side_effect = RuntimeError('transport failed')
         failed_lookup_revision = self.client.post(
             self.url,
-            self._payload(verdict='disagree', correct_decision='skip'),
+            self._revision_payload(
+                created,
+                verdict='disagree',
+                correct_decision='skip',
+            ),
             format='json',
         )
         self.assertEqual(
@@ -682,7 +840,7 @@ class StewardAIFeedbackTests(APITestCase):
         request_get.return_value = Mock(status_code=200, text='b' * 40)
         different_head_revision = self.client.post(
             self.url,
-            self._payload(verdict='agree'),
+            self._revision_payload(failed_lookup_revision, verdict='agree'),
             format='json',
         )
         self.assertEqual(
@@ -711,7 +869,11 @@ class StewardAIFeedbackTests(APITestCase):
         request_get.return_value = Mock(status_code=200, text=SHA)
         revised = self.client.post(
             self.url,
-            self._payload(verdict='disagree', correct_decision='skip'),
+            self._revision_payload(
+                created,
+                verdict='disagree',
+                correct_decision='skip',
+            ),
             format='json',
         )
         self.assertEqual(revised.status_code, 200, revised.data)
@@ -795,6 +957,8 @@ class BenchmarkAIFeedbackTests(APITestCase):
         self.feedback = AIReviewFeedback.objects.create(
             submitted_contribution=self.submission,
             review_proposal=self.proposal,
+            proposal_source=AIReviewFeedback.PROPOSAL_SOURCE_REVIEW,
+            proposal_source_id=self.proposal.id,
             proposal_ref=self.proposal.created_at,
             reviewer=self.reviewer,
             verdict='agree',
@@ -827,6 +991,8 @@ class BenchmarkAIFeedbackTests(APITestCase):
         return AIReviewFeedback.objects.create(
             submitted_contribution=submission,
             review_proposal=proposal,
+            proposal_source=AIReviewFeedback.PROPOSAL_SOURCE_REVIEW,
+            proposal_source_id=proposal.id,
             proposal_ref=proposal.created_at,
             reviewer=reviewer,
             verdict='disagree',
@@ -861,6 +1027,8 @@ class BenchmarkAIFeedbackTests(APITestCase):
                 'id',
                 'submission_id',
                 'review_proposal_id',
+                'proposal_source',
+                'proposal_source_id',
                 'proposal_ref',
                 'reviewer',
                 'reviewer_id',
@@ -876,6 +1044,11 @@ class BenchmarkAIFeedbackTests(APITestCase):
         )
         first_record = response.data['results'][0]
         self.assertEqual(first_record['submission_id'], str(self.submission.id))
+        self.assertEqual(
+            first_record['proposal_source'],
+            AIReviewFeedback.PROPOSAL_SOURCE_REVIEW,
+        )
+        self.assertEqual(first_record['proposal_source_id'], self.proposal.id)
         self.assertEqual(first_record['reviewer'], self.reviewer.name)
         self.assertIsNone(first_record['reviewed_commit_sha'])
         self.assertIsNone(first_record['correct_decision'])
@@ -944,15 +1117,15 @@ class BenchmarkAIFeedbackTests(APITestCase):
             {self.feedback.id, second.id, third.id},
         )
 
-    def test_updated_after_and_submission_filters(self):
+    def test_updated_after_includes_cursor_overlap_and_submission_filter(self):
         other_submission = self._make_submission('Other benchmark submission')
         other_feedback = self._make_feedback(other_submission, 3)
         cutoff = timezone.now() - timedelta(minutes=5)
         AIReviewFeedback.objects.filter(pk=self.feedback.pk).update(
-            updated_at=cutoff - timedelta(seconds=1),
+            updated_at=cutoff,
         )
         AIReviewFeedback.objects.filter(pk=other_feedback.pk).update(
-            updated_at=cutoff + timedelta(seconds=1),
+            updated_at=cutoff,
         )
         plaintext = _issue(name='feedback-read-filters')
 
@@ -970,7 +1143,7 @@ class BenchmarkAIFeedbackTests(APITestCase):
         self.assertEqual(updated.status_code, 200, updated.data)
         self.assertEqual(
             [record['id'] for record in updated.data['results']],
-            [other_feedback.id],
+            [self.feedback.id, other_feedback.id],
         )
         self.assertEqual(filtered_submission.status_code, 200, filtered_submission.data)
         self.assertEqual(

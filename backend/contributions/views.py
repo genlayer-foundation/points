@@ -3566,36 +3566,65 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data.copy()
         review_proposal_id = data.pop('review_proposal_id', None)
+        expected_updated_at = data.pop('expected_updated_at', None)
 
         try:
-            review_proposal, proposal_ref = resolve_proposal_binding(
+            (
+                review_proposal,
+                proposal_ref,
+                proposal_source,
+                proposal_source_id,
+            ) = resolve_proposal_binding(
                 submission,
                 review_proposal_id=review_proposal_id,
             )
             lookup = {
                 'submitted_contribution': submission,
                 'reviewer': request.user,
-                'proposal_ref': proposal_ref,
+                'proposal_source': proposal_source,
+                'proposal_source_id': proposal_source_id,
             }
-            existing = AIReviewFeedback.objects.filter(**lookup).exists()
-            reviewed_commit_sha = (
-                '' if existing else fetch_reviewed_commit_sha(submission)
-            )
             defaults = {
                 'review_proposal': review_proposal,
+                'proposal_ref': proposal_ref,
                 **data,
             }
-            feedback, created = AIReviewFeedback.objects.update_or_create(
-                **lookup,
-                defaults=defaults,
-                create_defaults={
+
+            if expected_updated_at is None:
+                if AIReviewFeedback.objects.filter(**lookup).exists():
+                    return Response(
+                        {'detail': 'Feedback changed since it was loaded. Reload it before saving again.'},
+                        status=status.HTTP_409_CONFLICT,
+                    )
+                reviewed_commit_sha = fetch_reviewed_commit_sha(submission)
+                feedback = AIReviewFeedback.objects.create(
+                    **lookup,
                     **defaults,
-                    'reviewed_commit_sha': reviewed_commit_sha,
-                },
-            )
+                    reviewed_commit_sha=reviewed_commit_sha,
+                )
+                created = True
+            else:
+                updated = AIReviewFeedback.objects.filter(
+                    **lookup,
+                    updated_at=expected_updated_at,
+                ).update(
+                    **defaults,
+                    updated_at=timezone.now(),
+                )
+                if updated != 1:
+                    return Response(
+                        {'detail': 'Feedback changed since it was loaded. Reload it before saving again.'},
+                        status=status.HTTP_409_CONFLICT,
+                    )
+                feedback = (
+                    AIReviewFeedback.objects
+                    .select_related('reviewer')
+                    .get(**lookup)
+                )
+                created = False
         except IntegrityError:
             return Response(
-                {'detail': 'Feedback could not be saved because it was updated concurrently.'},
+                {'detail': 'Feedback changed since it was loaded. Reload it before saving again.'},
                 status=status.HTTP_409_CONFLICT,
             )
 

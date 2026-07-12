@@ -19,6 +19,8 @@ class Migration(migrations.Migration):
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
+                ('proposal_source', models.CharField(choices=[('review_proposal', 'Review proposal'), ('submission_note', 'Submission note')], max_length=20)),
+                ('proposal_source_id', models.PositiveBigIntegerField()),
                 ('proposal_ref', models.DateTimeField()),
                 ('verdict', models.CharField(choices=[('agree', 'Agree'), ('agree_with_corrections', 'Agree with corrections'), ('disagree', 'Disagree')], max_length=30)),
                 ('correct_decision', models.CharField(blank=True, choices=[('accept', 'Accept'), ('reject', 'Reject'), ('more_info', 'Request more information'), ('skip', 'Skip')], default='', max_length=20)),
@@ -32,7 +34,7 @@ class Migration(migrations.Migration):
             ],
             options={
                 'indexes': [models.Index(fields=['updated_at'], name='ai_feedback_updated_idx')],
-                'constraints': [models.UniqueConstraint(fields=('submitted_contribution', 'reviewer', 'proposal_ref'), name='unique_ai_feedback_proposal_reviewer')],
+                'constraints': [models.UniqueConstraint(fields=('submitted_contribution', 'reviewer', 'proposal_source', 'proposal_source_id'), name='unique_ai_feedback_source_reviewer')],
             },
         ),
     ]

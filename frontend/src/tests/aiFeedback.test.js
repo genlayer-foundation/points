@@ -83,6 +83,7 @@ describe('AI review feedback helpers', () => {
     const state = initFeedbackState(analysis, {
       id: 9,
       review_proposal_id: 77,
+      updated_at: '2026-07-12T12:00:00Z',
       verdict: 'disagree',
       correct_decision: 'accept',
       criteria: {
@@ -92,6 +93,7 @@ describe('AI review feedback helpers', () => {
 
     expect(buildFeedbackPayload(state)).toMatchObject({
       verdict: 'disagree',
+      expected_updated_at: '2026-07-12T12:00:00Z',
       correct_decision: 'accept',
       criteria: {
         genlayer_fit: { range: [3, 3], reason: 'Previously stored' }

@@ -35,6 +35,7 @@ const GATE_FAILURE_KEYS = new Set(RUBRIC_GATE_FAILURES.map(gate => gate.key));
  *   id?: string | number,
  *   verdict?: 'agree' | 'agree_with_corrections' | 'disagree',
  *   review_proposal_id?: string | number | null,
+ *   updated_at?: string,
  *   correct_decision?: string | null,
  *   gate_failures?: string[],
  *   criteria?: Record<string, SavedCriterion>,
@@ -44,6 +45,7 @@ const GATE_FAILURE_KEYS = new Set(RUBRIC_GATE_FAILURES.map(gate => gate.key));
  * @typedef {{ clientId: string, type: string, text: string, evidenceRef: string, anchor: string }} FeedbackClaimState
  * @typedef {{
  *   reviewProposalId: string | number | null,
+ *   expectedUpdatedAt: string,
  *   aiDecision: string,
  *   aiScores: Record<string, number>,
  *   persistedDecisionOverride: string,
@@ -57,6 +59,7 @@ const GATE_FAILURE_KEYS = new Set(RUBRIC_GATE_FAILURES.map(gate => gate.key));
  * @typedef {{
  *   verdict: 'agree' | 'agree_with_corrections' | 'disagree',
  *   review_proposal_id?: string | number,
+ *   expected_updated_at?: string,
  *   correct_decision?: string,
  *   gate_failures?: string[],
  *   criteria?: Record<string, FeedbackCriterionPayload>,
@@ -109,6 +112,7 @@ export function initFeedbackState(aiAnalysis = {}, existingRecord = null) {
 
   return {
     reviewProposalId: aiAnalysis?.id ?? existingRecord?.review_proposal_id ?? null,
+    expectedUpdatedAt: existingRecord?.updated_at || '',
     aiDecision: aiAnalysis?.action || '',
     aiScores,
     persistedDecisionOverride: existingRecord?.correct_decision || '',
@@ -185,6 +189,9 @@ export function buildFeedbackPayload(state) {
     verdict,
     ...(reviewProposalId !== null && reviewProposalId !== undefined
       ? { review_proposal_id: reviewProposalId }
+      : {}),
+    ...(state?.expectedUpdatedAt
+      ? { expected_updated_at: state.expectedUpdatedAt }
       : {})
   };
 

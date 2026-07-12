@@ -70,7 +70,7 @@ backend/
 - **Models**: `contributions/models.py`
   - Contribution - Individual contribution records. Has optional `project_contribution` self-FK and `milestone_version` used by the Projects/Milestones split.
   - ContributionType - Categories with slug field, has M2M `accepted_evidence_url_types`
-  - AIReviewFeedback - Per-reviewer, per-AI-proposal benchmark feedback with a durable proposal timestamp binding, verdict, optional corrected decision/rubric ranges, typed anchored error claims, and a best-effort commit SHA pinned on first save. Records are revisable through a unique `(submitted_contribution, reviewer, proposal_ref)` binding and never alter submission review state.
+  - AIReviewFeedback - Per-reviewer, per-AI-proposal benchmark feedback with an immutable `(proposal_source, proposal_source_id)` binding, timestamp metadata in `proposal_ref`, verdict, optional corrected decision/rubric ranges, typed anchored error claims, and a best-effort commit SHA pinned on first save. Records are unique by `(submitted_contribution, reviewer, proposal_source, proposal_source_id)` and never alter submission review state.
   - SubmissionStateTransition - Append-only lifecycle log for submissions (migration 0079). One row per event (`submitted`/`review`/`bulk_reject`/`gate_reject`/`edited`/`canceled`/`appeal`/`evidence_added`/`admin`) with from_state/to_state/actor. Written by every path that changes `state` or clears `reviewed_by`/`reviewed_at` (creation via post_save signal; the rest inline at each call site, incl. the Tier-1 gate command and admin `save_model`). Never mutate or delete rows; read-only in admin. Rationale: row state is overwritten in place and re-open paths destroy review fields, so this log is the only durable decision/lifecycle history. Bulk reject also writes a per-submission decision SubmissionNote (`data.action='reject'`, `data.bulk=true`) so bulk decisions appear in the CRM timeline and note-based metrics like single rejects. The dead `resubmitted_more_info` filter (relied on `reviewed_at` surviving edits, impossible since 2026-06-22) was removed from both filtersets and the steward search grammar.
 - **Projects/Milestones split**: `contributions/project_milestones.py`
   - `projects` and `milestones` are separate contribution types (migration 0068). Projects require a GitHub repository evidence URL (`required_evidence_url_types` = github-repo). Milestones must be linked to one of the submitter's ACCEPTED Projects CONTRIBUTIONS (`/submissions/accepted-projects/`) via the `project_contribution` self-FK, require a written change description (evidence optional), and get an auto-assigned sequential `milestone_version` per project contribution. IMPORTANT: this is unrelated to the projects app's curated `projects.Project` showcase table, which contribution flows must never create or modify.
@@ -100,12 +100,13 @@ backend/
   - `/api/v1/ai-review/{id}/propose/` - Submit an AI proposal for human approval
   - `/api/v1/ai-review/proposed/` - List pending submissions with active proposals awaiting steward review; use `proposed_by=ai` for AI-created proposals only
   - `/api/v1/ai-review/reviewed/` - List reviewed submissions that had AI proposals for calibration
-  - `/api/v1/ai-review/feedback/` - Paginated structured steward feedback deterministically ordered by `(updated_at, id)`; incremental consumers must follow the documented count/dedupe/retry protocol. Filters: `updated_after` (exclusive) and `submission` UUID.
+  - `/api/v1/ai-review/feedback/` - Paginated structured steward feedback deterministically ordered by `(updated_at, id)`; incremental consumers must follow the documented overlap/count/dedupe/retry protocol. Filters: `updated_after` (inclusive despite the legacy name, so equal-timestamp changes overlap) and `submission` UUID.
+  - **Feedback pull consistency**: keep the previous `updated_after` cursor while reading every `next` page; within a scan require `count` to remain stable and the number of unique record IDs to equal `count`, otherwise discard the scan and retry from that cursor. Across completed scans, expect the inclusive boundary to repeat records and upsert/deduplicate them by feedback `id`. Advance the cursor to the maximum `updated_at` only after a complete validated scan.
   - `/api/v1/ai-review/templates/` - List review templates available to the AI review agent
   - **Auth**: service account bearer tokens (`Authorization: Bearer sa_<id>_<secret>`) with scopes `ai_review:read` (all GETs) and `ai_review:propose` (propose). Proposals are attributed to the hidden AI steward user (`contributions/ai_attribution.py:get_ai_steward()`, `genlayer-steward@genlayer.foundation`); the authenticating account's name is recorded in the proposal note's `data.service_account` for audit. The old `X-AI-Review-Key` shared key has been removed; tokens are the only way in.
 - **AI feedback validation**: `contributions/ai_feedback.py`
   - Closed verdict/decision/error-claim vocabularies, exact criterion correction shapes, proposal binding, and first-save GitHub repository HEAD lookup. Commit lookup uses `GITHUB_METRICS_TOKEN` when configured, degrades to an empty SHA without blocking feedback, and is not repeated on record revisions.
-  - `GET|POST /api/v1/steward-submissions/{id}/ai-feedback/` lists all feedback for a visible submission or upserts the current steward's record. The same per-type permission bar as CRM notes applies, including propose-only stewards.
+  - `GET|POST /api/v1/steward-submissions/{id}/ai-feedback/` lists all feedback for a visible submission or creates/revises the current steward's record. Creates omit `expected_updated_at`; revisions must echo the record's current `updated_at` and receive 409 on a stale version. The same per-type permission bar as CRM notes applies, including propose-only stewards.
 
 ### Service Accounts
 
@@ -473,7 +474,7 @@ GET    /api/v1/validators/wallets/grafana/         (public, cached 60s, ?network
 GET    /api/v1/steward-submissions/stats/           (requires steward)
 GET    /api/v1/steward-submissions/daily-metrics/   (requires steward)
 GET    /api/v1/steward-submissions/{id}/ai-feedback/  (requires steward + type permission)
-POST   /api/v1/steward-submissions/{id}/ai-feedback/  (upsert current non-author reviewer's proposal-bound feedback)
+POST   /api/v1/steward-submissions/{id}/ai-feedback/  (create or versioned-revise current non-author reviewer's proposal-bound feedback)
 
 # AI Review Agent (service account bearer token; ai_review:read / ai_review:propose scopes)
 GET    /api/v1/ai-review/
@@ -482,7 +483,7 @@ POST   /api/v1/ai-review/{id}/propose/     (create new proposal; requires ai_rev
 PUT    /api/v1/ai-review/{id}/propose/     (update existing proposal; requires ai_review:propose)
 GET    /api/v1/ai-review/proposed/     (pending active proposals awaiting steward review; add proposed_by=ai for AI-only)
 GET    /api/v1/ai-review/reviewed/
-GET    /api/v1/ai-review/feedback/     (paginated benchmark feedback; ?updated_after=&submission=; requires ai_review:read)
+GET    /api/v1/ai-review/feedback/     (paginated benchmark feedback; inclusive ?updated_after= overlap; ?submission=; requires ai_review:read)
 GET    /api/v1/ai-review/templates/
 
 # Partners (Ecosystem Partners)
