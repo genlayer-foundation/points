@@ -13,17 +13,24 @@ on:
           - dev
         default: prod
 
+concurrency:
+  group: sync-validators
+  cancel-in-progress: false
+
+permissions: {}
+
 jobs:
   sync:
     runs-on: ubuntu-latest
     environment: cron-job
+    timeout-minutes: 10
     steps:
       - name: Trigger Validator Sync
         env:
           BASE_URL: ${{ inputs.target == 'dev' && secrets.DEV_API_BASE_URL || secrets.API_BASE_URL }}
         run: |
           echo "Target: ${{ inputs.target || 'prod' }}"
-          response=$(curl -s -w "\n%{http_code}" -X POST \
+          response=$(curl -sS --max-time 120 -w "\n%{http_code}" -X POST \
             -H "X-Cron-Token: ${{ secrets.CRON_SYNC_TOKEN }}" \
             "$BASE_URL/api/v1/validators/wallets/sync/")
 

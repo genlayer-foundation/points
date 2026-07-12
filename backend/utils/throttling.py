@@ -40,3 +40,7 @@ class ExistingEmailResendRateThrottle(UserRateThrottle):
 
 class ExistingEmailConfirmRateThrottle(UserRateThrottle):
     scope = 'existing_email_confirm'
+
+
+class CommunityPostVerificationRateThrottle(UserRateThrottle):
+    scope = 'community_post_verify'

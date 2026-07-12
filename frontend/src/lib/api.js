@@ -121,7 +121,7 @@ api.interceptors.response.use(
     if (error.response?.status === 403 || error.response?.status === 401) {
       // If we get an auth error, verify auth status
       import('./auth.js').then(({ verifyAuth }) => {
-        verifyAuth();
+        verifyAuth({ force: true });
       });
     }
     return Promise.reject(error);

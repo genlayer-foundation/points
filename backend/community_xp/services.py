@@ -402,30 +402,11 @@ def _validate_xp_state_before_applying(run):
         )
 
 
-def _apply_sync_run_unlocked(run, applied_by=None):
+def _apply_sync_run_locked(run, applied_by=None):
     if run.status != Mee6SyncRun.STATUS_SUCCESS:
         raise Mee6SyncError('Only successful MEE6 sync runs can be applied as the baseline')
     if not run.completed_at:
         raise Mee6SyncError('Cannot apply a MEE6 sync run before it has completed')
-
-    latest_applied_run = (
-        Mee6SyncRun.objects
-        .filter(
-            guild_id=run.guild_id,
-            status=Mee6SyncRun.STATUS_SUCCESS,
-            completed_at__isnull=False,
-            applied_at__isnull=False,
-        )
-        .exclude(id=run.id)
-        .order_by('-completed_at', '-id')
-        .first()
-    )
-    if latest_applied_run and run.completed_at < latest_applied_run.completed_at:
-        raise Mee6SyncError(
-            f'Cannot apply MEE6 sync #{run.id}; sync #{latest_applied_run.id} is newer and already applied'
-        )
-
-    _validate_xp_state_before_applying(run)
 
     now = timezone.now()
     snapshots = list(
@@ -467,6 +448,28 @@ def _apply_sync_run_unlocked(run, applied_by=None):
         ))
 
     with transaction.atomic():
+        _ensure_sync_lock_row()
+        Mee6SyncLock.objects.select_for_update().get(name=LOCK_NAME)
+
+        latest_applied_run = (
+            Mee6SyncRun.objects
+            .filter(
+                guild_id=run.guild_id,
+                status=Mee6SyncRun.STATUS_SUCCESS,
+                completed_at__isnull=False,
+                applied_at__isnull=False,
+            )
+            .exclude(id=run.id)
+            .order_by('-completed_at', '-id')
+            .first()
+        )
+        if latest_applied_run and run.completed_at < latest_applied_run.completed_at:
+            raise Mee6SyncError(
+                f'Cannot apply MEE6 sync #{run.id}; sync #{latest_applied_run.id} is newer and already applied'
+            )
+
+        _validate_xp_state_before_applying(run)
+
         Mee6CurrentXP.objects.filter(guild_id=run.guild_id).delete()
         Mee6CurrentXP.objects.bulk_create(current_rows, batch_size=1000)
 
@@ -512,7 +515,7 @@ def apply_sync_run(run, applied_by=None, lock_owner_token=None):
         acquired_here = True
 
     try:
-        return _apply_sync_run_unlocked(run, applied_by=applied_by)
+        return _apply_sync_run_locked(run, applied_by=applied_by)
     finally:
         if acquired_here:
             release_sync_lock(owner_token)
