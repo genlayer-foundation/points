@@ -1,7 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte/svelte5';
 import { describe, expect, it, vi } from 'vitest';
 import StewardSubmissionCard from '../components/StewardSubmissionCard.svelte';
-import SubmissionCard from '../components/SubmissionCard.svelte';
 
 const contributionType = {
   id: 7,
@@ -115,20 +114,6 @@ function reviewProps({ permissions, onReview = vi.fn(), onPropose = vi.fn() }) {
 }
 
 describe('StewardSubmissionCard', () => {
-  it('keeps the submitter-facing card isolated from steward review surfaces', () => {
-    render(SubmissionCard, {
-      props: {
-        submission: makeSubmission({ ai_analysis: makeAIAnalysis() }),
-        isOwnSubmission: true,
-        contributionTypes: [contributionType]
-      }
-    });
-
-    expect(screen.queryByText('Review outcome')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Show internal notes' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Show AI review synthesis' })).toBeNull();
-  });
-
   it('consolidates the submitter profile, avatar, socials, and submission date in the header', () => {
     renderCard();
 

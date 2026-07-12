@@ -1,67 +1,34 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte/svelte5';
-import { get } from 'svelte/store';
+import { push } from 'svelte-spa-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SubmissionCard from '../components/SubmissionCard.svelte';
-import { stewardAPI } from '../lib/api.js';
 import { toastStore } from '../lib/toastStore.js';
 
 function makeSubmission(overrides = {}) {
   return {
     id: 42,
-    user: 9,
-    user_details: {
-      id: 9,
-      name: 'Project Builder',
-      address: '0x1234567890abcdef'
-    },
     contribution_type: 7,
+    contribution_type_name: 'Builder Project',
     contribution_type_details: {
       id: 7,
       name: 'Builder Project',
       category: 'builder',
       min_points: 0,
-      max_points: 100,
-      review_flow: 'builder_project'
+      max_points: 100
     },
     contribution_date: '2026-06-01T12:00:00Z',
     created_at: '2026-06-01T12:00:00Z',
     notes: 'Project submission notes',
-    title: 'Project submission',
     state: 'pending',
     state_display: 'Pending Review',
     staff_reply: '',
     evidence_items: [],
-    proposed_points: null,
-    proposed_action: null,
-    proposed_contribution_type: null,
-    proposed_user: null,
-    proposed_user_details: null,
-    proposed_staff_reply: '',
-    proposed_create_highlight: false,
-    proposed_highlight_title: '',
-    proposed_highlight_description: '',
-    proposed_by: null,
-    proposed_at: null,
-    proposed_by_details: null,
-    has_proposal: false,
-    proposed_confidence: null,
-    proposed_template: null,
-    proposed_template_name: null,
-    proposal_review_status: null,
-    proposal_review_feedback: '',
-    proposal_questioned_by: null,
-    proposal_questioned_by_details: null,
-    proposal_questioned_at: null,
-    proposal_is_ai: false,
-    rubric_review: null,
-    ai_analysis: null,
-    notes_count: 0,
-    is_interesting: false,
-    has_appeal: false,
-    appeal_reason: '',
     more_info_requests: [],
     mission: null,
+    project_contribution: null,
+    milestone_version: null,
     contribution: null,
+    has_appeal: false,
     ...overrides
   };
 }
@@ -71,6 +38,7 @@ describe('SubmissionCard', () => {
 
   beforeEach(() => {
     originalClipboard = navigator.clipboard;
+    vi.clearAllMocks();
     toastStore.clearAll();
   });
 
@@ -81,6 +49,26 @@ describe('SubmissionCard', () => {
     });
   });
 
+  it('renders only submitter-facing submission metadata', () => {
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          has_proposal: true,
+          proposal_is_ai: true,
+          notes_count: 4,
+          ai_analysis: { synthesis: 'Private AI synthesis' }
+        })
+      }
+    });
+
+    expect(screen.getByRole('heading', { name: 'Builder Project' })).toBeTruthy();
+    expect(screen.getByText('Pending Review')).toBeTruthy();
+    expect(screen.queryByText('Proposal')).toBeNull();
+    expect(screen.queryByText('4 notes')).toBeNull();
+    expect(screen.queryByText('Private AI synthesis')).toBeNull();
+    expect(screen.queryByText('Review outcome')).toBeNull();
+  });
+
   it('copies only the submission id from the card', async () => {
     const writeText = vi.fn().mockResolvedValue();
     Object.defineProperty(navigator, 'clipboard', {
@@ -89,10 +77,7 @@ describe('SubmissionCard', () => {
     });
 
     render(SubmissionCard, {
-      props: {
-        submission: makeSubmission({ id: 'submission-123' }),
-        notes: []
-      }
+      props: { submission: makeSubmission({ id: 'submission-123' }) }
     });
 
     await fireEvent.click(screen.getByRole('button', { name: 'Copy ID' }));
@@ -100,1494 +85,185 @@ describe('SubmissionCard', () => {
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith('submission-123');
     });
-    expect(screen.queryByRole('button', { name: /Copy review context/i })).toBeNull();
   });
 
-  it('shows more information requests in a dedicated panel', async () => {
+  it('shows mission, milestone, and linked project details', () => {
     render(SubmissionCard, {
       props: {
         submission: makeSubmission({
-          state: 'pending',
-          state_display: 'Pending Review',
-          more_info_requests: [
-            {
-              id: 1,
-              message: 'Please add a working demo link and deployment notes.',
-              user_name: 'Test Steward',
-              created_at: '2026-06-02T12:00:00Z'
-            }
-          ]
-        }),
-        notes: []
+          contribution_type_name: 'Milestone',
+          contribution_type_details: {
+            id: 8,
+            name: 'Milestone',
+            category: 'builder',
+            slug: 'milestones'
+          },
+          mission: { id: 15, name: 'Build the Future' },
+          milestone_version: 3,
+          project_contribution: {
+            title: 'Reference Project',
+            link: 'https://example.com/project',
+            github_url: 'https://github.com/example/project'
+          }
+        })
       }
     });
 
-    expect(screen.getByText('More information requested')).toBeTruthy();
-    expect(screen.getByText('Please add a working demo link and deployment notes.')).toBeTruthy();
-    expect(screen.getByText(/Requested by Test Steward/)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /Build the Future/ })).toBeTruthy();
+    expect(screen.getByText('Milestone')).toBeTruthy();
+    expect(screen.getByText('Milestone v3')).toBeTruthy();
+    expect(screen.getByText('Reference Project')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'View Project' }).getAttribute('href')).toBe('https://example.com/project');
+    expect(screen.getByRole('link', { name: 'Project Repository' }).getAttribute('href')).toBe('https://github.com/example/project');
   });
 
-  it('uses structured more-info requests instead of duplicating staff response', async () => {
+  it('shows submission notes and both evidence formats', () => {
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          notes: '**Implemented** the complete flow.',
+          evidence_items: [
+            {
+              id: 1,
+              description: 'Pull request',
+              url: 'https://github.com/example/project/pull/1',
+              url_type: { name: 'GitHub' }
+            },
+            { id: 2, description: 'Tested by the project team', url: '' }
+          ]
+        })
+      }
+    });
+
+    expect(screen.getByText('Implemented')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'https://github.com/example/project/pull/1' })).toBeTruthy();
+    expect(screen.getByText('Tested by the project team')).toBeTruthy();
+  });
+
+  it('uses structured more-info requests instead of duplicating the staff response', () => {
     render(SubmissionCard, {
       props: {
         submission: makeSubmission({
           state: 'more_info_needed',
           state_display: 'More Information Needed',
           staff_reply: 'Please add more evidence.',
-          more_info_requests: [
-            {
-              id: 2,
-              message: 'Please add more evidence.',
-              user_name: 'Test Steward',
-              created_at: '2026-06-02T12:00:00Z'
-            }
-          ]
-        }),
-        notes: []
+          more_info_requests: [{
+            id: 2,
+            message: 'Please add more evidence.',
+            user_name: 'Test Steward',
+            created_at: '2026-06-02T12:00:00Z'
+          }]
+        })
       }
     });
 
     expect(screen.getByText('More information requested')).toBeTruthy();
+    expect(screen.getByText('Please add more evidence.')).toBeTruthy();
+    expect(screen.getByText(/Requested by Test Steward/)).toBeTruthy();
     expect(screen.queryByText('Staff Response')).toBeNull();
   });
 
-  it('shows final staff response after a historical more-info request', async () => {
+  it('shows the final staff response and awarded contribution after acceptance', () => {
     render(SubmissionCard, {
       props: {
         submission: makeSubmission({
           state: 'accepted',
           state_display: 'Accepted',
           staff_reply: 'Accepted after the follow-up evidence.',
-          more_info_requests: [
-            {
-              id: 3,
-              message: 'Please add more evidence.',
-              user_name: 'Test Steward',
-              created_at: '2026-06-02T12:00:00Z'
-            }
-          ]
-        }),
-        notes: []
+          more_info_requests: [{ id: 3, message: 'Please add more evidence.' }],
+          contribution: {
+            id: 99,
+            contribution_type: 7,
+            contribution_type_details: {
+              id: 7,
+              name: 'Builder Project',
+              category: 'builder'
+            },
+            contribution_date: '2026-06-01T12:00:00Z',
+            frozen_global_points: 42
+          }
+        })
       }
     });
 
-    expect(screen.getByText('More information requested')).toBeTruthy();
     expect(screen.getByText('Staff Response')).toBeTruthy();
     expect(screen.getByText('Accepted after the follow-up evidence.')).toBeTruthy();
+    expect(screen.getByText('42 pts')).toBeTruthy();
   });
 
-  it('opens directly to the project proposal rubric for proposal-only stewards', async () => {
-    render(SubmissionCard, {
-      props: {
-        submission: makeSubmission(),
-        showReviewForm: true,
-        onReview: vi.fn(),
-        onPropose: vi.fn(),
-        reviewData: {
-          action: 'accept',
-          user: 9,
-          contribution_type: 7,
-          points: 0,
-          staff_reply: ''
-        },
-        permissions: {
-          7: ['propose']
-        },
-        contributionTypes: [
-          {
-            id: 7,
-            name: 'Builder Project',
-            category: 'builder',
-            min_points: 0,
-            max_points: 100,
-            review_flow: 'builder_project'
-          }
-        ],
-        multipliers: { 7: 1 },
-        templates: [],
-        notes: [],
-        enableRubricReview: true
-      }
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText('Project rubric')).toBeTruthy();
-      expect(screen.getByText('Accept proposal')).toBeTruthy();
-      expect(screen.getByRole('button', { name: 'Submit Accept Proposal' })).toBeTruthy();
-    });
-
-    expect(screen.queryByRole('button', { name: 'Accept & Create Contribution' })).toBeNull();
-  });
-
-  it('shows the builder project rubric in reject proposal state', async () => {
+  it('submits a trimmed appeal reason for a rejected submission', async () => {
+    const onAppeal = vi.fn().mockResolvedValue();
     render(SubmissionCard, {
       props: {
         submission: makeSubmission({
-          has_proposal: true,
-          proposed_action: 'reject',
-          proposed_staff_reply: 'The repository does not build.',
-          proposed_by_details: { name: 'AI Steward' },
-          rubric_review: {
-            action: 'reject',
-            confidence: 'medium',
-            gate_failures: ['repo_does_not_build'],
-            sections: {},
-            extras: [],
-            overall_reason: 'The repository does not build.'
-          }
+          state: 'rejected',
+          state_display: 'Rejected',
+          staff_reply: 'The evidence does not support the claim.'
         }),
-        showReviewForm: true,
-        onReview: vi.fn(),
-        onPropose: vi.fn(),
-        reviewData: {
-          action: 'accept',
-          user: 9,
-          contribution_type: 7,
-          points: 0,
-          staff_reply: ''
-        },
-        permissions: {
-          7: ['propose']
-        },
-        contributionTypes: [
-          {
-            id: 7,
-            name: 'Builder Project',
-            category: 'builder',
-            min_points: 0,
-            max_points: 100,
-            review_flow: 'builder_project'
-          }
-        ],
-        multipliers: { 7: 1 },
-        templates: [],
-        notes: [],
-        enableRubricReview: true
+        onAppeal
       }
     });
 
-    await waitFor(() => {
-      expect(screen.getAllByText('Reject proposal').length).toBeGreaterThan(0);
-      expect(screen.getByText('Gate failures force a reject proposal. Clear all gate failures to propose accept or request info.')).toBeTruthy();
-      expect(screen.getByRole('button', { name: 'Submit Reject Proposal' })).toBeTruthy();
+    expect(screen.getByText('Rejection Reason')).toBeTruthy();
+    const submitButton = screen.getByRole('button', { name: 'Submit Appeal' });
+    expect(submitButton.disabled).toBe(true);
+
+    await fireEvent.input(screen.getByLabelText('Appeal reason'), {
+      target: { value: '  The missing evidence is now attached.  ' }
     });
+    await fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(onAppeal).toHaveBeenCalledWith(42, 'The missing evidence is now attached.');
+    });
+    expect(screen.getByLabelText('Appeal reason').value).toBe('');
   });
 
-  it('shows proposal criterion reasons instead of criterion descriptions while reviewing a builder project proposal', async () => {
-    render(SubmissionCard, {
+  it('does not offer a second appeal and shows an appeal under review', () => {
+    const { unmount } = render(SubmissionCard, {
       props: {
         submission: makeSubmission({
-          has_proposal: true,
-          proposed_action: 'accept',
-          proposed_staff_reply: 'The project meets the rubric.',
-          proposed_by_details: { name: 'AI Steward' },
-          rubric_review: {
-            action: 'accept',
-            confidence: 'high',
-            gate_failures: [],
-            sections: {
-              genlayer_fit: { score: 4, reason: 'Strong fit because the contract adjudicates a contested outcome.' },
-              contract_quality: { score: 3, reason: '' },
-              engineering: { score: 4, reason: 'The repository builds and includes useful docs.' },
-              frontend_ux: { score: 2, reason: '' }
-            },
-            extras: [],
-            overall_reason: 'The proposal has enough evidence to accept.'
-          }
+          state: 'rejected',
+          state_display: 'Rejected',
+          has_appeal: true
         }),
-        showReviewForm: true,
-        onReview: vi.fn(),
-        onPropose: vi.fn(),
-        reviewData: {
-          action: 'accept',
-          user: 9,
-          contribution_type: 7,
-          points: 0,
-          staff_reply: ''
-        },
-        permissions: {
-          7: ['accept', 'reject']
-        },
-        contributionTypes: [
-          {
-            id: 7,
-            name: 'Builder Project',
-            category: 'builder',
-            min_points: 0,
-            max_points: 100,
-            review_flow: 'builder_project'
-          }
-        ],
-        multipliers: { 7: 1 },
-        templates: [],
-        notes: [],
-        enableRubricReview: true
+        onAppeal: vi.fn()
       }
     });
 
-    await waitFor(() => {
-      expect(screen.getByText('GenLayer fit')).toBeTruthy();
-      expect(screen.getByText('Strong fit because the contract adjudicates a contested outcome.')).toBeTruthy();
-      expect(screen.queryByText('Trustless adjudication must matter. No stakes or contested outcome caps this low.')).toBeNull();
-    });
-  });
-
-  it('shows the proposal overall reason in the existing project rubric', async () => {
-    render(SubmissionCard, {
-      props: {
-        submission: makeSubmission({
-          has_proposal: true,
-          proposed_action: 'accept',
-          proposed_by: 21,
-          proposed_by_details: { name: 'Proposal Reviewer' },
-          proposed_user_details: {
-            id: 9,
-            name: 'Project Builder',
-            address: '0x1234567890abcdef',
-            display_name: 'Project Builder'
-          },
-          rubric_review: {
-            action: 'accept',
-            confidence: 'high',
-            gate_failures: [],
-            sections: {
-              genlayer_fit: { score: 4, reason: 'Strong fit because the contract adjudicates a contested outcome.' },
-              contract_quality: { score: 3, reason: '' },
-              engineering: { score: 4, reason: 'The repository builds and includes useful docs.' },
-              frontend_ux: { score: 2, reason: '' }
-            },
-            extras: ['live_deployment'],
-            overall_reason: 'The proposal has enough evidence to accept.'
-          }
-        }),
-        showReviewForm: true,
-        onReview: vi.fn(),
-        onPropose: vi.fn(),
-        reviewData: {
-          action: 'accept',
-          user: 9,
-          contribution_type: 7,
-          points: 0,
-          staff_reply: ''
-        },
-        permissions: {
-          7: ['accept', 'reject', 'propose']
-        },
-        contributionTypes: [
-          {
-            id: 7,
-            name: 'Builder Project',
-            category: 'builder',
-            min_points: 0,
-            max_points: 100,
-            review_flow: 'builder_project',
-            rubric_extra_points: 2
-          }
-        ],
-        multipliers: { 7: 1 },
-        templates: [],
-        notes: [],
-        currentUserId: 21,
-        enableRubricReview: true
-      }
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText('Project rubric')).toBeTruthy();
-      expect(screen.getByText('Overall reason')).toBeTruthy();
-      expect(screen.getByText('The proposal has enough evidence to accept.')).toBeTruthy();
-    });
-    expect(screen.queryByText('Proposal evaluation')).toBeNull();
-  });
-
-  it('shows the builder project rubric as a direct accept evaluation without criterion reasons', async () => {
-    render(SubmissionCard, {
-      props: {
-        submission: makeSubmission(),
-        showReviewForm: true,
-        onReview: vi.fn(),
-        onPropose: vi.fn(),
-        reviewData: {
-          action: 'accept',
-          user: 9,
-          contribution_type: 7,
-          points: 10,
-          staff_reply: ''
-        },
-        permissions: {
-          7: ['accept', 'reject']
-        },
-        contributionTypes: [
-          {
-            id: 7,
-            name: 'Builder Project',
-            category: 'builder',
-            min_points: 0,
-            max_points: 100,
-            review_flow: 'builder_project'
-          }
-        ],
-        multipliers: { 7: 1 },
-        templates: [],
-        notes: [],
-        enableRubricReview: true
-      }
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText('Project rubric')).toBeTruthy();
-      expect(screen.getByText('Accept evaluation')).toBeTruthy();
-      expect(screen.getByRole('button', { name: 'Accept & Create Contribution' })).toBeTruthy();
-    });
-
-    expect(screen.queryByLabelText('GenLayer fit reason optional')).toBeNull();
-    expect(screen.queryByText('Overall reason')).toBeNull();
-  });
-
-  it('submits the builder project rubric payload for direct reviews', async () => {
-    const onReview = vi.fn();
-    render(SubmissionCard, {
-      props: {
-        submission: makeSubmission(),
-        showReviewForm: true,
-        onReview,
-        onPropose: vi.fn(),
-        reviewData: {
-          action: 'accept',
-          user: 9,
-          contribution_type: 7,
-          points: 10,
-          staff_reply: ''
-        },
-        permissions: {
-          7: ['accept', 'reject']
-        },
-        contributionTypes: [
-          {
-            id: 7,
-            name: 'Builder Project',
-            category: 'builder',
-            min_points: 0,
-            max_points: 100,
-            review_flow: 'builder_project'
-          }
-        ],
-        multipliers: { 7: 1 },
-        templates: [],
-        notes: [],
-        enableRubricReview: true
-      }
-    });
-
-    await fireEvent.change(screen.getByLabelText('GenLayer fit'), { target: { value: '4' } });
-    await fireEvent.click(screen.getByLabelText('Live deployment'));
-    await fireEvent.click(screen.getByRole('button', { name: 'Accept & Create Contribution' }));
-
-    await waitFor(() => {
-      expect(onReview).toHaveBeenCalledTimes(1);
-    });
-    const payload = onReview.mock.calls[0][1].rubric_review;
-    expect(payload).toEqual(expect.objectContaining({
-      gate_failures: [],
-      extras: ['live_deployment'],
-      overall_reason: ''
-    }));
-    expect(payload.sections.genlayer_fit).toEqual({ score: 4, reason: '' });
-  });
-
-  it('recalculates builder project points from criteria while preserving extras and allowing manual overrides', async () => {
-    render(SubmissionCard, {
-      props: {
-        submission: makeSubmission(),
-        showReviewForm: true,
-        onReview: vi.fn(),
-        onPropose: vi.fn(),
-        reviewData: {
-          action: 'accept',
-          user: 9,
-          contribution_type: 7,
-          points: 10,
-          staff_reply: ''
-        },
-        permissions: {
-          7: ['accept', 'reject']
-        },
-        contributionTypes: [
-          {
-            id: 7,
-            name: 'Builder Project',
-            category: 'builder',
-            min_points: 0,
-            max_points: 200,
-            review_flow: 'builder_project',
-            rubric_extra_points: 2
-          }
-        ],
-        multipliers: { 7: 1 },
-        templates: [],
-        notes: [],
-        enableRubricReview: true
-      }
-    });
-
-    const pointsInput = screen.getByLabelText('Points');
-    await waitFor(() => {
-      expect(pointsInput.value).toBe('0');
-    });
-
-    await fireEvent.change(screen.getByLabelText('GenLayer fit'), { target: { value: '5' } });
-    await fireEvent.change(screen.getByLabelText('Contract quality'), { target: { value: '5' } });
-    await fireEvent.change(screen.getByLabelText('Engineering'), { target: { value: '5' } });
-    await fireEvent.change(screen.getByLabelText('Frontend / UX'), { target: { value: '5' } });
-    await waitFor(() => {
-      expect(pointsInput.value).toBe('50');
-    });
-
-    await fireEvent.click(screen.getByLabelText('Demo video'));
-    await waitFor(() => {
-      expect(pointsInput.value).toBe('52');
-    });
-
-    await fireEvent.input(pointsInput, { target: { value: '7' } });
-    expect(pointsInput.value).toBe('7');
-
-    await fireEvent.change(screen.getByLabelText('Frontend / UX'), { target: { value: '4' } });
-    await waitFor(() => {
-      expect(pointsInput.value).toBe('7');
-    });
-
-    await fireEvent.click(screen.getByLabelText('Live deployment'));
-    await waitFor(() => {
-      expect(pointsInput.value).toBe('7');
-    });
-  });
-
-  it('shows and submits the rubric when a direct accept selected type is builder project', async () => {
-    const onReview = vi.fn();
-    const standardType = {
-      id: 8,
-      name: 'Standard Builder',
-      category: 'builder',
-      min_points: 0,
-      max_points: 10,
-      review_flow: null
-    };
-    const projectType = {
-      id: 7,
-      name: 'Builder Project',
-      category: 'builder',
-      min_points: 0,
-      max_points: 100,
-      review_flow: 'builder_project'
-    };
+    expect(screen.getByText(/already appealed this submission/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Submit Appeal' })).toBeNull();
+    unmount();
 
     render(SubmissionCard, {
       props: {
-        submission: makeSubmission({
-          contribution_type: 8,
-          contribution_type_details: standardType
-        }),
-        showReviewForm: true,
-        onReview,
-        onPropose: vi.fn(),
-        reviewData: {
-          action: 'accept',
-          user: 9,
-          contribution_type: 7,
-          points: 75,
-          staff_reply: ''
-        },
-        permissions: {
-          8: ['accept', 'reject'],
-          7: ['accept', 'reject']
-        },
-        contributionTypes: [standardType, projectType],
-        multipliers: { 7: 1, 8: 1 },
-        templates: [],
-        notes: [],
-        enableRubricReview: true
+        submission: makeSubmission({ has_appeal: true })
       }
     });
-
-    await waitFor(() => {
-      expect(screen.getByText('Project rubric')).toBeTruthy();
-    });
-    await fireEvent.click(screen.getByRole('button', { name: 'Accept & Create Contribution' }));
-
-    await waitFor(() => {
-      expect(onReview).toHaveBeenCalledTimes(1);
-    });
-    expect(onReview.mock.calls[0][1]).toEqual(expect.objectContaining({
-      contribution_type: 7,
-      rubric_review: expect.objectContaining({
-        gate_failures: [],
-        overall_reason: ''
-      })
-    }));
+    expect(screen.getByText('Your appeal is under review')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
   });
 
-  it('selects the gate rejection template when a direct reviewer chooses a gate failure', async () => {
+  it('opens the contribution editor with mission context when available', async () => {
     render(SubmissionCard, {
       props: {
-        submission: makeSubmission(),
-        showReviewForm: true,
-        onReview: vi.fn(),
-        onPropose: vi.fn(),
-        reviewData: {
-          action: 'accept',
-          user: 9,
-          contribution_type: 7,
-          points: 10,
-          staff_reply: ''
-        },
-        permissions: {
-          7: ['accept', 'reject']
-        },
-        contributionTypes: [
-          {
-            id: 7,
-            name: 'Builder Project',
-            category: 'builder',
-            min_points: 0,
-            max_points: 100,
-            review_flow: 'builder_project'
-          }
-        ],
-        multipliers: { 7: 1 },
-        templates: [
-          {
-            id: 99,
-            label: 'Reject: Project Does Not Build',
-            text: 'The project does not build from the submitted repository.',
-            action: 'reject'
-          }
-        ],
-        notes: [],
-        enableRubricReview: true
+        submission: makeSubmission({ mission: { id: 15, name: 'Build the Future' } })
       }
     });
 
-    await fireEvent.click(screen.getByLabelText('Repo does not build or work'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
 
-    await waitFor(() => {
-      expect(screen.getByText('Reject evaluation')).toBeTruthy();
-      expect(screen.getByRole('button', { name: 'Reject Submission' })).toBeTruthy();
-      expect(screen.getByDisplayValue('The project does not build from the submitted repository.')).toBeTruthy();
-    });
+    expect(push).toHaveBeenCalledWith('/contributions/42?mission=15');
   });
 
-  it('normalizes request_more_info proposal actions before choosing a review view', async () => {
+  it('renders a terminal canceled state without edit actions', () => {
     render(SubmissionCard, {
       props: {
-        submission: makeSubmission({
-          has_proposal: true,
-          proposed_action: 'request_more_info',
-          proposed_staff_reply: 'Please add deployment evidence.'
-        }),
-        showReviewForm: true,
-        onReview: vi.fn(),
-        onPropose: vi.fn(),
-        reviewData: {
-          action: 'accept',
-          user: 9,
-          contribution_type: 7,
-          points: 0,
-          staff_reply: ''
-        },
-        permissions: {
-          7: ['request_more_info']
-        },
-        contributionTypes: [
-          {
-            id: 7,
-            name: 'Builder Project',
-            category: 'builder',
-            min_points: 0,
-            max_points: 100,
-            review_flow: 'builder_project'
-          }
-        ],
-        multipliers: { 7: 1 },
-        templates: [],
-        notes: [],
-        enableRubricReview: true
+        submission: makeSubmission({ state: 'canceled', state_display: 'Canceled' })
       }
     });
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Request Information' })).toBeTruthy();
-    });
-
-    expect(screen.queryByRole('button', { name: 'Accept & Create Contribution' })).toBeNull();
-  });
-
-  it('lets final reviewers question pending proposals with feedback', async () => {
-    const onQuestionProposal = vi.fn().mockResolvedValue();
-    render(SubmissionCard, {
-      props: {
-        submission: makeSubmission({
-          has_proposal: true,
-          proposed_action: 'reject',
-          proposed_staff_reply: 'Rejecting too quickly.',
-          proposed_by: 21,
-          proposed_by_details: { name: 'Proposal Reviewer' },
-          proposal_review_status: 'pending_review'
-        }),
-        showReviewForm: true,
-        onReview: vi.fn(),
-        onPropose: vi.fn(),
-        onQuestionProposal,
-        reviewData: {
-          action: 'accept',
-          user: 9,
-          contribution_type: 7,
-          points: 0,
-          staff_reply: ''
-        },
-        permissions: {
-          7: ['accept', 'reject']
-        },
-        contributionTypes: [
-          {
-            id: 7,
-            name: 'Builder Project',
-            category: 'builder',
-            min_points: 0,
-            max_points: 100,
-            review_flow: 'builder_project'
-          }
-        ],
-        multipliers: { 7: 1 },
-        templates: [],
-        notes: [],
-        currentUserId: 22,
-        enableRubricReview: true
-      }
-    });
-
-    await fireEvent.click(screen.getByRole('button', { name: 'Question proposal' }));
-    await fireEvent.input(screen.getByLabelText('Feedback to reviewer'), {
-      target: { value: 'Please check the repository evidence first.' }
-    });
-    await fireEvent.click(screen.getByRole('button', { name: 'Send feedback' }));
-
-    await waitFor(() => {
-      expect(onQuestionProposal).toHaveBeenCalledWith(
-        42,
-        'Please check the repository evidence first.'
-      );
-    });
-  });
-
-  it('hides the question action for AI proposals', () => {
-    render(SubmissionCard, {
-      props: {
-        submission: makeSubmission({
-          has_proposal: true,
-          proposed_action: 'reject',
-          proposed_by: 21,
-          proposed_by_details: { name: 'GenLayer Steward' },
-          proposal_review_status: 'pending_review',
-          proposal_is_ai: true,
-          ai_analysis: {
-            id: 77,
-            action: 'reject',
-            confidence: 'high',
-            sections: {},
-            gate_failures: [],
-            extras: [],
-            synthesis: 'AI synthesis'
-          }
-        }),
-        showReviewForm: true,
-        onReview: vi.fn(),
-        onPropose: vi.fn(),
-        onQuestionProposal: vi.fn(),
-        permissions: { 7: ['accept', 'reject'] },
-        contributionTypes: [],
-        templates: [],
-        notes: [],
-        currentUserId: 22
-      }
-    });
-
-    expect(screen.queryByRole('button', { name: 'Question proposal' })).toBeNull();
-  });
-
-  it('loads feedback once when the AI analysis panel first expands', async () => {
-    stewardAPI.getAIFeedback.mockClear();
-    stewardAPI.getAIFeedback.mockResolvedValueOnce({ data: [] });
-
-    render(SubmissionCard, {
-      props: {
-        submission: makeSubmission({
-          ai_analysis: {
-            id: 77,
-            action: 'accept',
-            confidence: 'high',
-            created_at: '2026-06-01T12:00:00Z',
-            sections: {
-              engineering: { score: 3, reason: 'The implementation is coherent.' }
-            },
-            gate_failures: [],
-            extras: [],
-            synthesis: 'The project meets the review bar.'
-          }
-        }),
-        showReviewForm: true,
-        permissions: { 7: ['accept'] },
-        contributionTypes: [],
-        templates: [],
-        notes: [],
-        currentUserId: 22
-      }
-    });
-
-    expect(screen.queryByRole('button', { name: 'Accurate' })).toBeNull();
-    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
-    await waitFor(() => expect(stewardAPI.getAIFeedback).toHaveBeenCalledWith(42));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Accurate' })).toBeTruthy());
-
-    await fireEvent.click(screen.getByRole('button', { name: 'Hide AI review analysis' }));
-    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
-    expect(stewardAPI.getAIFeedback).toHaveBeenCalledTimes(1);
-  });
-
-  it('treats forbidden feedback reads as unavailable without an error', async () => {
-    stewardAPI.getAIFeedback.mockRejectedValueOnce({
-      response: { status: 403, data: { detail: 'Permission denied.' } }
-    });
-
-    render(SubmissionCard, {
-      props: {
-        submission: makeSubmission({
-          ai_analysis: {
-            id: 77,
-            action: 'accept',
-            sections: {},
-            gate_failures: [],
-            extras: [],
-            synthesis: 'The project meets the review bar.'
-          }
-        }),
-        showReviewForm: true,
-        permissions: {},
-        contributionTypes: [],
-        templates: [],
-        notes: [],
-        currentUserId: 22
-      }
-    });
-
-    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
-    await waitFor(() => expect(stewardAPI.getAIFeedback).toHaveBeenCalledWith(42));
-
-    expect(screen.getByText('The project meets the review bar.')).toBeTruthy();
-    expect(screen.queryByRole('alert')).toBeNull();
-    expect(get(toastStore)).toEqual([]);
-  });
-
-  it('keeps feedback load errors actionable for non-permission failures', async () => {
-    stewardAPI.getAIFeedback.mockRejectedValueOnce({
-      message: 'Request failed',
-      response: { status: 500, data: { detail: 'Service unavailable.' } }
-    });
-
-    render(SubmissionCard, {
-      props: {
-        submission: makeSubmission({
-          ai_analysis: {
-            id: 77,
-            action: 'accept',
-            sections: {},
-            gate_failures: [],
-            extras: [],
-            synthesis: 'The project meets the review bar.'
-          }
-        }),
-        showReviewForm: true,
-        permissions: {},
-        contributionTypes: [],
-        templates: [],
-        notes: [],
-        currentUserId: 22
-      }
-    });
-
-    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
-
-    expect((await screen.findByRole('alert')).textContent).toContain(
-      'Could not load steward feedback.'
-    );
-    expect(get(toastStore)).toEqual([
-      expect.objectContaining({
-        type: 'error',
-        message: 'Failed to load AI review feedback: Service unavailable.'
-      })
-    ]);
-  });
-
-  it('submits one-click agreement against the rendered AI proposal', async () => {
-    stewardAPI.getAIFeedback.mockResolvedValueOnce({ data: [] });
-    stewardAPI.submitAIFeedback.mockClear();
-    stewardAPI.submitAIFeedback.mockResolvedValueOnce({
-      data: {
-        id: 5,
-        review_proposal_id: 77,
-        reviewer_id: 22,
-        verdict: 'agree',
-        correct_decision: null,
-        gate_failures: [],
-        criteria: {},
-        error_claims: [],
-        updated_at: '2026-06-02T12:00:00Z'
-      }
-    });
-
-    render(SubmissionCard, {
-      props: {
-        submission: makeSubmission({
-          ai_analysis: {
-            id: 77,
-            action: 'accept',
-            sections: {},
-            gate_failures: [],
-            extras: [],
-            synthesis: 'The project meets the review bar.'
-          }
-        }),
-        showReviewForm: true,
-        permissions: { 7: ['accept'] },
-        contributionTypes: [],
-        templates: [],
-        notes: [],
-        currentUserId: 22
-      }
-    });
-
-    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Accurate' })).toBeTruthy());
-    await fireEvent.click(screen.getByRole('button', { name: 'Accurate' }));
-
-    await waitFor(() => {
-      expect(stewardAPI.submitAIFeedback).toHaveBeenCalledWith(42, {
-        verdict: 'agree',
-        review_proposal_id: 77
-      });
-    });
-    expect(await screen.findByText('1 steward filed feedback')).toBeTruthy();
-  });
-
-  it('hides one-click agreement as soon as a reviewer starts a flaw draft', async () => {
-    stewardAPI.getAIFeedback.mockResolvedValueOnce({ data: [] });
-
-    render(SubmissionCard, {
-      props: {
-        submission: makeSubmission({
-          ai_analysis: {
-            id: 77,
-            action: 'accept',
-            sections: {},
-            gate_failures: [],
-            extras: [],
-            synthesis: 'The project meets the review bar.'
-          }
-        }),
-        showReviewForm: true,
-        permissions: { 7: ['accept'] },
-        contributionTypes: [],
-        templates: [],
-        notes: [],
-        currentUserId: 22
-      }
-    });
-
-    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Accurate' })).toBeTruthy());
-
-    const decisionSelect = screen.getByLabelText('Override AI decision');
-    expect(Array.from(decisionSelect.options).map(option => option.value)).not.toContain('accept');
-    await fireEvent.click(screen.getByRole('button', { name: 'Flag flaw' }));
-
-    expect(screen.queryByRole('button', { name: 'Accurate' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Save feedback' })).toBeTruthy();
-  });
-
-  it('locks feedback controls while a save is pending', async () => {
-    stewardAPI.getAIFeedback.mockResolvedValueOnce({ data: [] });
-    /** @type {(value: any) => void} */
-    let resolveSave = () => {};
-    stewardAPI.submitAIFeedback.mockImplementationOnce(() => new Promise(resolve => {
-      resolveSave = resolve;
-    }));
-
-    render(SubmissionCard, {
-      props: {
-        submission: makeSubmission({
-          ai_analysis: {
-            id: 77,
-            action: 'accept',
-            sections: { engineering: { score: 2, reason: 'AI reason' } },
-            gate_failures: [],
-            extras: [],
-            synthesis: 'AI synthesis'
-          }
-        }),
-        showReviewForm: true,
-        permissions: { 7: ['accept'] },
-        contributionTypes: [],
-        templates: [],
-        notes: [],
-        currentUserId: 22
-      }
-    });
-
-    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Accurate' })).toBeTruthy());
-    await fireEvent.change(screen.getByLabelText('Override Engineering score'), {
-      target: { value: '3' }
-    });
-    await fireEvent.click(screen.getByRole('button', { name: 'Save feedback' }));
-
-    expect(screen.queryByLabelText('Override Engineering score')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Flag flaw' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Saving feedback...' })).toBeTruthy();
-
-    resolveSave({
-      data: {
-        id: 5,
-        review_proposal_id: 77,
-        reviewer_id: 22,
-        verdict: 'agree_with_corrections',
-        correct_decision: null,
-        gate_failures: [],
-        criteria: { engineering: { range: [3, 3], reason: '' } },
-        error_claims: [],
-        updated_at: '2026-06-02T12:00:00Z'
-      }
-    });
-    expect(await screen.findByText('Corrected')).toBeTruthy();
-  });
-
-  it('shows only current-proposal feedback in the panel header', async () => {
-    stewardAPI.getAIFeedback.mockResolvedValueOnce({
-      data: [
-        {
-          id: 7,
-          review_proposal_id: 77,
-          reviewer_id: 22,
-          verdict: 'agree_with_corrections',
-          correct_decision: null,
-          gate_failures: [],
-          criteria: { engineering: { range: [3, 4], reason: 'Current correction' } },
-          error_claims: [],
-          updated_at: '2026-06-02T12:00:00Z'
-        },
-        {
-          id: 6,
-          review_proposal_id: 76,
-          reviewer_id: 31,
-          verdict: 'agree',
-          correct_decision: null,
-          gate_failures: [],
-          criteria: {},
-          error_claims: [],
-          updated_at: '2026-06-01T12:00:00Z'
-        }
-      ]
-    });
-
-    render(SubmissionCard, {
-      props: {
-        submission: makeSubmission({
-          ai_analysis: {
-            id: 77,
-            action: 'accept',
-            sections: { engineering: { score: 2, reason: 'AI reason' } },
-            gate_failures: [],
-            extras: [],
-            synthesis: 'AI synthesis'
-          }
-        }),
-        showReviewForm: true,
-        permissions: { 7: ['accept'] },
-        contributionTypes: [],
-        templates: [],
-        notes: [],
-        currentUserId: 22
-      }
-    });
-
-    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
-    expect(await screen.findByText('Corrected')).toBeTruthy();
-    expect(screen.getByText('1 steward filed feedback')).toBeTruthy();
-    expect(screen.queryByText('2 stewards filed feedback')).toBeNull();
-  });
-
-  it('resets an edited record to its saved feedback without clearing hidden data', async () => {
-    stewardAPI.getAIFeedback.mockResolvedValueOnce({
-      data: [{
-        id: 7,
-        review_proposal_id: 77,
-        reviewer_id: 22,
-        verdict: 'agree_with_corrections',
-        correct_decision: null,
-        gate_failures: [],
-        criteria: {
-          engineering: { range: [3, 4], reason: 'Saved engineering correction' },
-          frontend_ux: { range: [1, 2], reason: 'Saved hidden correction' }
-        },
-        error_claims: [{ type: 'missed_issue', text: 'Saved general claim' }],
-        updated_at: '2026-06-02T12:00:00Z'
-      }]
-    });
-
-    render(SubmissionCard, {
-      props: {
-        submission: makeSubmission({
-          ai_analysis: {
-            id: 77,
-            action: 'accept',
-            sections: { engineering: { score: 2, reason: 'AI reason' } },
-            gate_failures: [],
-            extras: [],
-            synthesis: 'AI synthesis'
-          }
-        }),
-        showReviewForm: true,
-        permissions: { 7: ['accept'] },
-        contributionTypes: [],
-        templates: [],
-        notes: [],
-        currentUserId: 22
-      }
-    });
-
-    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
-    expect(await screen.findByText('You: 3-4/5')).toBeTruthy();
-    await fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
-    await waitFor(() => {
-      expect(screen.getByLabelText('Override Engineering score').value).toBe('3');
-    });
-    const scoreSelect = screen.getByLabelText('Override Engineering score');
-
-    await fireEvent.change(scoreSelect, { target: { value: '' } });
-    await fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
-
-    expect(screen.getByLabelText('Override Engineering score').value).toBe('3');
-    expect(screen.getByLabelText('Flaw description for General feedback').value).toBe('Saved general claim');
-    expect(screen.getByText('Saved hidden correction')).toBeTruthy();
-  });
-
-  it.each([
-    {
-      bound: 'minimum',
-      savedRange: [3, 4],
-      control: 'Override Engineering score',
-      value: '2'
-    },
-    {
-      bound: 'maximum',
-      savedRange: [2, 4],
-      control: 'Maximum Engineering score',
-      value: '2'
-    }
-  ])('revalidates a saved score correction when its $bound changes', async ({
-    savedRange,
-    control,
-    value
-  }) => {
-    stewardAPI.getAIFeedback.mockResolvedValueOnce({
-      data: [{
-        id: 7,
-        review_proposal_id: 77,
-        reviewer_id: 22,
-        verdict: 'agree_with_corrections',
-        correct_decision: null,
-        gate_failures: [],
-        criteria: {
-          engineering: { range: savedRange, reason: 'Saved engineering correction' }
-        },
-        error_claims: [],
-        updated_at: '2026-06-02T12:00:00Z'
-      }]
-    });
-    stewardAPI.submitAIFeedback.mockClear();
-
-    render(SubmissionCard, {
-      props: {
-        submission: makeSubmission({
-          ai_analysis: {
-            id: 77,
-            action: 'accept',
-            sections: { engineering: { score: 2, reason: 'AI reason' } },
-            gate_failures: [],
-            extras: [],
-            synthesis: 'AI synthesis'
-          }
-        }),
-        showReviewForm: true,
-        permissions: { 7: ['accept'] },
-        contributionTypes: [],
-        templates: [],
-        notes: [],
-        currentUserId: 22
-      }
-    });
-
-    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
-    await fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
-    const scoreSelect = screen.getByLabelText(control);
-    await fireEvent.change(scoreSelect, { target: { value } });
-    await fireEvent.click(screen.getByRole('button', { name: 'Save feedback' }));
-
-    expect(stewardAPI.submitAIFeedback).not.toHaveBeenCalled();
-  });
-
-  it('ignores a completed save when the rendered AI proposal changes', async () => {
-    stewardAPI.getAIFeedback.mockClear();
-    stewardAPI.submitAIFeedback.mockClear();
-    stewardAPI.getAIFeedback.mockResolvedValue({ data: [] });
-    /** @type {(value: any) => void} */
-    let resolveSave = () => {};
-    stewardAPI.submitAIFeedback.mockImplementationOnce(() => new Promise(resolve => {
-      resolveSave = resolve;
-    }));
-
-    const firstSubmission = makeSubmission({
-      ai_analysis: {
-        id: 77,
-        action: 'accept',
-        sections: {},
-        gate_failures: [],
-        extras: [],
-        synthesis: 'First proposal'
-      }
-    });
-    const { rerender } = render(SubmissionCard, {
-      props: {
-        submission: firstSubmission,
-        showReviewForm: true,
-        permissions: { 7: ['accept'] },
-        contributionTypes: [],
-        templates: [],
-        notes: [],
-        currentUserId: 22
-      }
-    });
-
-    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
-    await fireEvent.click(await screen.findByRole('button', { name: 'Accurate' }));
-
-    await rerender({
-      submission: makeSubmission({
-        id: firstSubmission.id,
-        ai_analysis: {
-          id: 78,
-          action: 'reject',
-          sections: {},
-          gate_failures: [],
-          extras: [],
-          synthesis: 'Replacement proposal'
-        }
-      })
-    });
-    resolveSave({
-      data: {
-        id: 5,
-        review_proposal_id: 77,
-        reviewer_id: 22,
-        verdict: 'agree',
-        criteria: {},
-        error_claims: []
-      }
-    });
-    await Promise.resolve();
-
-    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
-    await waitFor(() => expect(stewardAPI.getAIFeedback).toHaveBeenCalledTimes(2));
-  });
-
-  it('ignores a failed save when the rendered AI proposal changes', async () => {
-    stewardAPI.getAIFeedback.mockClear();
-    stewardAPI.submitAIFeedback.mockClear();
-    stewardAPI.getAIFeedback.mockResolvedValue({ data: [] });
-    /** @type {(reason?: any) => void} */
-    let rejectSave = () => {};
-    stewardAPI.submitAIFeedback.mockImplementationOnce(() => new Promise((resolve, reject) => {
-      rejectSave = reject;
-    }));
-
-    const firstSubmission = makeSubmission({
-      ai_analysis: {
-        id: 77,
-        action: 'accept',
-        sections: {},
-        gate_failures: [],
-        extras: [],
-        synthesis: 'First proposal'
-      }
-    });
-    const { rerender } = render(SubmissionCard, {
-      props: {
-        submission: firstSubmission,
-        showReviewForm: true,
-        permissions: { 7: ['accept'] },
-        contributionTypes: [],
-        templates: [],
-        notes: [],
-        currentUserId: 22
-      }
-    });
-
-    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
-    await fireEvent.click(await screen.findByRole('button', { name: 'Accurate' }));
-
-    await rerender({
-      submission: makeSubmission({
-        id: firstSubmission.id,
-        ai_analysis: {
-          id: 78,
-          action: 'reject',
-          sections: {},
-          gate_failures: [],
-          extras: [],
-          synthesis: 'Replacement proposal'
-        }
-      })
-    });
-    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
-    const replacementAccurate = await screen.findByRole('button', { name: 'Accurate' });
-    expect(replacementAccurate.disabled).toBe(false);
-
-    rejectSave({
-      response: { status: 500, data: { detail: 'Old proposal save failed.' } }
-    });
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(get(toastStore)).toEqual([]);
-  });
-
-  it('lets final reviewers question proposals on more-info submissions', async () => {
-    render(SubmissionCard, {
-      props: {
-        submission: makeSubmission({
-          state: 'more_info_needed',
-          state_display: 'More Information Needed',
-          has_proposal: true,
-          proposed_action: 'reject',
-          proposed_staff_reply: 'Rejecting too quickly.',
-          proposed_by: 21,
-          proposed_by_details: { name: 'Proposal Reviewer' },
-          proposal_review_status: 'pending_review',
-          more_info_requests: []
-        }),
-        showReviewForm: true,
-        onReview: vi.fn(),
-        onPropose: vi.fn(),
-        onQuestionProposal: vi.fn().mockResolvedValue(),
-        permissions: {
-          7: ['accept', 'reject']
-        },
-        contributionTypes: [
-          {
-            id: 7,
-            name: 'Builder Project',
-            category: 'builder',
-            min_points: 0,
-            max_points: 100,
-            review_flow: 'builder_project'
-          }
-        ],
-        multipliers: { 7: 1 },
-        templates: [],
-        notes: [],
-        currentUserId: 22,
-        enableRubricReview: true
-      }
-    });
-
-    expect(screen.getByRole('button', { name: 'Question proposal' })).toBeTruthy();
-  });
-
-  it('preserves typed question feedback if the proposal becomes non-questionable mid-edit', async () => {
-    const pendingProposal = makeSubmission({
-      has_proposal: true,
-      proposed_action: 'reject',
-      proposed_staff_reply: 'Rejecting too quickly.',
-      proposed_by: 21,
-      proposed_by_details: { name: 'Proposal Reviewer' },
-      proposal_review_status: 'pending_review'
-    });
-    const { rerender } = render(SubmissionCard, {
-      props: {
-        submission: pendingProposal,
-        showReviewForm: true,
-        onReview: vi.fn(),
-        onPropose: vi.fn(),
-        onQuestionProposal: vi.fn().mockResolvedValue(),
-        permissions: {
-          7: ['accept', 'reject']
-        },
-        contributionTypes: [
-          {
-            id: 7,
-            name: 'Builder Project',
-            category: 'builder',
-            min_points: 0,
-            max_points: 100,
-            review_flow: 'builder_project'
-          }
-        ],
-        multipliers: { 7: 1 },
-        templates: [],
-        notes: [],
-        currentUserId: 22,
-        enableRubricReview: true
-      }
-    });
-
-    await fireEvent.click(screen.getByRole('button', { name: 'Question proposal' }));
-    await fireEvent.input(screen.getByLabelText('Feedback to reviewer'), {
-      target: { value: 'Draft feedback that should not be lost.' }
-    });
-
-    await rerender({
-      submission: makeSubmission({
-        id: pendingProposal.id,
-        has_proposal: true,
-        proposed_action: 'reject',
-        proposed_by: 21,
-        proposed_by_details: { name: 'Proposal Reviewer' },
-        proposal_review_status: 'questioned',
-        proposal_review_feedback: 'Someone else already questioned this proposal.'
-      })
-    });
-
-    expect(screen.queryByLabelText('Feedback to reviewer')).toBeNull();
-
-    await rerender({ submission: pendingProposal });
-    await fireEvent.click(screen.getByRole('button', { name: 'Question proposal' }));
-
-    expect(screen.getByLabelText('Feedback to reviewer').value).toBe(
-      'Draft feedback that should not be lost.'
-    );
-  });
-
-  it('shows questioned proposal feedback and hides final review actions from other stewards', async () => {
-    render(SubmissionCard, {
-      props: {
-        submission: makeSubmission({
-          has_proposal: true,
-          proposed_action: 'reject',
-          proposed_by: 21,
-          proposed_by_details: { name: 'Proposal Reviewer' },
-          proposal_review_status: 'questioned',
-          proposal_review_feedback: 'Please check the repository evidence first.',
-          proposal_questioned_by_details: { name: 'Senior Steward' },
-          proposal_questioned_at: '2026-06-03T12:00:00Z'
-        }),
-        showReviewForm: true,
-        onReview: vi.fn(),
-        onPropose: vi.fn(),
-        onQuestionProposal: vi.fn(),
-        permissions: {
-          7: ['accept', 'reject']
-        },
-        contributionTypes: [
-          {
-            id: 7,
-            name: 'Builder Project',
-            category: 'builder',
-            min_points: 0,
-            max_points: 100,
-            review_flow: 'builder_project'
-          }
-        ],
-        multipliers: { 7: 1 },
-        templates: [],
-        notes: [],
-        currentUserId: 22,
-        enableRubricReview: true
-      }
-    });
-
-    expect(screen.getByText('Questioned')).toBeTruthy();
-    expect(screen.getByText(/Feedback from Senior Steward/)).toBeTruthy();
-    expect(screen.getByText('Please check the repository evidence first.')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Reject Submission' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Accept & Create Contribution' })).toBeNull();
-  });
-
-  it('lets the original proposer revise a questioned proposal from the proposal form', async () => {
-    const onPropose = vi.fn();
-    render(SubmissionCard, {
-      props: {
-        submission: makeSubmission({
-          has_proposal: true,
-          proposed_action: 'reject',
-          proposed_staff_reply: 'Rejecting too quickly.',
-          proposed_by: 21,
-          proposed_by_details: { name: 'Proposal Reviewer' },
-          proposal_review_status: 'questioned',
-          proposal_review_feedback: 'Please check the repository evidence first.',
-          rubric_review: {
-            action: 'reject',
-            confidence: 'medium',
-            gate_failures: [],
-            sections: {
-              genlayer_fit: { score: 1, reason: '' },
-              contract_quality: { score: 1, reason: '' },
-              engineering: { score: 1, reason: '' },
-              frontend_ux: { score: 1, reason: '' }
-            },
-            extras: [],
-            overall_reason: 'The reviewer still thinks this should be rejected.'
-          }
-        }),
-        showReviewForm: true,
-        onReview: vi.fn(),
-        onPropose,
-        reviewData: {
-          action: 'accept',
-          user: 9,
-          contribution_type: 7,
-          points: 0,
-          staff_reply: ''
-        },
-        permissions: {
-          7: ['propose']
-        },
-        contributionTypes: [
-          {
-            id: 7,
-            name: 'Builder Project',
-            category: 'builder',
-            min_points: 0,
-            max_points: 100,
-            review_flow: 'builder_project'
-          }
-        ],
-        multipliers: { 7: 1 },
-        templates: [],
-        notes: [],
-        currentUserId: 21,
-        enableRubricReview: true
-      }
-    });
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Submit Reject Proposal' })).toBeTruthy();
-    });
-    await fireEvent.click(screen.getByRole('button', { name: 'Submit Reject Proposal' }));
-
-    await waitFor(() => {
-      expect(onPropose).toHaveBeenCalledTimes(1);
-    });
-    expect(onPropose.mock.calls[0][1]).toEqual(expect.objectContaining({
-      proposed_action: 'reject',
-      proposed_staff_reply: 'Rejecting too quickly.'
-    }));
+    expect(screen.getByText('Canceled by user')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
   });
 });
