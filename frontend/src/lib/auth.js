@@ -581,12 +581,11 @@ let accountsChangedHandler = null;
 let chainChangedHandler = null;
 let walletListenerProvider = null;
 
-// The SDK provider isn't window.ethereum, so listener wiring must target it
-// when an SDK session is active. Everything else keeps window.ethereum.
+// EIP-6963 providers are wallet-specific and may differ from window.ethereum
+// when several extensions coexist, so always listen to the provider selected
+// by the user. Fall back to the legacy global only for restored sessions.
 function resolveWalletListenerTarget(provider) {
-  return provider?.__genlayerMetaMaskConnect
-    ? provider
-    : (typeof window !== 'undefined' ? window.ethereum : null);
+  return provider || (typeof window !== 'undefined' ? window.ethereum : null);
 }
 
 /**
