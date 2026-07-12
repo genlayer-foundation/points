@@ -143,6 +143,40 @@ describe('focused AI feedback components', () => {
     expect(onSaved).toHaveBeenCalledWith(saved);
   });
 
+  it('does not mark the AI accurate when lazy loading fails', async () => {
+    const onRequestFeedback = vi.fn().mockResolvedValue(null);
+    render(AIReviewSummary, {
+      props: {
+        submission: { id: 42 },
+        aiAnalysis: analysis,
+        feedbackRecords: [],
+        feedbackLoaded: false,
+        canFileFeedback: true,
+        currentUserId: 22,
+        onRequestFeedback
+      }
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Mark AI accurate' }));
+
+    expect((await screen.findByRole('alert')).textContent).toContain('AI feedback could not be loaded.');
+    expect(submitAIFeedback).not.toHaveBeenCalled();
+  });
+
+  it('wraps backward focus from the initially focused dialog panel', async () => {
+    renderDialog();
+    const dialog = await screen.findByRole('dialog', { name: 'Review Engineering' });
+    const focusable = dialog.querySelectorAll(
+      'button:not([disabled]), select:not([disabled]), textarea:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+    );
+    const last = focusable[focusable.length - 1];
+    dialog.focus();
+
+    await fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
+
+    expect(document.activeElement).toBe(last);
+  });
+
   it('preserves other anchors while reducing a legacy duplicate on one criterion', async () => {
     const saved = feedbackRecord({
       criteria: {
@@ -227,10 +261,15 @@ describe('focused AI feedback components', () => {
 
   it('requires an explicit choice before rebasing a stale dialog draft', async () => {
     const latest = feedbackRecord({
+      correct_decision: 'more_info',
       criteria: {
         engineering: { range: [2, 3], reason: 'Changed elsewhere.' },
-        frontend_ux: { range: [4, 4], reason: 'Preserve this hidden correction.' }
+        frontend_ux: { range: [5, 5], reason: 'Latest hidden correction.' }
       },
+      error_claims: [
+        { type: 'missed_issue', text: 'Latest engineering issue', anchor: 'engineering' },
+        { type: 'wrong_weight', text: 'Latest synthesis issue', anchor: 'synthesis' }
+      ],
       updated_at: '2026-07-12T12:10:00Z'
     });
     const committed = feedbackRecord({
@@ -264,8 +303,17 @@ describe('focused AI feedback components', () => {
       expect.objectContaining({
         expected_updated_at: latest.updated_at,
         criteria: expect.objectContaining({
-          engineering: expect.objectContaining({ range: [5, 5] })
-        })
+          engineering: expect.objectContaining({ range: [5, 5] }),
+          frontend_ux: expect.objectContaining({
+            range: [5, 5],
+            reason: 'Latest hidden correction.'
+          })
+        }),
+        correct_decision: 'more_info',
+        error_claims: [
+          expect.objectContaining({ text: 'Latest engineering issue', anchor: 'engineering' }),
+          expect.objectContaining({ text: 'Latest synthesis issue', anchor: 'synthesis' })
+        ]
       })
     );
   });

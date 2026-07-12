@@ -459,6 +459,7 @@
       await loadNotes(submissionId);
     } catch (err) {
       showError('Failed to add note: ' + (err.response?.data?.detail || err.message));
+      throw err;
     }
   }
 
@@ -496,7 +497,7 @@
       }
 
       if (data.action === 'accept') {
-        apiData.points = parseInt(data.points);
+        apiData.points = data.points;
         apiData.contribution_type = data.contribution_type;
         apiData.user = parseInt(data.user);
         if (data.project_contribution) {

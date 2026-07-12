@@ -525,7 +525,7 @@
 
   $effect(() => {
     if (reviewAction === 'accept' && isSelectedMilestoneType && selectedUser) {
-      loadAcceptedProjectsForSelectedUser(selectedUser);
+      untrack(() => loadAcceptedProjectsForSelectedUser(selectedUser));
     }
     if (!isSelectedMilestoneType) {
       acceptedProjectsError = '';
@@ -822,11 +822,14 @@
         return;
       }
 
+      const numericPoints = reviewAction === 'accept' ? validatePoints() : null;
+      if (reviewAction === 'accept' && numericPoints === null) return;
+
       const data = {
         action: reviewAction,
         user: selectedUser,
         contribution_type: selectedType,
-        points,
+        points: numericPoints ?? points,
         staff_reply: staffReply,
         create_highlight: createHighlight,
         highlight_title: highlightTitle,
@@ -863,7 +866,9 @@
       // Only include accept-specific fields when proposing accept
       if (proposalAction === 'accept') {
         if (!isProjectReview) {
-          data.proposed_points = points;
+          const numericPoints = validatePoints();
+          if (numericPoints === null) return;
+          data.proposed_points = numericPoints;
         }
         data.proposed_contribution_type = selectedType;
         data.proposed_user = selectedUser;
@@ -890,6 +895,26 @@
     if (selectedSubmissionMode === 'proposal') {
       handlePropose();
     }
+  }
+
+  function validatePoints() {
+    const numericPoints = Number(points);
+    const minPoints = Number(selectedTypeDetails?.min_points);
+    const maxPoints = Number(selectedTypeDetails?.max_points);
+    if (
+      points === '' ||
+      points === null ||
+      points === undefined ||
+      !Number.isFinite(numericPoints) ||
+      !Number.isInteger(numericPoints) ||
+      numericPoints < 0 ||
+      (Number.isFinite(minPoints) && numericPoints < minPoints) ||
+      (Number.isFinite(maxPoints) && numericPoints > maxPoints)
+    ) {
+      showError('Enter a whole-number point value within the allowed range.');
+      return null;
+    }
+    return numericPoints;
   }
 
   function selectOutcome(action) {
@@ -1697,6 +1722,9 @@
                         <input
                           id="points-input-{submission.id}"
                           type="number"
+                          min={selectedTypeDetails?.min_points}
+                          max={selectedTypeDetails?.max_points}
+                          step="1"
                           bind:value={points}
                           oninput={markPointsManuallyEdited}
                           class="w-16 border-x border-slate-200 text-center text-sm font-semibold tabular-nums text-slate-900 focus:outline-none"

@@ -38,6 +38,7 @@
 
   let expanded = $state(false);
   let submittingAccurate = $state(false);
+  let localLoadError = $state('');
   let requestSequence = 0;
   let activeContext = $state('');
 
@@ -65,6 +66,7 @@
     activeContext = context;
     requestSequence += 1;
     submittingAccurate = false;
+    localLoadError = '';
     expanded = false;
   });
 
@@ -95,18 +97,34 @@
     const requestId = ++requestSequence;
     submittingAccurate = true;
     try {
-      let records = feedbackLoaded ? feedbackRecords : null;
-      if (!feedbackLoaded && onRequestFeedback) {
-        records = await onRequestFeedback();
-      }
-      if (requestId !== requestSequence || context !== activeContext) return;
+      let existingRecord = currentRecord;
+      if (!feedbackLoaded) {
+        if (!onRequestFeedback) {
+          localLoadError = 'AI feedback could not be loaded.';
+          return;
+        }
 
-      const existingRecord = Array.isArray(records)
-        ? records.find(record => (
+        let records;
+        try {
+          records = await onRequestFeedback();
+        } catch (error) {
+          if (requestId !== requestSequence || context !== activeContext) return;
+          localLoadError = errorMessage(error, 'AI feedback could not be loaded.');
+          return;
+        }
+        if (requestId !== requestSequence || context !== activeContext) return;
+        if (!Array.isArray(records)) {
+          localLoadError = feedbackError || 'AI feedback could not be loaded.';
+          return;
+        }
+
+        existingRecord = records.find(record => (
             String(record.review_proposal_id) === String(aiAnalysis?.id) &&
             String(record.reviewer_id) === String(currentUserId)
-          ))
-        : currentRecord;
+          )) || null;
+      }
+      localLoadError = '';
+
       const payload = {
         verdict: 'agree',
         ...(aiAnalysis?.id !== null && aiAnalysis?.id !== undefined
@@ -145,18 +163,18 @@
         showError('Feedback changed in another session. Review the latest feedback before marking it accurate.');
         return;
       }
-      showError(`Failed to mark AI review accurate: ${errorMessage(error)}`);
+      showError(`Failed to mark AI review accurate: ${errorMessage(error, 'Unknown error')}`);
     } finally {
       if (requestId === requestSequence && context === activeContext) submittingAccurate = false;
     }
   }
 
-  /** @param {any} error */
-  function errorMessage(error) {
+  /** @param {any} error @param {string} fallback */
+  function errorMessage(error, fallback) {
     const data = error?.response?.data;
     if (typeof data?.detail === 'string') return data.detail;
     if (typeof data === 'string') return data;
-    return error?.message || 'Unknown error';
+    return error?.message || fallback;
   }
 </script>
 
@@ -202,6 +220,11 @@
       <div class="flex flex-wrap items-center gap-1.5">{@render feedbackActions()}</div>
     {/if}
   </div>
+  {#if (localLoadError || feedbackError) && !feedbackLoaded}
+    <p class="border-t border-red-100 bg-red-50 px-4 py-2 text-xs text-red-700" role="alert">
+      {localLoadError || feedbackError}
+    </p>
+  {/if}
 {:else}
 <section class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-inset ring-slate-200">
   <div class="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center">
@@ -242,8 +265,10 @@
     {/if}
   </div>
 
-  {#if feedbackError && !feedbackLoaded}
-    <p class="border-t border-red-100 bg-red-50 px-4 py-2 text-xs text-red-700" role="alert">{feedbackError}</p>
+  {#if (localLoadError || feedbackError) && !feedbackLoaded}
+    <p class="border-t border-red-100 bg-red-50 px-4 py-2 text-xs text-red-700" role="alert">
+      {localLoadError || feedbackError}
+    </p>
   {/if}
 
   {#if expanded}

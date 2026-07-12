@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte/svelte5';
+import { get } from 'svelte/store';
 import { push } from 'svelte-spa-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SubmissionCard from '../components/SubmissionCard.svelte';
@@ -35,9 +36,11 @@ function makeSubmission(overrides = {}) {
 
 describe('SubmissionCard', () => {
   let originalClipboard;
+  let originalExecCommand;
 
   beforeEach(() => {
     originalClipboard = navigator.clipboard;
+    originalExecCommand = document.execCommand;
     vi.clearAllMocks();
     toastStore.clearAll();
   });
@@ -47,6 +50,8 @@ describe('SubmissionCard', () => {
       value: originalClipboard,
       configurable: true
     });
+    if (originalExecCommand) document.execCommand = originalExecCommand;
+    else delete document.execCommand;
   });
 
   it('renders only submitter-facing submission metadata', () => {
@@ -55,6 +60,10 @@ describe('SubmissionCard', () => {
         submission: makeSubmission({
           has_proposal: true,
           proposal_is_ai: true,
+          proposed_action: 'reject',
+          proposed_by_details: { name: 'Private AI Steward' },
+          proposed_staff_reply: 'Private proposed rejection reason',
+          rubric_review: { overall_reason: 'Private rubric rationale' },
           notes_count: 4,
           ai_analysis: { synthesis: 'Private AI synthesis' }
         })
@@ -67,6 +76,9 @@ describe('SubmissionCard', () => {
     expect(screen.queryByText('4 notes')).toBeNull();
     expect(screen.queryByText('Private AI synthesis')).toBeNull();
     expect(screen.queryByText('Review outcome')).toBeNull();
+    expect(screen.queryByText('Private AI Steward')).toBeNull();
+    expect(screen.queryByText('Private proposed rejection reason')).toBeNull();
+    expect(screen.queryByText('Private rubric rationale')).toBeNull();
   });
 
   it('copies only the submission id from the card', async () => {
@@ -85,6 +97,29 @@ describe('SubmissionCard', () => {
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith('submission-123');
     });
+  });
+
+  it('reports a rejected legacy clipboard copy and removes its textarea', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: undefined,
+      configurable: true
+    });
+    document.execCommand = vi.fn().mockReturnValue(false);
+    render(SubmissionCard, {
+      props: { submission: makeSubmission({ id: 'submission-123' }) }
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Copy ID' }));
+
+    await waitFor(() => {
+      expect(get(toastStore)).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          type: 'error',
+          message: 'Failed to copy submission ID: Clipboard copy was rejected'
+        })
+      ]));
+    });
+    expect(document.querySelector('textarea')).toBeNull();
   });
 
   it('shows mission, milestone, and linked project details', () => {

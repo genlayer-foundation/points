@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte/svelte5';
 import { describe, expect, it, vi } from 'vitest';
 import StewardSubmissionCard from '../components/StewardSubmissionCard.svelte';
+import { stewardAPI } from '../lib/api.js';
 
 const contributionType = {
   id: 7,
@@ -332,6 +333,56 @@ describe('StewardSubmissionCard', () => {
       proposed_contribution_type: 7,
       proposed_user: 9
     }));
+  });
+
+  it('rejects invalid point values and submits the exact validated integer', async () => {
+    const onReview = vi.fn();
+    renderCard(reviewProps({ permissions: ['accept'], onReview }));
+    const pointsInput = await screen.findByLabelText('Points');
+    const submit = screen.getByRole('button', { name: 'Accept contribution' });
+
+    for (const value of ['', '1.5', '-1', '101']) {
+      await fireEvent.input(pointsInput, { target: { value } });
+      await fireEvent.click(submit);
+    }
+    expect(onReview).not.toHaveBeenCalled();
+
+    await fireEvent.input(pointsInput, { target: { value: '40' } });
+    await fireEvent.click(submit);
+    expect(onReview).toHaveBeenCalledWith(42, expect.objectContaining({ points: 40 }));
+  });
+
+  it('does not retry a failed accepted-project lookup until its tracked inputs change', async () => {
+    const getAcceptedProjectsForUser = vi.fn().mockRejectedValue(new Error('Project lookup failed'));
+    stewardAPI.getAcceptedProjectsForUser = getAcceptedProjectsForUser;
+    const milestoneType = { ...contributionType, slug: 'milestones' };
+
+    renderCard({
+      ...reviewProps({ permissions: ['accept'] }),
+      submission: makeSubmission({ contribution_type_details: milestoneType }),
+      contributionTypes: [milestoneType]
+    });
+
+    expect(await screen.findByText('Project lookup failed')).toBeTruthy();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(getAcceptedProjectsForUser).toHaveBeenCalledTimes(1);
+  });
+
+  it('retains an internal note draft when adding it fails', async () => {
+    const onAddNote = vi.fn().mockRejectedValue(new Error('Note save failed'));
+    renderCard({
+      submission: makeSubmission(),
+      notes: [],
+      onAddNote
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Show internal notes' }));
+    const input = screen.getByPlaceholderText('Add a note...');
+    await fireEvent.input(input, { target: { value: 'Keep this unsaved note' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+    await waitFor(() => expect(onAddNote).toHaveBeenCalledWith(42, 'Keep this unsaved note'));
+    expect(input.value).toBe('Keep this unsaved note');
   });
 
   it('uses a proposal only for outcomes without direct authority in a mixed permission set', async () => {

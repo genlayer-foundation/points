@@ -28,6 +28,8 @@
     try {
       await onAddNote(submissionId, newNote.trim());
       newNote = '';
+    } catch {
+      // Keep the draft on failure; the parent already reports the error toast.
     } finally {
       submitting = false;
     }

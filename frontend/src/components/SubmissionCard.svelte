@@ -101,10 +101,15 @@
     textArea.style.position = 'fixed';
     textArea.style.opacity = '0';
     document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    document.execCommand('copy');
-    textArea.remove();
+    try {
+      textArea.focus();
+      textArea.select();
+      if (!document.execCommand('copy')) {
+        throw new Error('Clipboard copy was rejected');
+      }
+    } finally {
+      textArea.remove();
+    }
   }
 
   async function handleCopySubmissionId() {

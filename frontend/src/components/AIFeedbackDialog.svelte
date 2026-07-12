@@ -218,7 +218,10 @@
 
     const first = /** @type {HTMLElement} */ (focusable[0]);
     const last = /** @type {HTMLElement} */ (focusable[focusable.length - 1]);
-    if (event.shiftKey && document.activeElement === first) {
+    if (
+      event.shiftKey &&
+      (document.activeElement === first || document.activeElement === dialogPanel)
+    ) {
       event.preventDefault();
       last.focus();
     } else if (!event.shiftKey && document.activeElement === last) {
@@ -322,7 +325,56 @@
 
   function keepDraftAfterConflict() {
     if (!conflictRecord?.updated_at) return;
-    feedbackState.expectedUpdatedAt = conflictRecord.updated_at;
+
+    const latestRecord = conflictRecord;
+    const draftState = feedbackState;
+    const previousState = initFeedbackState(aiAnalysis, currentRecord);
+    const rebasedState = initFeedbackState(aiAnalysis, latestRecord);
+
+    if (isDecision) {
+      const draftDecision = {
+        persisted: draftState.persistedDecisionOverride,
+        decision: draftState.decisionOverride,
+        gates: draftState.gateFailures
+      };
+      const previousDecision = {
+        persisted: previousState.persistedDecisionOverride,
+        decision: previousState.decisionOverride,
+        gates: previousState.gateFailures
+      };
+      if (JSON.stringify(draftDecision) !== JSON.stringify(previousDecision)) {
+        rebasedState.persistedDecisionOverride = draftState.persistedDecisionOverride;
+        rebasedState.decisionOverride = draftState.decisionOverride;
+        rebasedState.gateFailures = [...draftState.gateFailures];
+      }
+    } else {
+      if (
+        activeSection &&
+        JSON.stringify(draftState.criteria[anchor]) !== JSON.stringify(previousState.criteria[anchor])
+      ) {
+        rebasedState.criteria[anchor] = { ...draftState.criteria[anchor] };
+      }
+
+      const draftClaims = draftState.errorClaims.filter(claim => claim.anchor === anchor);
+      const previousClaims = previousState.errorClaims.filter(claim => claim.anchor === anchor);
+      /** @param {FeedbackState['errorClaims']} claims */
+      const comparableClaims = claims => claims.map(claim => ({
+        type: claim.type,
+        text: claim.text,
+        evidenceRef: claim.evidenceRef,
+        anchor: claim.anchor
+      }));
+      if (JSON.stringify(comparableClaims(draftClaims)) !== JSON.stringify(comparableClaims(previousClaims))) {
+        rebasedState.errorClaims = [
+          ...rebasedState.errorClaims.filter(claim => claim.anchor !== anchor),
+          ...draftClaims.map(claim => ({ ...claim }))
+        ];
+      }
+    }
+
+    rebasedState.expectedUpdatedAt = latestRecord.updated_at;
+    replaceCurrentRecord(latestRecord);
+    feedbackState = rebasedState;
     conflictRecord = null;
   }
 
