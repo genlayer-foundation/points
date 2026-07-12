@@ -227,11 +227,14 @@ class BroadcastNotificationAdminMixin:
             return
 
         if deleted:
-            self.message_user(
-                request,
-                'Broadcast notification recalled from user feeds.',
-                level=messages.SUCCESS,
-            )
+            message = 'Broadcast notification recalled from user feeds.'
+            from .registry import get_event_type
+            if 'telegram' in get_event_type(self.broadcast_event_slug).channels:
+                message += (
+                    ' Queued Telegram deliveries were cancelled; messages '
+                    'Telegram already delivered cannot be recalled.'
+                )
+            self.message_user(request, message, level=messages.SUCCESS)
         else:
             self.message_user(
                 request,

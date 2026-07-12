@@ -101,9 +101,11 @@ def telegram_webhook(request):
     (set via setWebhook). An unset secret rejects everything.
 
     Always returns 200 after auth, even on handler errors: Telegram retries
-    non-200 responses, and a poison update must not loop forever. Replays are
-    harmless because every command is idempotent (token consume is atomic;
-    mute/unlink are idempotent; the rest are read-only).
+    non-200 responses, and a poison update must not loop forever. Updates are
+    NOT deduplicated by update_id: if our 200 is lost in transit, Telegram's
+    retry produces a duplicate reply (and, for /start, an "expired token"
+    follow-up). That is cosmetic; state stays correct because the token
+    consume is atomic and mute/unlink are idempotent.
     """
     if request.method != 'POST':
         return HttpResponseNotAllowed(['POST'])
@@ -138,6 +140,12 @@ def handle_update(update):
         .select_related('user')
         .first()
     )
+    # Receiving a message proves the chat works again: clear a stale
+    # blocked flag so notification delivery (and /unmute) can recover
+    # after the user unblocks the bot.
+    if connection is not None and connection.blocked_at is not None:
+        connection.blocked_at = None
+        connection.save(update_fields=['blocked_at', 'updated_at'])
     # Permanent inbound log: conversation memory for a future per-user agent.
     TelegramMessage.objects.create(
         direction=TelegramMessage.DIRECTION_IN,

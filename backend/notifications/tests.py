@@ -1675,3 +1675,98 @@ class TelegramRecallBroadcastTests(TestCase):
         self.assertEqual(row.status, TelegramMessage.STATUS_FAILED)
         self.assertEqual(row.error, 'notification_recalled')
         self.assertEqual(stats['failed'], 1)
+
+
+class TelegramReviewFixTests(TestCase):
+    """Regression tests for the second review round."""
+
+    def setUp(self):
+        from social_connections.models import TelegramConnection
+        self.user = make_user('linked@test.com', '0x1111111111111111111111111111111111111111')
+        self.connection = TelegramConnection.objects.create(
+            user=self.user,
+            platform_user_id='111',
+            platform_username='linked',
+            linked_at=timezone.now(),
+        )
+
+    def pending(self):
+        from social_connections.models import TelegramMessage
+        return TelegramMessage.objects.filter(
+            direction=TelegramMessage.DIRECTION_OUT,
+            status=TelegramMessage.STATUS_PENDING,
+        )
+
+    def test_dedupe_refresh_updates_pending_outbox_text(self):
+        """An edit before the cron runs must deliver the refreshed copy."""
+        for body in ('Original body', 'Corrected body'):
+            services.notify(
+                'submission.accepted',
+                recipient=self.user,
+                title='Accepted',
+                body=body,
+                dedupe_key='same-key',
+            )
+        row = self.pending().get()
+        self.assertIn('Corrected body', row.text)
+        self.assertNotIn('Original body', row.text)
+
+    def test_escaping_heavy_body_stays_within_limit_with_intact_html(self):
+        import re
+        from notifications.telegram import render_notification_text
+        notification = Notification(
+            event_type='alert.published',
+            category='system',
+            title='Big alert',
+            body='&' * 3000,
+        )
+        text = render_notification_text(notification)
+        self.assertLessEqual(len(text), 4096)
+        self.assertTrue(text.endswith('</blockquote>'))
+        # The cut never lands inside an entity.
+        self.assertIsNone(re.search(r'&[a-zA-Z]{0,4}…', text))
+
+    def test_final_attempt_crash_row_is_swept_to_failed(self):
+        from unittest.mock import patch
+        from social_connections.models import TelegramMessage
+        from notifications.telegram import MAX_ATTEMPTS, deliver_pending
+        notification = services.notify(
+            'submission.accepted', recipient=self.user, title='Accepted'
+        )
+        TelegramMessage.objects.filter(notification=notification).update(
+            status=TelegramMessage.STATUS_SENDING,
+            attempts=MAX_ATTEMPTS,
+            updated_at=timezone.now() - timedelta(hours=1),
+        )
+
+        with patch('notifications.telegram.send_telegram_message') as send_mock, \
+                patch('notifications.telegram.time.sleep'):
+            deliver_pending()
+
+        send_mock.assert_not_called()
+        row = TelegramMessage.objects.get(notification=notification)
+        self.assertEqual(row.status, TelegramMessage.STATUS_FAILED)
+        self.assertEqual(row.error, 'max_attempts_exceeded')
+
+    def test_recall_during_send_does_not_abort_the_drain(self):
+        """A recall can delete a claimed row while its send is in flight;
+        finishing that row must be a no-op, not an exception."""
+        from unittest.mock import patch
+        from social_connections.models import TelegramMessage
+        from notifications.telegram import deliver_pending
+        first = services.notify(
+            'submission.accepted', recipient=self.user, title='First', dedupe_key='k1'
+        )
+
+        def send_and_recall(chat_id, text, **kwargs):
+            # Simulate the recall landing while the worker is mid-send.
+            TelegramMessage.objects.filter(notification=first).delete()
+            return True, None, ''
+
+        with patch('notifications.telegram.send_telegram_message', side_effect=send_and_recall), \
+                patch('notifications.telegram.time.sleep'):
+            stats = deliver_pending()
+
+        # No crash; the deleted row is simply gone.
+        self.assertEqual(TelegramMessage.objects.count(), 0)
+        self.assertEqual(stats['remaining'], 0)

@@ -484,7 +484,6 @@ class EmailVerificationService:
             name=profile.get('name', ''),
             description=profile.get('description', ''),
             website=profile.get('website', ''),
-            telegram_handle=profile.get('telegram_handle', ''),
             linkedin_handle=profile.get('linkedin_handle', ''),
             is_email_verified=True,
             email_verified_at=timezone.now(),
@@ -511,7 +510,6 @@ def _clean_profile_data(data):
         'name',
         'description',
         'website',
-        'telegram_handle',
         'linkedin_handle',
         'selected_role',
     }

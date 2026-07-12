@@ -139,6 +139,19 @@ class TelegramCommandTests(TestCase):
         self.connection.refresh_from_db()
         self.assertTrue(self.connection.notifications_enabled)
 
+    def test_inbound_message_clears_blocked_flag(self):
+        """Receiving any message proves the user unblocked the bot, so
+        delivery eligibility (and /unmute) must be able to recover."""
+        self.connection.blocked_at = timezone.now()
+        self.connection.notifications_enabled = False
+        self.connection.save(update_fields=['blocked_at', 'notifications_enabled'])
+
+        handle_update(make_update(111, '/unmute'))
+
+        self.connection.refresh_from_db()
+        self.assertIsNone(self.connection.blocked_at)
+        self.assertTrue(self.connection.notifications_enabled)
+
     def test_unlink_deletes_connection_and_pending_rows(self):
         TelegramMessage.objects.create(
             direction=TelegramMessage.DIRECTION_OUT,

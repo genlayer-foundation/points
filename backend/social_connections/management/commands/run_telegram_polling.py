@@ -9,18 +9,40 @@ import requests
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from social_connections.telegram import telegram_api_url
+from social_connections.telegram import redact_token, telegram_api_url
 from social_connections.telegram_bot import handle_update
 
 
 class Command(BaseCommand):
     help = "Long-poll Telegram getUpdates and handle updates (local dev only)."
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--delete-webhook',
+            action='store_true',
+            help='Delete a registered webhook before polling. Required when one '
+                 'is set: without this guard, running the command with a '
+                 'production token would silently disable production intake.',
+        )
+
     def handle(self, *args, **options):
         if not settings.TELEGRAM_BOT_TOKEN:
             raise CommandError('TELEGRAM_BOT_TOKEN is not configured')
 
-        requests.post(telegram_api_url('deleteWebhook'), timeout=10)
+        # Telegram forbids getUpdates while a webhook is registered, and a
+        # registered webhook almost certainly means this token belongs to a
+        # deployed environment. Refuse to hijack it by accident.
+        info = requests.get(telegram_api_url('getWebhookInfo'), timeout=10).json()
+        webhook_url = (info.get('result') or {}).get('url', '')
+        if webhook_url:
+            if not options['delete_webhook']:
+                raise CommandError(
+                    f'A webhook is registered ({webhook_url}) — this token looks '
+                    'like a deployed environment. Re-run with --delete-webhook '
+                    'if you really want to take over its updates.'
+                )
+            requests.post(telegram_api_url('deleteWebhook'), timeout=10)
+            self.stdout.write(f'Deleted webhook {webhook_url}')
         self.stdout.write('Polling Telegram for updates (Ctrl+C to stop)...')
 
         offset = None
@@ -39,7 +61,7 @@ class Command(BaseCommand):
             except KeyboardInterrupt:
                 raise
             except Exception as exc:
-                self.stderr.write(f"getUpdates error: {exc}")
+                self.stderr.write(f"getUpdates error: {redact_token(exc)}")
                 continue
 
             for update in updates:
@@ -47,4 +69,6 @@ class Command(BaseCommand):
                 try:
                     handle_update(update)
                 except Exception as exc:
-                    self.stderr.write(f"update {update.get('update_id')} failed: {exc}")
+                    self.stderr.write(
+                        f"update {update.get('update_id')} failed: {redact_token(exc)}"
+                    )

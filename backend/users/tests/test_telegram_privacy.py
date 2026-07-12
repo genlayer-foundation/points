@@ -107,3 +107,21 @@ class TelegramPrivacyTests(TestCase):
         self.owner.refresh_from_db()
         self.assertEqual(self.owner.name, 'New Name')
         self.assertEqual(self.owner.telegram_handle, 'leakyhandle')
+
+
+class SignupTelegramHandleTests(TestCase):
+    """The signup flow must not accept the removed telegram_handle either."""
+
+    def test_pending_signup_profile_drops_telegram_handle(self):
+        from ethereum_auth.email_verification import _clean_profile_data
+        from ethereum_auth.views import PENDING_SIGNUP_PROFILE_FIELDS
+
+        cleaned = _clean_profile_data({
+            'name': 'New User',
+            'telegram_handle': 'sneaky',
+            'linkedin_handle': 'fine',
+        })
+        self.assertNotIn('telegram_handle', cleaned)
+        self.assertEqual(cleaned['name'], 'New User')
+        self.assertEqual(cleaned['linkedin_handle'], 'fine')
+        self.assertNotIn('telegram_handle', PENDING_SIGNUP_PROFILE_FIELDS)

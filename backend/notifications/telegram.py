@@ -13,6 +13,7 @@ unique constraint on (notification, connection) makes repeated enqueues
 (re-broadcasts, campaign resends) no-ops.
 """
 import logging
+import re
 import time
 from datetime import timedelta
 
@@ -123,18 +124,24 @@ def render_notification_text(notification):
     if not body:
         return header
 
-    # Truncate the raw body so the header always survives. Escaping can still
-    # overshoot the limit in pathological cases; send_telegram_message's final
-    # truncate + plain-text parse fallback covers those.
+    # Escape FIRST, then budget on the escaped length: escaping expands
+    # & < > up to 5x, so budgeting raw text would overshoot the limit and
+    # force send-time truncation straight through the HTML tags.
+    escaped_body = escape(body)
     budget = TELEGRAM_MAX_LEN - len(header) - len('\n\n<blockquote expandable></blockquote>')
     if budget <= 20:
         return header
-    if len(body) > budget:
-        body = body[: budget - 1] + '…'
+    if len(escaped_body) > budget:
+        cut = escaped_body[: budget - 1]
+        # Never end inside an entity (&amp; / &lt; / &gt;).
+        cut = re.sub(r'&[a-zA-Z]{0,4}$', '', cut)
+        escaped_body = cut + '…'
     open_tag = (
-        '<blockquote expandable>' if len(body) > EXPANDABLE_BODY_THRESHOLD else '<blockquote>'
+        '<blockquote expandable>'
+        if len(escaped_body) > EXPANDABLE_BODY_THRESHOLD
+        else '<blockquote>'
     )
-    return f"{header}\n\n{open_tag}{escape(body)}</blockquote>"
+    return f"{header}\n\n{open_tag}{escaped_body}</blockquote>"
 
 
 # ---------------------------------------------------------------------------
@@ -147,6 +154,20 @@ def eligible_connections(users):
         notifications_enabled=True,
         blocked_at__isnull=True,
     )
+
+
+def _refresh_pending_text(notifications, text):
+    """Sync still-queued rows with refreshed notification copy.
+
+    Dedupe-refreshes and campaign resends update the Notification rows in
+    place; without this, a pre-cron edit would deliver the original text.
+    Already-sent rows are history and stay untouched.
+    """
+    TelegramMessage.objects.filter(
+        notification__in=notifications,
+        direction=TelegramMessage.DIRECTION_OUT,
+        status=TelegramMessage.STATUS_PENDING,
+    ).exclude(text=text).update(text=text, updated_at=timezone.now())
 
 
 def enqueue_personal(notification):
@@ -163,16 +184,19 @@ def enqueue_personal(notification):
         )
         if conn is None:
             return
-        TelegramMessage.objects.get_or_create(
+        text = render_notification_text(notification)
+        _, created = TelegramMessage.objects.get_or_create(
             notification=notification,
             connection=conn,
             direction=TelegramMessage.DIRECTION_OUT,
             defaults={
                 'chat_id': conn.platform_user_id,
-                'text': render_notification_text(notification),
+                'text': text,
                 'status': TelegramMessage.STATUS_PENDING,
             },
         )
+        if not created:
+            _refresh_pending_text([notification.pk], text)
     except Exception:
         logger.exception("Telegram enqueue_personal failed (notification %s)", notification.pk)
 
@@ -203,6 +227,8 @@ def enqueue_broadcast(notification):
                 batch = []
         if batch:
             TelegramMessage.objects.bulk_create(batch, ignore_conflicts=True)
+        # A re-broadcast refreshed the notification copy; sync queued rows.
+        _refresh_pending_text([notification.pk], text)
     except Exception:
         logger.exception("Telegram enqueue_broadcast failed (notification %s)", notification.pk)
 
@@ -219,14 +245,18 @@ def enqueue_campaign(campaign, users):
             dedupe_key=campaign.dedupe_key,
             recipient_id__in=connections.keys(),
         )
+        # All fanned-out rows carry identical copy; render once.
+        text = None
         batch = []
         for notification in notifications.iterator(chunk_size=500):
+            if text is None:
+                text = render_notification_text(notification)
             conn = connections[notification.recipient_id]
             batch.append(TelegramMessage(
                 direction=TelegramMessage.DIRECTION_OUT,
                 connection=conn,
                 chat_id=conn.platform_user_id,
-                text=render_notification_text(notification),
+                text=text,
                 status=TelegramMessage.STATUS_PENDING,
                 notification=notification,
             ))
@@ -235,6 +265,9 @@ def enqueue_campaign(campaign, users):
                 batch = []
         if batch:
             TelegramMessage.objects.bulk_create(batch, ignore_conflicts=True)
+        # A resend refreshed the campaign copy; sync still-queued rows.
+        if text is not None:
+            _refresh_pending_text(notifications, text)
     except Exception:
         logger.exception("Telegram enqueue_campaign failed (campaign %s)", campaign.pk)
 
@@ -307,10 +340,13 @@ def _claim_batch(size, exclude_pks):
 
 
 def _finish(message, status, error=''):
-    message.status = status
-    message.error = error[:200]
-    message.sent_at = timezone.now() if status == TelegramMessage.STATUS_SENT else message.sent_at
-    message.save(update_fields=['status', 'error', 'sent_at', 'updated_at'])
+    # Queryset update, not instance save: a recall can delete the row while
+    # its send is in flight, and saving a deleted instance would raise and
+    # abort the rest of the run. An update on a deleted row is a no-op.
+    updates = {'status': status, 'error': error[:200], 'updated_at': timezone.now()}
+    if status == TelegramMessage.STATUS_SENT:
+        updates['sent_at'] = timezone.now()
+    TelegramMessage.objects.filter(pk=message.pk).update(**updates)
 
 
 def deliver_pending(limit=DEFAULT_RUN_LIMIT):
@@ -320,6 +356,21 @@ def deliver_pending(limit=DEFAULT_RUN_LIMIT):
     run stops and unclaimed rows return to pending; the next cron tick
     resumes. Delivery is at-least-once, bounded by MAX_ATTEMPTS.
     """
+    # A worker that crashed mid-send on a row's FINAL attempt leaves it
+    # 'sending' with attempts == MAX_ATTEMPTS; claims require attempts < MAX,
+    # so without this sweep the row would be stranded forever.
+    stale_cutoff = timezone.now() - timedelta(minutes=STALE_SENDING_MINUTES)
+    TelegramMessage.objects.filter(
+        direction=TelegramMessage.DIRECTION_OUT,
+        status=TelegramMessage.STATUS_SENDING,
+        attempts__gte=MAX_ATTEMPTS,
+        updated_at__lt=stale_cutoff,
+    ).update(
+        status=TelegramMessage.STATUS_FAILED,
+        error='max_attempts_exceeded',
+        updated_at=timezone.now(),
+    )
+
     sent = failed = processed = 0
     rate_limited = False
     seen_pks = set()

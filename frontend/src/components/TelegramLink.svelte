@@ -11,6 +11,7 @@
   let isDisconnecting = $state(false);
 
   // Plain let (not $state): imperative timer bookkeeping.
+  /** @type {ReturnType<typeof setInterval> | null} */
   let pollTimer = null;
   let pollAttempts = 0;
 
@@ -64,6 +65,10 @@
       if (telegramTab) {
         telegramTab.location = deepLink;
       } else {
+        // Popup blocked (common on mobile): navigate this tab instead.
+        // Reset the state first so a bfcache-restored return doesn't show
+        // a stuck disabled "Waiting for Telegram" button.
+        isLinking = false;
         window.location.assign(deepLink);
         return;
       }
@@ -71,12 +76,28 @@
     } catch (error) {
       telegramTab?.close();
       isLinking = false;
-      const code = error?.response?.data?.error;
+      const code = /** @type {any} */ (error)?.response?.data?.error;
       showError(
         code === "telegram_not_configured"
           ? "Telegram linking isn't available right now."
           : "Failed to start Telegram linking. Please try again.",
       );
+    }
+  }
+
+  /** @param {PageTransitionEvent} event */
+  async function handlePageShow(event) {
+    // Returning from Telegram via back button / bfcache (same-tab flow):
+    // check once whether the link completed while we were away.
+    if (!event.persisted || connection || isLinking) return;
+    try {
+      const user = await getCurrentUser();
+      if (user?.telegram_connection) {
+        showSuccess("Telegram account linked!");
+        onLinked(user);
+      }
+    } catch {
+      // Not linked or fetch failed; the button stays usable either way.
     }
   }
 
@@ -98,6 +119,8 @@
     }
   }
 </script>
+
+<svelte:window onpageshow={handlePageShow} />
 
 {#if connection}
   <span

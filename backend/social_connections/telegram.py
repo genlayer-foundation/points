@@ -20,6 +20,18 @@ def telegram_api_url(method):
     return f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/{method}"
 
 
+def redact_token(text):
+    """Strip the bot token from text destined for logs.
+
+    requests exceptions embed the request URL, which contains the token;
+    logging them raw would persist the credential in CloudWatch.
+    """
+    token = settings.TELEGRAM_BOT_TOKEN
+    if token:
+        text = str(text).replace(token, '<bot-token>')
+    return str(text)
+
+
 def escape(text):
     """Escape user-derived content for Telegram HTML parse mode."""
     return str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
@@ -77,7 +89,7 @@ def send_telegram_message(
                 telegram_api_url('sendMessage'), json=payload, timeout=REQUEST_TIMEOUT
             )
         except requests.RequestException as exc:
-            logger.warning(f"Telegram sendMessage transport error: {exc}")
+            logger.warning(f"Telegram sendMessage transport error: {redact_token(exc)}")
             return False, None, f'request_error:{exc.__class__.__name__}'
 
         if response.status_code == 200:
