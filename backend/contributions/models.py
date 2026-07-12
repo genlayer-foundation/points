@@ -290,6 +290,28 @@ class Contribution(BaseModel):
         indexes = [
             models.Index(fields=['created_at'], name='contrib_created_idx'),
         ]
+
+    def _points_require_current_range_validation(self):
+        """Return whether the current contribution type range should apply.
+
+        Contribution type ranges are current award rules, not retroactive
+        constraints on historical awards. Existing rows keep their original
+        points when a type's range changes, but changing either the points or
+        the contribution type must satisfy the current range.
+        """
+        if self._state.adding or not self.pk:
+            return True
+
+        original = type(self).objects.filter(pk=self.pk).values(
+            'points', 'contribution_type_id'
+        ).first()
+        if original is None:
+            return True
+
+        return (
+            self.points != original['points']
+            or self.contribution_type_id != original['contribution_type_id']
+        )
     
     def clean(self):
         """
@@ -313,8 +335,13 @@ class Contribution(BaseModel):
         if not self.contribution_date:
             self.contribution_date = timezone.now()
         
-        # Validate points are within the allowed range for this contribution type
-        if self.points < self.contribution_type.min_points or self.points > self.contribution_type.max_points:
+        # Validate new awards and point/type edits against the current range.
+        # Unchanged historical awards remain valid if the type range later changes.
+        points_out_of_range = (
+            self.points < self.contribution_type.min_points
+            or self.points > self.contribution_type.max_points
+        )
+        if points_out_of_range and self._points_require_current_range_validation():
             raise ValidationError(
                 f"Points must be between {self.contribution_type.min_points} and {self.contribution_type.max_points} "
                 f"for contribution type '{self.contribution_type}'."
