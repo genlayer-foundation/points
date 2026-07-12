@@ -34,6 +34,7 @@ REGION=${AWS_DEFAULT_REGION:-us-east-1}
 
 # Extract SSM parameter prefix from service name (remove -backend suffix)
 SSM_PREFIX="/${SERVICE_NAME%-backend}"
+INSTANCE_ROLE_NAME="AppRunnerInstanceRole-prod"
 
 if [ -n "$VPC_CONNECTOR_ARN" ]; then
     echo "Deploying to AWS App Runner: $SERVICE_NAME (with VPC connector)"
@@ -55,9 +56,10 @@ docker build -t $SERVICE_NAME .
 # Create ECR repo if it doesn't exist
 aws ecr describe-repositories --repository-names $SERVICE_NAME --region $REGION >/dev/null 2>&1 || aws ecr create-repository --repository-name $SERVICE_NAME --region $REGION
 
-# Create IAM role for App Runner if it doesn't exist
-if ! aws iam get-role --role-name AppRunnerInstanceRole >/dev/null 2>&1; then
-    echo "Creating App Runner IAM role..."
+# The deployment identity can use this role but cannot modify its policy.
+# An administrator must bootstrap it once for production.
+if ! aws iam get-role --role-name "$INSTANCE_ROLE_NAME" >/dev/null 2>&1; then
+    echo "Creating App Runner IAM role: $INSTANCE_ROLE_NAME"
     
     # Create trust policy
     cat > trust-policy.json << EOF
@@ -77,10 +79,10 @@ EOF
 
     # Create IAM role
     aws iam create-role \
-        --role-name AppRunnerInstanceRole \
+        --role-name "$INSTANCE_ROLE_NAME" \
         --assume-role-policy-document file://trust-policy.json
 
-    # Create policy for accessing SSM parameters
+    # Create policy for accessing production SSM parameters
     cat > ssm-policy.json << EOF
 {
     "Version": "2012-10-17",
@@ -92,21 +94,18 @@ EOF
                 "ssm:GetParameters",
                 "ssm:GetParametersByPath"
             ],
-            "Resource": "arn:aws:ssm:$REGION:$ACCOUNT_ID:parameter$SSM_PREFIX/*"
+            "Resource": "arn:aws:ssm:$REGION:$ACCOUNT_ID:parameter$SSM_PREFIX/prod/*"
         }
     ]
 }
 EOF
 
-    # Create and attach policy
     aws iam put-role-policy \
-        --role-name AppRunnerInstanceRole \
+        --role-name "$INSTANCE_ROLE_NAME" \
         --policy-name SSMParameterAccess \
         --policy-document file://ssm-policy.json
 
-    # Clean up temporary files
     rm -f trust-policy.json ssm-policy.json
-    
     echo "Waiting for IAM role to propagate..."
     sleep 10
 fi
@@ -261,7 +260,7 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
     }
   },
   "InstanceConfiguration": {
-    "InstanceRoleArn": "arn:aws:iam::$ACCOUNT_ID:role/AppRunnerInstanceRole"
+    "InstanceRoleArn": "arn:aws:iam::$ACCOUNT_ID:role/$INSTANCE_ROLE_NAME"
   },
   "HealthCheckConfiguration": {
     "Protocol": "HTTP",
@@ -379,7 +378,7 @@ else
     }
   },
   "InstanceConfiguration": {
-    "InstanceRoleArn": "arn:aws:iam::$ACCOUNT_ID:role/AppRunnerInstanceRole"
+    "InstanceRoleArn": "arn:aws:iam::$ACCOUNT_ID:role/$INSTANCE_ROLE_NAME"
   },
   "HealthCheckConfiguration": {
     "Protocol": "HTTP",

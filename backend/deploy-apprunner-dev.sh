@@ -10,6 +10,7 @@ ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 ECR_REPO="$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$SERVICE_NAME"
 SSM_PREFIX="/tally-backend"
 SSM_ENV="dev"  # Use dev environment
+INSTANCE_ROLE_NAME="AppRunnerInstanceRole-dev"
 
 echo "Deploying to AWS App Runner: $SERVICE_NAME (DEV environment)"
 echo "Using SSM parameters from: $SSM_PREFIX/$SSM_ENV/"
@@ -34,6 +35,60 @@ docker push $ECR_REPO:latest
 docker push $ECR_REPO:$TIMESTAMP
 
 echo "Pushed new image with tag: $TIMESTAMP"
+
+# The deployment identity can use this role but cannot modify its policy.
+# An administrator must bootstrap it once for this environment.
+if ! aws iam get-role --role-name "$INSTANCE_ROLE_NAME" >/dev/null 2>&1; then
+    echo "Creating App Runner IAM role: $INSTANCE_ROLE_NAME"
+
+    cat > trust-policy.json << EOF
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Service": "tasks.apprunner.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+        }
+    ]
+}
+EOF
+
+    aws iam create-role \
+        --role-name "$INSTANCE_ROLE_NAME" \
+        --assume-role-policy-document file://trust-policy.json
+
+    cat > ssm-policy.json << EOF
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ssm:GetParameter",
+                "ssm:GetParameters",
+                "ssm:GetParametersByPath"
+            ],
+            "Resource": [
+                "arn:aws:ssm:$REGION:$ACCOUNT_ID:parameter$SSM_PREFIX/$SSM_ENV/*",
+                "arn:aws:ssm:$REGION:$ACCOUNT_ID:parameter/tally/$SSM_ENV/*"
+            ]
+        }
+    ]
+}
+EOF
+
+    aws iam put-role-policy \
+        --role-name "$INSTANCE_ROLE_NAME" \
+        --policy-name SSMParameterAccess \
+        --policy-document file://ssm-policy.json
+
+    rm -f trust-policy.json ssm-policy.json
+    echo "Waiting for IAM role to propagate..."
+    sleep 10
+fi
 
 # Check if service exists
 if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOUNT_ID:service/$SERVICE_NAME --region $REGION >/dev/null 2>&1; then
@@ -125,7 +180,7 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
   "InstanceConfiguration": {
     "Cpu": "0.25 vCPU",
     "Memory": "0.5 GB",
-    "InstanceRoleArn": "arn:aws:iam::$ACCOUNT_ID:role/AppRunnerInstanceRole"
+    "InstanceRoleArn": "arn:aws:iam::$ACCOUNT_ID:role/$INSTANCE_ROLE_NAME"
   },
   "HealthCheckConfiguration": {
     "Protocol": "HTTP",
@@ -146,60 +201,6 @@ EOF
     rm -f apprunner-update-config.json
 else
     echo "Creating new App Runner service..."
-    
-    # Create IAM roles if they don't exist
-    if ! aws iam get-role --role-name AppRunnerInstanceRole >/dev/null 2>&1; then
-        echo "Creating App Runner IAM role..."
-        
-        cat > trust-policy.json << EOF
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Principal": {
-                "Service": "tasks.apprunner.amazonaws.com"
-            },
-            "Action": "sts:AssumeRole"
-        }
-    ]
-}
-EOF
-        
-        aws iam create-role \
-            --role-name AppRunnerInstanceRole \
-            --assume-role-policy-document file://trust-policy.json
-        
-        # Create policy for SSM access
-        cat > ssm-policy.json << EOF
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "ssm:GetParameter",
-                "ssm:GetParameters",
-                "ssm:GetParametersByPath"
-            ],
-            "Resource": [
-                "arn:aws:ssm:$REGION:$ACCOUNT_ID:parameter$SSM_PREFIX/$SSM_ENV/*",
-                "arn:aws:ssm:$REGION:$ACCOUNT_ID:parameter/tally/$SSM_ENV/*",
-                "arn:aws:ssm:$REGION:$ACCOUNT_ID:parameter/tally/prod/*"
-            ]
-        }
-    ]
-}
-EOF
-        
-        aws iam put-role-policy \
-            --role-name AppRunnerInstanceRole \
-            --policy-name SSMParameterAccess \
-            --policy-document file://ssm-policy.json
-        
-        rm -f trust-policy.json ssm-policy.json
-        sleep 10
-    fi
     
     # Create ECR access role if needed
     if ! aws iam get-role --role-name AppRunnerECRAccessRole >/dev/null 2>&1; then
@@ -319,7 +320,7 @@ EOF
   "InstanceConfiguration": {
     "Cpu": "0.25 vCPU",
     "Memory": "0.5 GB",
-    "InstanceRoleArn": "arn:aws:iam::$ACCOUNT_ID:role/AppRunnerInstanceRole"
+    "InstanceRoleArn": "arn:aws:iam::$ACCOUNT_ID:role/$INSTANCE_ROLE_NAME"
   },
   "HealthCheckConfiguration": {
     "Protocol": "HTTP",

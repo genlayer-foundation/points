@@ -23,6 +23,8 @@ class EthereumAuthentication(authentication.BaseAuthentication):
         if not ethereum_address or not authenticated:
             return None
 
+        SessionAuthentication().enforce_csrf(request)
+
         try:
             # Get user with the authenticated ethereum address
             user = User.objects.get(address__iexact=ethereum_address)

@@ -1,6 +1,7 @@
 from unittest.mock import patch, MagicMock
 
 import requests
+from django.contrib.sessions.middleware import SessionMiddleware
 from django.test import TestCase, RequestFactory, override_settings
 from django.utils import timezone
 from rest_framework.test import force_authenticate
@@ -40,6 +41,27 @@ class DiscordOAuthTest(TestCase):
         )
         self.service = DiscordOAuthService()
 
+    def attach_session(self, request):
+        middleware = SessionMiddleware(lambda req: None)
+        middleware.process_request(request)
+        request.session.save()
+        return request
+
+    def callback_request(self, params, **state_kwargs):
+        state_request = self.attach_session(self.factory.get('/api/auth/discord/'))
+        state = self.service.create_pending_state(
+            self.user,
+            request=state_request,
+            **state_kwargs,
+        )
+        request = self.factory.get('/api/auth/discord/callback/', {
+            **params,
+            'state': state,
+        })
+        request.session = state_request.session
+        request.user = self.user
+        return request
+
     def test_initiate_requires_auth(self):
         request = self.factory.get('/api/auth/discord/')
         request.session = {}
@@ -49,6 +71,7 @@ class DiscordOAuthTest(TestCase):
 
     def test_initiate_redirects_to_discord(self):
         request = self.factory.get('/api/auth/discord/')
+        self.attach_session(request)
         force_authenticate(request, user=self.user)
         response = discord_oauth_initiate(request)
         self.assertEqual(response.status_code, 302)
@@ -212,8 +235,6 @@ class DiscordOAuthTest(TestCase):
     @patch('social_connections.oauth_service.requests')
     def test_callback_full_flow(self, mock_requests):
         """Test the full Discord OAuth callback flow."""
-        state = self.service.generate_state(self.user.id)
-
         mock_token_response = MagicMock()
         mock_token_response.raise_for_status = MagicMock()
         mock_token_response.json.return_value = {'access_token': 'discord_token'}
@@ -231,9 +252,8 @@ class DiscordOAuthTest(TestCase):
         mock_requests.get.return_value = mock_user_response
 
         from social_connections.discord_oauth import discord_oauth_callback
-        request = self.factory.get('/api/auth/discord/callback/', {
+        request = self.callback_request({
             'code': 'discord_code_123',
-            'state': state,
         })
         response = discord_oauth_callback(request)
         self.assertEqual(response.status_code, 302)
@@ -249,8 +269,6 @@ class DiscordOAuthTest(TestCase):
     @patch('social_connections.oauth_service.requests')
     def test_callback_without_optional_fields(self, mock_requests):
         """Test callback when discriminator and avatar are missing."""
-        state = self.service.generate_state(self.user.id)
-
         mock_token_response = MagicMock()
         mock_token_response.raise_for_status = MagicMock()
         mock_token_response.json.return_value = {'access_token': 'discord_token'}
@@ -266,9 +284,8 @@ class DiscordOAuthTest(TestCase):
         mock_requests.get.return_value = mock_user_response
 
         from social_connections.discord_oauth import discord_oauth_callback
-        request = self.factory.get('/api/auth/discord/callback/', {
+        request = self.callback_request({
             'code': 'discord_code_no_extras',
-            'state': state,
         })
         response = discord_oauth_callback(request)
         self.assertEqual(response.status_code, 302)
@@ -281,15 +298,12 @@ class DiscordOAuthTest(TestCase):
 
     def test_callback_duplicate_code(self):
         """Test that a duplicate code is rejected."""
-        state = self.service.generate_state(self.user.id)
-
         from social_connections.discord_oauth import discord_oauth_callback
         from social_connections.models import UsedOAuthCode
         UsedOAuthCode.mark_used('dup_discord_code', 'discord')
 
-        request = self.factory.get('/api/auth/discord/callback/', {
+        request = self.callback_request({
             'code': 'dup_discord_code',
-            'state': state,
         })
         response = discord_oauth_callback(request)
         self.assertEqual(response.status_code, 302)
@@ -310,8 +324,6 @@ class DiscordOAuthTest(TestCase):
             linked_at=timezone.now(),
         )
 
-        state = self.service.generate_state(self.user.id)
-
         mock_token_response = MagicMock()
         mock_token_response.raise_for_status = MagicMock()
         mock_token_response.json.return_value = {'access_token': 'discord_token'}
@@ -327,9 +339,8 @@ class DiscordOAuthTest(TestCase):
         mock_requests.get.return_value = mock_user_response
 
         from social_connections.discord_oauth import discord_oauth_callback
-        request = self.factory.get('/api/auth/discord/callback/', {
+        request = self.callback_request({
             'code': 'new_discord_code_456',
-            'state': state,
         })
         response = discord_oauth_callback(request)
         self.assertEqual(response.status_code, 302)

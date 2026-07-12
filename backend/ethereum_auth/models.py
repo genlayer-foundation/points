@@ -15,6 +15,7 @@ class Nonce(models.Model):
     ]
 
     value = models.CharField(max_length=64, unique=True)
+    session_key = models.CharField(max_length=64, blank=True, db_index=True)
     purpose = models.CharField(
         max_length=32,
         choices=PURPOSE_CHOICES,

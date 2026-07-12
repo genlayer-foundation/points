@@ -379,7 +379,7 @@ export async function signInWithEthereum(provider = null, walletName = 'wallet',
 
     // Immediately verify the auth worked
     setTimeout(() => {
-      verifyAuth();
+      verifyAuth({ force: true });
     }, 100);
 
     // Only redirect if skipRedirect is false
@@ -419,22 +419,25 @@ let verificationInProgress = null;
 let refreshSessionPromise = null;
 
 /**
- * Verify authentication status - only once per session
+ * Verify authentication status.
+ * @param {{ force?: boolean }} [options={}] Optional configuration. Set `force` to bypass cached unauthenticated state.
  * @returns {Promise<boolean>} Authentication status
  */
-export async function verifyAuth() {
+export async function verifyAuth(options = {}) {
+  const { force = false } = options;
   const state = authState.get();
-  
-  // If we've already verified in this session, return the current state
-  if (state.hasVerified) {
-    return Promise.resolve(state.isAuthenticated);
-  }
   
   // If verification is already in progress, return the existing promise
   if (verificationInProgress) {
     return verificationInProgress;
   }
-  
+
+  // Cached unauthenticated state is stable enough to avoid duplicate checks.
+  // Authenticated state is revalidated because the server session can expire.
+  if (state.hasVerified && !state.isAuthenticated && !force) {
+    return Promise.resolve(state.isAuthenticated);
+  }
+
   // Start new verification
   verificationInProgress = performVerification();
   
@@ -468,6 +471,8 @@ async function performVerification() {
       } catch (err) {
         // Silently handle user data load failure
       }
+    } else {
+      userStore.clearUser();
     }
 
     return isAuthenticated;
@@ -476,6 +481,7 @@ async function performVerification() {
     if (status && status < 500) {
       // Definitive rejection: the session is gone.
       authState.setAuthenticated(false, null);
+      userStore.clearUser();
       return false;
     }
     // Network error / 5xx: the backend couldn't answer, which says nothing
@@ -528,7 +534,7 @@ export async function refreshSession() {
       return true;
     } catch (error) {
       // If refresh fails, verify auth state again
-      await verifyAuth();
+      await verifyAuth({ force: true });
       return false;
     } finally {
       refreshSessionPromise = null;

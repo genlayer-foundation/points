@@ -14,7 +14,7 @@
             const selectedValue = contributionTypeSelect.value;
             
             if (!selectedValue) {
-                infoContainer.innerHTML = '-';
+                infoContainer.textContent = '-';
                 return;
             }
             
@@ -28,21 +28,39 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.error) {
-                        infoContainer.innerHTML = '-';
+                        infoContainer.textContent = '-';
                     } else {
-                        let html = '<div id="contribution-type-info" style="padding: 10px; background: #f8f9fa; border-radius: 4px; margin: 5px 0;">';
-                        html += `<strong>Points Range:</strong> ${data.min_points}-${data.max_points} points<br>`;
-                        html += `<strong>Current Multiplier:</strong> ${data.current_multiplier}x<br>`;
-                        if (data.description) {
-                            html += `<strong>Description:</strong> ${data.description}`;
+                        const info = document.createElement('div');
+                        info.id = 'contribution-type-info';
+                        info.style.padding = '10px';
+                        info.style.background = '#f8f9fa';
+                        info.style.borderRadius = '4px';
+                        info.style.margin = '5px 0';
+
+                        function appendLine(label, value) {
+                            const strong = document.createElement('strong');
+                            strong.textContent = label;
+                            info.appendChild(strong);
+                            info.appendChild(document.createTextNode(` ${value}`));
+                            info.appendChild(document.createElement('br'));
                         }
-                        html += '</div>';
-                        infoContainer.innerHTML = html;
+
+                        appendLine('Points Range:', `${data.min_points}-${data.max_points} points`);
+                        appendLine('Current Multiplier:', `${data.current_multiplier}x`);
+                        if (data.description) {
+                            const strong = document.createElement('strong');
+                            strong.textContent = 'Description:';
+                            info.appendChild(strong);
+                            info.appendChild(document.createTextNode(` ${data.description}`));
+                        }
+                        infoContainer.replaceChildren(info);
                     }
                 })
                 .catch(error => {
                     console.error('Error fetching contribution type info:', error);
-                    infoContainer.innerHTML = '<em>Error loading info</em>';
+                    const errorMessage = document.createElement('em');
+                    errorMessage.textContent = 'Error loading info';
+                    infoContainer.replaceChildren(errorMessage);
                 });
         }
         

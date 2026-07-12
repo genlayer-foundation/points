@@ -149,6 +149,7 @@ class PendingOAuthState(models.Model):
     state_id = models.CharField(max_length=64, unique=True)
     platform = models.CharField(max_length=20, db_index=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    session_key = models.CharField(max_length=64, blank=True, db_index=True)
     code_verifier = models.TextField(blank=True)
     redirect_url = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -159,11 +160,14 @@ class PendingOAuthState(models.Model):
         indexes = [
             models.Index(fields=['created_at']),
             models.Index(fields=['platform', 'state_id']),
+            models.Index(fields=['platform', 'session_key']),
         ]
 
     @classmethod
-    def consume(cls, state_id, platform, user_id, max_age_minutes=10):
+    def consume(cls, state_id, platform, user_id, session_key, max_age_minutes=10):
         """Atomically consume a pending OAuth state row and return it."""
+        if not session_key:
+            return None
         cutoff = timezone.now() - timedelta(minutes=max_age_minutes)
         with transaction.atomic():
             pending = (
@@ -173,6 +177,7 @@ class PendingOAuthState(models.Model):
                     state_id=state_id,
                     platform=platform,
                     user_id=user_id,
+                    session_key=session_key,
                     consumed_at__isnull=True,
                     created_at__gte=cutoff,
                 )

@@ -193,6 +193,9 @@ class BanAppeal(BaseModel):
 
     class Meta:
         ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['user'], name='unique_ban_appeal_per_user'),
+        ]
 
     def __str__(self):
         return f"Appeal by {self.user.email} ({self.status})"
