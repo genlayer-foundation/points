@@ -349,15 +349,24 @@ class ReviewerRewardTests(APITestCase):
         detail_response = self.client.get(f'/api/v1/steward-submissions/{submission.id}/')
         self.assertEqual(detail_response.status_code, 200)
         self.assertEqual(detail_response.data['ai_analysis']['synthesis'], 'Automated synthesis with **markdown**.')
-        self.assertNotIn('frontend_ux', detail_response.data['ai_analysis']['sections'])
+        self.assertEqual(
+            detail_response.data['ai_analysis']['sections']['frontend_ux'],
+            {'score': 2, 'reason': 'Basic frontend.'},
+        )
 
         list_response = self.client.get(
             '/api/v1/steward-submissions/',
             data={'has_ai_analysis': 'true', 'assigned_to': 'unassigned'},
         )
         self.assertEqual(list_response.status_code, 200)
-        ids = {str(item['id']) for item in list_response.data['results']}
+        results = list_response.data['results']
+        ids = {str(item['id']) for item in results}
         self.assertIn(str(submission.id), ids)
+        list_item = next(item for item in results if str(item['id']) == str(submission.id))
+        self.assertEqual(
+            list_item['ai_analysis']['sections']['frontend_ux'],
+            {'score': 2, 'reason': 'Basic frontend.'},
+        )
 
         submitter_payload = SubmittedContributionSerializer(submission).data
         self.assertNotIn('ai_analysis', submitter_payload)

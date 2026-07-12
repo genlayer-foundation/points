@@ -1679,11 +1679,7 @@ class StewardSubmissionSerializer(MoreInfoRequestsMixin, serializers.ModelSerial
         if not proposal:
             return None
 
-        sections = {
-            key: value
-            for key, value in (proposal.sections or {}).items()
-            if key != 'frontend_ux'
-        }
+        sections = dict(proposal.sections or {})
         return {
             'id': proposal.id,
             'action': proposal.action,
