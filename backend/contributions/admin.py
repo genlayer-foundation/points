@@ -32,6 +32,7 @@ from .models import (
     Mission,
     StartupRequest,
     SubmissionNote,
+    SubmissionStateTransition,
     FeaturedContent,
     Alert,
     BlocklistedURL,
@@ -226,6 +227,26 @@ class GlobalLeaderboardMultiplierAdmin(admin.ModelAdmin):
     list_filter = (ContributionTypeListFilter, 'valid_from')
     search_fields = ('contribution_type__name', 'description', 'notes')
     readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(SubmissionStateTransition)
+class SubmissionStateTransitionAdmin(admin.ModelAdmin):
+    """Read-only view of the append-only submission lifecycle log."""
+    list_select_related = ('submitted_contribution', 'actor')
+    list_display = ('created_at', 'event', 'from_state', 'to_state', 'actor', 'submitted_contribution')
+    list_filter = ('event', 'to_state')
+    search_fields = ('submitted_contribution__id', 'actor__email', 'actor__name')
+    date_hierarchy = 'created_at'
+    readonly_fields = ('submitted_contribution', 'event', 'from_state', 'to_state', 'actor', 'created_at', 'updated_at')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(ProjectMilestoneReview)
@@ -813,15 +834,30 @@ class SubmittedContributionAdmin(admin.ModelAdmin):
     
     def save_model(self, request, obj, form, change):
         """Update review fields when state changes."""
-        if change and 'state' in form.changed_data:
+        state_changed = change and 'state' in form.changed_data
+        # Direct edits to reviewed_by/reviewed_at rewrite decision attribution
+        # even without a state change; those must reach the lifecycle log too.
+        review_fields_changed = change and any(
+            field in form.changed_data
+            for field in ('state', 'reviewed_by', 'reviewed_at')
+        )
+        if state_changed:
             obj.reviewed_by = request.user
             obj.reviewed_at = timezone.now()
-        
+
         # Update last_edited_at if notes changed and state is more_info_needed
         if change and 'notes' in form.changed_data and obj.state == 'more_info_needed':
             obj.last_edited_at = timezone.now()
-            
+
         super().save_model(request, obj, form, change)
+
+        if review_fields_changed:
+            SubmissionStateTransition.record(
+                obj,
+                SubmissionStateTransition.EVENT_ADMIN,
+                from_state=form.initial.get('state', ''),
+                actor=request.user,
+            )
     
     def get_readonly_fields(self, request, obj=None):
         """Make fields readonly for accepted submissions."""

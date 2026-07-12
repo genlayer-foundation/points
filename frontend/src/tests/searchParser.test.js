@@ -51,17 +51,34 @@ describe("steward search negation", () => {
   });
 
   it("normalizes negated flag filters to not filters", () => {
-    const { filters } = parseSearch("-is:interesting -is:resubmitted");
+    const { filters } = parseSearch("-is:interesting -is:ai-reviewed");
 
     expect(filters.is).toEqual([]);
-    expect(filters.not).toEqual(["interesting", "resubmitted"]);
+    expect(filters.not).toEqual(["interesting", "ai-reviewed"]);
     expect(paramsFor("-is:interesting")).toEqual({ is_interesting: false });
-    expect(paramsFor("-is:resubmitted")).toEqual({ resubmitted_more_info: false });
+    expect(paramsFor("-is:ai-reviewed")).toEqual({ has_ai_analysis: false });
   });
 
   it("supports NOT before multi-value filters", () => {
     expect(paramsFor("NOT has:proposal")).toEqual({ has_proposal: false });
     expect(paramsFor("NOT is:interesting")).toEqual({ is_interesting: false });
+  });
+
+  it("resolves 'me' to the current user and never to a steward name match", () => {
+    const withNameContainingMe = {
+      currentUserId: 7,
+      stewardsList: [{ user_id: 9, name: "James Medina", address: "0xjames" }],
+    };
+    expect(paramsFor("proposed-by:me", withNameContainingMe)).toEqual({ proposed_by: 7 });
+    expect(paramsFor("assigned:me", withNameContainingMe)).toEqual({ assigned_to: 7 });
+    expect(paramsFor("reviewed:me", withNameContainingMe)).toEqual({ reviewed_by: 7 });
+
+    // Profile not loaded yet: "me" must resolve to nothing, not to
+    // whichever steward's name happens to contain the substring "me".
+    const userNotLoaded = { ...withNameContainingMe, currentUserId: undefined };
+    expect(paramsFor("proposed-by:me proposal-status:questioned", userNotLoaded)).toEqual({
+      proposal_review_status: "questioned",
+    });
   });
 
   it("inverts explicit negative aliases when prefixed with a dash", () => {

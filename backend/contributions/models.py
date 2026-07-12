@@ -928,6 +928,93 @@ class SubmissionNote(BaseModel):
         return f"{prefix}{self.user} on {self.submitted_contribution} at {self.created_at}"
 
 
+class SubmissionStateTransition(BaseModel):
+    """
+    Append-only log of submission lifecycle events.
+
+    Row state on SubmittedContribution is overwritten in place and re-open
+    paths (resubmit, appeal, add-evidence) clear reviewed_by/reviewed_at, so
+    this log is the only durable record of every state change and of
+    review-field destruction. Rows are never updated or deleted.
+    """
+    EVENT_SUBMITTED = 'submitted'
+    EVENT_REVIEW = 'review'
+    EVENT_BULK_REJECT = 'bulk_reject'
+    EVENT_GATE_REJECT = 'gate_reject'
+    EVENT_EDITED = 'edited'
+    EVENT_CANCELED = 'canceled'
+    EVENT_APPEAL = 'appeal'
+    EVENT_EVIDENCE_ADDED = 'evidence_added'
+    EVENT_ADMIN = 'admin'
+    EVENT_CHOICES = [
+        (EVENT_SUBMITTED, 'Submitted'),
+        (EVENT_REVIEW, 'Steward Review'),
+        (EVENT_BULK_REJECT, 'Bulk Reject'),
+        (EVENT_GATE_REJECT, 'AI Gate Reject'),
+        (EVENT_EDITED, 'Edited by Submitter'),
+        (EVENT_CANCELED, 'Canceled by Submitter'),
+        (EVENT_APPEAL, 'Appeal'),
+        (EVENT_EVIDENCE_ADDED, 'Evidence Added'),
+        (EVENT_ADMIN, 'Admin Edit'),
+    ]
+
+    submitted_contribution = models.ForeignKey(
+        SubmittedContribution,
+        on_delete=models.CASCADE,
+        related_name='state_transitions'
+    )
+    event = models.CharField(max_length=20, choices=EVENT_CHOICES)
+    from_state = models.CharField(
+        max_length=20,
+        blank=True,
+        default='',
+        help_text="State before the event; empty for the initial submission"
+    )
+    to_state = models.CharField(max_length=20)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='submission_state_transitions',
+        help_text="Who caused the event: submitter, steward, AI steward, or admin"
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['submitted_contribution', 'created_at'], name='sub_trans_sub_created_idx'),
+            models.Index(fields=['event', 'created_at'], name='sub_trans_event_created_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.event}: {self.from_state or '(new)'} -> {self.to_state} on {self.submitted_contribution_id}"
+
+    @classmethod
+    def record(cls, submission, event, from_state, actor=None, to_state=None):
+        return cls.objects.create(
+            submitted_contribution=submission,
+            event=event,
+            from_state=from_state or '',
+            to_state=to_state if to_state is not None else submission.state,
+            actor=actor,
+        )
+
+
+@receiver(post_save, sender=SubmittedContribution)
+def log_submission_created(sender, instance, created, **kwargs):
+    """Log the initial 'submitted' transition for every new submission."""
+    # raw=True means fixture/loaddata replay: the dump already contains the
+    # real transition rows, so synthesizing one here would corrupt the log.
+    if created and not kwargs.get('raw', False):
+        SubmissionStateTransition.record(
+            instance,
+            SubmissionStateTransition.EVENT_SUBMITTED,
+            from_state='',
+            actor=instance.user,
+        )
+
+
 class ProjectMilestoneReview(BaseModel):
     """
     Latest structured Builder Project rubric review for a submitted

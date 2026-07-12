@@ -124,6 +124,7 @@ class ParticipantsGrowthView(APIView):
         from community_xp.models import Mee6CurrentXP
         from community_xp.services import get_default_guild_id
         from poaps.models import PoapClaim
+        from social_tasks.models import SocialTaskCompletion
 
         first_seen_by_user = {}
         guild_id = str(get_default_guild_id())
@@ -141,6 +142,15 @@ class ParticipantsGrowthView(APIView):
         )
         for entry in contribution_members:
             self._add_first_seen(first_seen_by_user, entry['user_id'], entry['first_contribution'])
+
+        social_task_members = (
+            SocialTaskCompletion.objects
+            .filter(task__category__slug='community', user__visible=True)
+            .values('user_id')
+            .annotate(first_completion=Min('completed_at'))
+        )
+        for entry in social_task_members:
+            self._add_first_seen(first_seen_by_user, entry['user_id'], entry['first_completion'])
 
         mee6_members = (
             Mee6CurrentXP.objects

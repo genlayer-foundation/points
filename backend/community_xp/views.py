@@ -36,7 +36,7 @@ def _parse_positive_int(value, field_name):
     return parsed
 
 
-def _run_mee6_fetch_and_apply(*, guild_id=None, page_size=None):
+def _run_mee6_fetch_and_apply(*, guild_id=None, page_size=None, owner_token=None):
     start = time.time()
     fetch_result = run_mee6_sync(
         guild_id=guild_id,
@@ -44,7 +44,7 @@ def _run_mee6_fetch_and_apply(*, guild_id=None, page_size=None):
         use_lock=False,
     )
     run = Mee6SyncRun.objects.get(pk=fetch_result['run_id'])
-    apply_result = apply_sync_run(run)
+    apply_result = apply_sync_run(run, lock_owner_token=owner_token)
     logger.info(
         "MEE6 XP fetch/apply completed in %.1fs: fetch=%s apply=%s",
         time.time() - start,
@@ -69,7 +69,11 @@ def _run_mee6_fetch_and_apply_in_background(*, guild_id=None, page_size=None, ow
     heartbeat_thread.start()
 
     try:
-        _run_mee6_fetch_and_apply(guild_id=guild_id, page_size=page_size)
+        _run_mee6_fetch_and_apply(
+            guild_id=guild_id,
+            page_size=page_size,
+            owner_token=owner_token,
+        )
     except Exception as exc:
         logger.error("MEE6 XP fetch/apply failed: %s", exc, exc_info=True)
     finally:

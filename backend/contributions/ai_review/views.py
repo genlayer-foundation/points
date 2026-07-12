@@ -1,4 +1,4 @@
-from django.db.models import Count, F, Q
+from django.db.models import Count, Q
 from django.db.models.functions import Coalesce
 from django.db.models.expressions import Exists, OuterRef
 from django.db import transaction
@@ -73,7 +73,6 @@ class AIReviewFilterSet(ProposalReviewStatusFilterMixin, FilterSet):
     search = CharFilter(method='filter_search')
     mission = CharFilter(method='filter_mission')
     exclude_mission = CharFilter(method='filter_exclude_mission')
-    resubmitted_more_info = BooleanFilter(method='filter_resubmitted_more_info')
 
     class Meta:
         model = SubmittedContribution
@@ -363,19 +362,6 @@ class AIReviewFilterSet(ProposalReviewStatusFilterMixin, FilterSet):
             return queryset.exclude(mission__isnull=True)
         if value:
             return queryset.exclude(mission_id=value)
-        return queryset
-
-    def filter_resubmitted_more_info(self, queryset, name, value):
-        condition = Q(
-            state='pending',
-            reviewed_at__isnull=False,
-            last_edited_at__isnull=False,
-            last_edited_at__gt=F('reviewed_at'),
-        )
-        if value is True:
-            return queryset.filter(condition)
-        elif value is False:
-            return queryset.exclude(condition)
         return queryset
 
 

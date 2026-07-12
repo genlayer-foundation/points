@@ -176,8 +176,11 @@ already makes the filter meaningless. Send backend parameter names exactly.
 | `proposed_template` | template ID | Active proposal template |
 | `has_appeal` | `true`, `false` | Submitter appeal flag |
 | `is_interesting` | `true`, `false` | Internal interesting flag |
-| `resubmitted_more_info` | `true`, `false` | Pending submissions that were reviewed before and edited after that review |
 | `min_accepted_contributions` | positive integer | Submitter has at least this many accepted submissions |
+
+The old `resubmitted_more_info` filter was removed (re-open paths clear
+`reviewed_at`, so it could never match current data). Do not send it; unknown
+params are silently ignored and you would get the ENTIRE unfiltered queue.
 
 ## More-Info Filters
 
@@ -186,7 +189,7 @@ Use the exact filter for the question being asked:
 | Need | Endpoint | Filter |
 |---|---|---|
 | Submissions currently waiting on submitter info | `/api/v1/ai-review/reviewed/` or steward search | `state=more_info_needed` |
-| Pending submissions resubmitted after more info was requested | `/api/v1/ai-review/` | `resubmitted_more_info=true` |
+| Pending submissions resubmitted after more info was requested | `/api/v1/ai-review/{id}/` | No query param exists; inspect `internal_notes` for a prior `more_info` decision note |
 | Active proposals recommending more info | `/api/v1/ai-review/proposed/` | `proposed_action=more_info` |
 | Reviewed submissions where final steward decision was more info | `/api/v1/ai-review/reviewed/` | `state=more_info_needed` |
 | Exclude current more-info submissions | Any list endpoint where state is not fixed | `exclude_state=more_info_needed` |
@@ -201,10 +204,6 @@ inspect `internal_notes`.
 # New unproposed builder submissions with URL evidence.
 curl -s -H "Authorization: Bearer $TOKEN" \
   "$BASE_URL/api/v1/ai-review/?category=builder&exclude_empty_evidence=true"
-
-# Pending submissions edited after a more-info request.
-curl -s -H "Authorization: Bearer $TOKEN" \
-  "$BASE_URL/api/v1/ai-review/?resubmitted_more_info=true"
 
 # Active more-info proposals from AI or human stewards.
 curl -s -H "Authorization: Bearer $TOKEN" \
