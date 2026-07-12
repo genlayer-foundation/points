@@ -420,6 +420,7 @@ let refreshSessionPromise = null;
 
 /**
  * Verify authentication status.
+ * @param {{ force?: boolean }} [options={}] Optional configuration. Set `force` to bypass cached unauthenticated state.
  * @returns {Promise<boolean>} Authentication status
  */
 export async function verifyAuth(options = {}) {

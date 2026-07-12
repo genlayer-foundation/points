@@ -13,12 +13,14 @@ case "$ENVIRONMENT" in
     dev)
         ROLE_NAME="GitHubActions-TallyBackendDeploy-dev"
         SERVICE_NAME="tally-backend-dev"
+        SSM_PREFIX="/tally-backend"
         SSM_ENV="dev"
         INSTANCE_ROLE_NAME="AppRunnerInstanceRole-dev"
         ;;
     prod)
         ROLE_NAME="GitHubActions-TallyBackendDeploy-prod"
         SERVICE_NAME="tally-backend"
+        SSM_PREFIX="/tally"
         SSM_ENV="prod"
         INSTANCE_ROLE_NAME="AppRunnerInstanceRole-prod"
         ;;
@@ -98,7 +100,7 @@ cat > github-actions-policy.json << EOF
                 "apprunner:UpdateService",
                 "apprunner:DescribeService"
             ],
-            "Resource": "arn:aws:apprunner:$REGION:$ACCOUNT_ID:service/$SERVICE_NAME*"
+            "Resource": "arn:aws:apprunner:$REGION:$ACCOUNT_ID:service/$SERVICE_NAME/*"
         },
         {
             "Sid": "AppRunnerRead",
@@ -180,7 +182,7 @@ cat > github-actions-policy.json << EOF
                 "ssm:PutParameter"
             ],
             "Resource": [
-                "arn:aws:ssm:$REGION:$ACCOUNT_ID:parameter/tally-backend/$SSM_ENV/grafana_api_token"
+                "arn:aws:ssm:$REGION:$ACCOUNT_ID:parameter$SSM_PREFIX/$SSM_ENV/grafana_api_token"
             ]
         }
     ]
