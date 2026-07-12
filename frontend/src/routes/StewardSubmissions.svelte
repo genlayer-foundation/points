@@ -6,7 +6,7 @@
   import { stewardAPI, contributionsAPI, leaderboardAPI } from '../lib/api.js';
   import { stewardPermissions } from '../lib/stewardPermissions.js';
   import Pagination from '../components/Pagination.svelte';
-  import SubmissionCard from '../components/SubmissionCard.svelte';
+  import StewardSubmissionCard from '../components/StewardSubmissionCard.svelte';
   import StewardSearchBar from '../components/StewardSearchBar.svelte';
   import { showSuccess, showError } from '../lib/toastStore';
   import { parseSearch } from '../lib/searchParser.js';
@@ -85,7 +85,7 @@
     if (params.has('q')) searchQuery = params.get('q');
 
     // Prefetch missions for both categories to warm the cache
-    // This prevents duplicate API calls from individual SubmissionCard components
+    // This prevents duplicate API calls from individual steward cards.
     prefetchMissions([
       { is_active: true, category: 'validator' },
       { is_active: true, category: 'builder' },
@@ -459,6 +459,7 @@
       await loadNotes(submissionId);
     } catch (err) {
       showError('Failed to add note: ' + (err.response?.data?.detail || err.message));
+      throw err;
     }
   }
 
@@ -496,7 +497,7 @@
       }
 
       if (data.action === 'accept') {
-        apiData.points = parseInt(data.points);
+        apiData.points = data.points;
         apiData.contribution_type = data.contribution_type;
         apiData.user = parseInt(data.user);
         if (data.project_contribution) {
@@ -970,7 +971,7 @@
             </div>
           {/if}
 
-          <SubmissionCard
+          <StewardSubmissionCard
             {submission}
             showReviewForm={true}
             onReview={handleReview}
@@ -984,7 +985,6 @@
             {usersLoading}
             {usersLoaded}
             {multipliers}
-            isOwnSubmission={false}
             permissions={permissionsMap}
             {templates}
             notes={submissionNotes[submission.id] || []}

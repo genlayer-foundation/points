@@ -1,96 +1,79 @@
 <script>
   import { push } from 'svelte-spa-router';
   import { format } from '../lib/dates.js';
-  import ContributionCard from './ContributionCard.svelte';
-  import ContributionSelection from '../lib/components/ContributionSelection.svelte';
-  import CRMNotesPanel from './CRMNotesPanel.svelte';
-  import AIReviewAnalysisPanel from './AIReviewAnalysisPanel.svelte';
-  import Avatar from './Avatar.svelte';
-  import Badge from './Badge.svelte';
-  import Icons from './Icons.svelte';
-  import EvidenceUrlCard from './EvidenceUrlCard.svelte';
-  import { stewardAPI } from '../lib/api.js';
   import { parseMarkdown, parseUserMarkdown } from '../lib/markdownLoader.js';
-  import { showSuccess, showError } from '../lib/toastStore';
-  import {
-    RUBRIC_EXTRAS,
-    RUBRIC_GATE_FAILURES,
-    RUBRIC_SECTIONS,
-    buildRubricReviewPayload,
-    calculateRubricPoints,
-    defaultRubricSections,
-    hydrateRubricState,
-    isProjectReviewFlow,
-    validateRubricReviewState
-  } from '../lib/rubricReview.js';
+  import { showError, showSuccess } from '../lib/toastStore.js';
+  import Badge from './Badge.svelte';
+  import ContributionCard from './ContributionCard.svelte';
+  import EvidenceUrlCard from './EvidenceUrlCard.svelte';
 
-  let {
-    submission,
-    showReviewForm = false,
-    onReview = null,
-    onPropose = null,
-    onQuestionProposal = null,
-    onCancel = null,
-    reviewData = null,
-    isProcessing = false,
-    successMessage = '',
-    contributionTypes = [],
-    users = [],
-    usersLoading = false,
-    usersLoaded = false,
-    multipliers = {},
-    isOwnSubmission = false,
-    permissions = {},
-    templates = [],
-    notes = [],
-    notesLoading = false,
-    onAddNote = null,
-    onUpdateNote = null,
-    onToggleInteresting = null,
-    onContributionTypeUpdate = null,
-    onRequestUsers = null,
-    onAppeal = null,
-    currentUserId = null,
-    acceptedEdit = null,
-    canEditAccepted = false,
-    acceptedUpdating = false,
-    contributionTypeUpdating = false,
-    onAcceptedEditChange = null,
-    onAcceptedUpdate = null,
-    enableRubricReview = false
-  } = $props();
+  /** @type {{
+   *   submission: Record<string, any>,
+   *   onAppeal?: ((submissionId: string | number, reason: string) => Promise<unknown>) | null
+   * }} */
+  let { submission, onAppeal = null } = $props();
 
-  let togglingInteresting = $state(false);
-  let copyingSubmissionId = $state(false);
+  /** @type {Record<string, { badge: string, border: string, header: string }>} */
+  const STATE_STYLES = {
+    pending: {
+      badge: 'bg-yellow-100 text-yellow-800',
+      border: 'border-l-yellow-400',
+      header: 'bg-yellow-50'
+    },
+    accepted: {
+      badge: 'bg-green-100 text-green-800',
+      border: 'border-l-green-400',
+      header: 'bg-green-50'
+    },
+    rejected: {
+      badge: 'bg-red-100 text-red-800',
+      border: 'border-l-red-400',
+      header: 'bg-red-50'
+    },
+    canceled: {
+      badge: 'bg-gray-100 text-gray-700',
+      border: 'border-l-gray-400',
+      header: 'bg-gray-50'
+    },
+    more_info_needed: {
+      badge: 'bg-blue-100 text-blue-800',
+      border: 'border-l-blue-400',
+      header: 'bg-blue-50'
+    }
+  };
+  const DEFAULT_STATE_STYLE = {
+    badge: 'bg-gray-100 text-gray-800',
+    border: 'border-l-gray-400',
+    header: 'bg-gray-50'
+  };
+
   let appealReason = $state('');
   let submittingAppeal = $state(false);
-  let showUserPicker = $state(false);
-  let showQuestionForm = $state(false);
-  let questionFeedback = $state('');
-  let questionSubmitting = $state(false);
-  let lastQuestionSubmissionId = $state(null);
-  /** @type {Array<Record<string, any>>} */
-  let aiFeedbackRecords = $state([]);
-  let aiFeedbackLoading = $state(false);
-  let aiFeedbackLoaded = $state(false);
-  let aiFeedbackError = $state('');
-  let aiFeedbackContextKey = $state('');
-  let aiFeedbackRequestId = 0;
-  /** @type {string[]} */
-  let rubricGateFailures = $state([]);
-  let rubricSections = $state(defaultRubricSections());
-  /** @type {string[]} */
-  let rubricExtras = $state([]);
-  let rubricOverallReason = $state('');
+  let copyingSubmissionId = $state(false);
 
+  let stateStyle = $derived(STATE_STYLES[submission.state] || DEFAULT_STATE_STYLE);
+  let contributionTypeName = $derived(
+    submission.contribution_type_name ||
+    submission.contribution_type_details?.name ||
+    'Contribution'
+  );
+  let isMilestoneSubmission = $derived(
+    submission.contribution_type_details?.slug === 'milestones'
+  );
   let textOnlyEvidence = $derived(
-    (submission.evidence_items || []).filter(evidence => !evidence?.url && evidence?.description)
+    (submission.evidence_items || []).filter(
+      (/** @type {Record<string, any>} */ evidence) => !evidence?.url && evidence?.description
+    )
   );
   let urlEvidence = $derived(
-    (submission.evidence_items || []).filter(evidence => evidence?.url)
+    (submission.evidence_items || []).filter(
+      (/** @type {Record<string, any>} */ evidence) => evidence?.url
+    )
   );
   let moreInfoRequests = $derived(
-    (submission.more_info_requests || []).filter(request => request?.message)
+    (submission.more_info_requests || []).filter(
+      (/** @type {Record<string, any>} */ request) => request?.message
+    )
   );
   let showStaffResponse = $derived(Boolean(
     submission.staff_reply &&
@@ -98,54 +81,35 @@
     submission.state !== 'canceled' &&
     !(submission.state === 'more_info_needed' && moreInfoRequests.length > 0)
   ));
-  let isProposalQuestioned = $derived(submission.proposal_review_status === 'questioned');
-  let isProposalPendingReview = $derived(
-    submission.has_proposal &&
-    (submission.proposal_review_status === 'pending_review' || !submission.proposal_review_status)
-  );
-  let isOpenReviewState = $derived(
-    submission.state === 'pending' || submission.state === 'more_info_needed'
-  );
-  let isCurrentProposalOwner = $derived(Boolean(
-    currentUserId &&
-    submission.proposed_by &&
-    String(submission.proposed_by) === String(currentUserId)
-  ));
-  let hasAnyTypePermission = $derived(Boolean(
-    permissions[submission.contribution_type]?.length
-  ));
-  let isFeedbackOwnSubmission = $derived(Boolean(
-    currentUserId !== null &&
-    currentUserId !== undefined &&
-    submission.user !== null &&
-    submission.user !== undefined &&
-    String(submission.user) === String(currentUserId)
-  ));
-  let canFileFeedback = $derived(Boolean(
-    showReviewForm &&
-    !isOwnSubmission &&
-    !isFeedbackOwnSubmission &&
-    currentUserId !== null &&
-    currentUserId !== undefined &&
-    submission.ai_analysis &&
-    hasAnyTypePermission
-  ));
 
+  /** @param {string | null | undefined} dateString */
+  function formatDate(dateString) {
+    if (!dateString) return 'N/A';
+    return format(new Date(dateString), 'MMM d, yyyy HH:mm');
+  }
+
+  /** @param {string | number} text */
   async function writeClipboard(text) {
+    const clipboardText = String(text);
     if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(clipboardText);
       return;
     }
 
     const textArea = document.createElement('textarea');
-    textArea.value = text;
+    textArea.value = clipboardText;
     textArea.style.position = 'fixed';
     textArea.style.opacity = '0';
     document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    document.execCommand('copy');
-    document.body.removeChild(textArea);
+    try {
+      textArea.focus();
+      textArea.select();
+      if (!document.execCommand('copy')) {
+        throw new Error('Clipboard copy was rejected');
+      }
+    } finally {
+      textArea.remove();
+    }
   }
 
   async function handleCopySubmissionId() {
@@ -154,720 +118,18 @@
     try {
       await writeClipboard(submission.id);
       showSuccess('Submission ID copied to clipboard');
-    } catch (err) {
-      showError('Failed to copy submission ID: ' + (err?.message || 'unknown error'));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'unknown error';
+      showError('Failed to copy submission ID: ' + message);
     } finally {
       copyingSubmissionId = false;
     }
   }
 
-  async function handleToggleInteresting(event) {
-    if (!onToggleInteresting) return;
-    const checkbox = event.target;
-    const next = checkbox.checked;
-    togglingInteresting = true;
-    try {
-      await onToggleInteresting(submission.id, next);
-    } catch {
-      // Parent failed to persist; the prop hasn't changed, so resync the DOM
-      // back to the underlying value to undo the browser's optimistic flip.
-      checkbox.checked = submission.is_interesting;
-    } finally {
-      togglingInteresting = false;
-    }
-  }
-
-  // Determine which actions this steward can take on this submission
-  let canAccept = $derived(
-    showReviewForm && !isProposalQuestioned && permissions[submission.contribution_type]?.includes('accept')
-  );
-  let canReject = $derived(
-    showReviewForm && !isProposalQuestioned && permissions[submission.contribution_type]?.includes('reject')
-  );
-  let canRequestInfo = $derived(
-    showReviewForm && !isProposalQuestioned && permissions[submission.contribution_type]?.includes('request_more_info')
-  );
-  let canPropose = $derived(
-    showReviewForm &&
-    permissions[submission.contribution_type]?.includes('propose') &&
-    (!isProposalQuestioned || isCurrentProposalOwner)
-  );
-  let canChangeContributionType = $derived(
-    showReviewForm &&
-    !isProposalQuestioned &&
-    (permissions[submission.contribution_type]?.includes('accept') ||
-      permissions[submission.contribution_type]?.includes('reject'))
-  );
-  let canEditActiveProposalNote = $derived(
-    canPropose &&
-    submission.state === 'pending' &&
-    submission.has_proposal &&
-    !isProposalQuestioned &&
-    currentUserId &&
-    String(submission.proposed_by) === String(currentUserId)
-  );
-  let canQuestionProposal = $derived(Boolean(
-    showReviewForm &&
-    onQuestionProposal &&
-    !submission.proposal_is_ai &&
-    isOpenReviewState &&
-    isProposalPendingReview &&
-    currentUserId &&
-    !isCurrentProposalOwner &&
-    (
-      permissions[submission.contribution_type]?.includes('accept') ||
-      permissions[submission.contribution_type]?.includes('reject') ||
-      permissions[submission.contribution_type]?.includes('request_more_info')
-    )
-  ));
-  let activeProposalNoteId = $derived.by(() => {
-    if (!canEditActiveProposalNote) return null;
-    const proposalNotes = (notes || []).filter(note => note.is_proposal);
-    if (!proposalNotes.length) return null;
-    const latest = [...proposalNotes].sort((a, b) => {
-      const timeDiff = new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
-      if (timeDiff !== 0) return timeDiff;
-
-      const aId = Number(a.id);
-      const bId = Number(b.id);
-      if (Number.isFinite(aId) && Number.isFinite(bId)) return bId - aId;
-      return String(b.id).localeCompare(String(a.id));
-    })[0];
-    return latest?.id ?? null;
-  });
-  let hasAnyAction = $derived(canAccept || canReject || canRequestInfo || canPropose);
-
-  // State for review form
-  let reviewAction = $state(reviewData?.action || 'accept');
-  let proposedAction = $state('accept');
-
-  // Filter templates by action type
-  let acceptTemplates = $derived(templates.filter(t => t.action === 'accept'));
-  let rejectTemplates = $derived(templates.filter(t => t.action === 'reject'));
-  let moreInfoTemplates = $derived(templates.filter(t => t.action === 'more_info'));
-  let proposeContextTemplates = $derived(
-    reviewAction === 'propose' && proposedAction === 'reject' ? rejectTemplates :
-    reviewAction === 'propose' && proposedAction === 'more_info' ? moreInfoTemplates :
-    acceptTemplates
-  );
-  let selectedUser = $state(reviewData?.user || submission.user);
-  let selectedType = $state(reviewData?.contribution_type || submission.contribution_type);
-  let selectedProject = $state(reviewData?.project_contribution || submission.project_contribution?.id || '');
-  let acceptedProjects = $state([]);
-  let acceptedProjectsLoading = $state(false);
-  let acceptedProjectsError = $state('');
-  let acceptedProjectsUser = $state(null);
-  let acceptedProjectsLoaded = $state(false);
-  let acceptedProjectsRequestId = 0;
-  let defaultSelectedUserDetails = $derived(
-    String(selectedUser) === String(submission.user)
-      ? submission.user_details
-      : String(selectedUser) === String(submission.proposed_user)
-        ? submission.proposed_user_details
-        : null
-  );
-  let selectedUserDetails = $derived(
-    showUserPicker
-      ? users.find(u => String(u.id) === String(selectedUser)) || defaultSelectedUserDetails
-      : defaultSelectedUserDetails
-  );
-  let selectedUserLabel = $derived(
-    selectedUserDetails?.display_name ||
-    selectedUserDetails?.name ||
-    selectedUserDetails?.address ||
-    (selectedUser ? `User #${selectedUser}` : 'Current submitter')
-  );
-  let selectedTypeDetails = $derived(
-    contributionTypes.find(t => String(t.id) === String(selectedType)) ||
-    (String(selectedType) === String(submission.contribution_type) ? submission.contribution_type_details : null)
-  );
-  let isSelectedMilestoneType = $derived(selectedTypeDetails?.slug === 'milestones');
-  let selectedProjectData = $derived(
-    acceptedProjects.find(project => String(project.id) === String(selectedProject)) ||
-    (String(submission.project_contribution?.id) === String(selectedProject) ? submission.project_contribution : null)
-  );
-  let isProjectReview = $derived(
-    enableRubricReview && isProjectReviewFlow(
-      reviewAction === 'accept' || (reviewAction === 'propose' && proposedAction === 'accept')
-        ? selectedTypeDetails?.review_flow
-        : submission.contribution_type_details?.review_flow
-    )
-  );
-  let rubricState = $derived({
-    gateFailures: rubricGateFailures,
-    sections: rubricSections,
-    extras: rubricExtras,
-    overallReason: rubricOverallReason
-  });
-  let hasRubricGateFailures = $derived(rubricGateFailures.length > 0);
-  let activeRubricAction = $derived(
-    reviewAction === 'propose'
-      ? proposedAction
-      : normalizeAction(reviewAction) || normalizeProposedAction(submission.proposed_action)
-  );
-  let isProposalRubric = $derived(reviewAction === 'propose');
-  let showProjectRubric = $derived(
-    isProjectReview && (reviewAction === 'accept' || reviewAction === 'reject' || reviewAction === 'propose')
-  );
-  let proposalNoticeTone = $derived(getRubricTone(normalizeProposedAction(submission.proposed_action), true));
-  let rubricTone = $derived(getRubricTone(activeRubricAction, isProposalRubric));
-  let points = $state(reviewData?.points || submission.proposed_points || submission.contribution_type_details?.min_points || 0);
-  let staffReply = $state(reviewData?.staff_reply || '');
-  let createHighlight = $state(reviewData?.create_highlight || false);
-  let highlightTitle = $state(reviewData?.highlight_title || '');
-  let highlightDescription = $state(reviewData?.highlight_description || '');
-  let selectedTemplateId = $state(null);
-  let autoSelectedGateKey = $state(null);
-  let autoSelectedGateTemplateText = $state('');
-  let rubricPointsManuallyEdited = $state(false);
-
-  $effect(() => {
-    if (isProjectReview && !hasRubricGateFailures) {
-      updateProjectRubricPoints(rubricState);
-    }
-  });
-
-  // For ContributionSelection component
-  let selectedCategory = $state(submission.contribution_type_details?.category || 'validator');
-  let selectedContributionTypeObj = $state(null);
-  let selectedMission = $state(submission.mission || null);
-  let isMilestoneSubmission = $derived(submission.contribution_type_details?.slug === 'milestones');
-
-  // Track which submission's proposal we've auto-filled to avoid overwriting user edits
-  let lastProposalFilled = $state(null);
-
-  function normalizeAction(action) {
-    if (action === 'request_more_info') return 'more_info';
-    if (action === 'accept' || action === 'reject' || action === 'more_info' || action === 'propose') {
-      return action;
-    }
-    return null;
-  }
-
-  function normalizeProposedAction(action) {
-    const normalized = normalizeAction(action);
-    return normalized === 'propose' ? null : normalized;
-  }
-
-  function getRubricTone(action, isProposal = true) {
-    const noun = isProposal ? 'proposal' : 'evaluation';
-    switch (action) {
-      case 'accept':
-        return {
-          label: `Accept ${noun}`,
-          shortLabel: 'Accept',
-          description: isProposal
-            ? 'This rubric supports accepting the project contribution.'
-            : 'Score the project before accepting. Criterion reasons are not needed for a final decision.',
-          border: 'border-emerald-300',
-          container: 'bg-emerald-50',
-          header: 'border-emerald-200 bg-emerald-100/70',
-          title: 'text-emerald-950',
-          body: 'text-emerald-800',
-          pill: 'bg-emerald-600 text-white',
-          focus: 'focus:border-emerald-500 focus:ring-emerald-400',
-          button: 'bg-emerald-600 hover:bg-emerald-700'
-        };
-      case 'reject':
-        return {
-          label: `Reject ${noun}`,
-          shortLabel: 'Reject',
-          description: hasRubricGateFailures
-            ? `One or more gate failures require this to stay a reject ${noun}.`
-            : isProposal
-              ? 'This rubric supports rejecting the project contribution.'
-              : 'Score the project before rejecting, or select a gate failure to use its rejection template.',
-          border: 'border-red-300',
-          container: 'bg-red-50',
-          header: 'border-red-200 bg-red-100/70',
-          title: 'text-red-950',
-          body: 'text-red-800',
-          pill: 'bg-red-600 text-white',
-          focus: 'focus:border-red-500 focus:ring-red-400',
-          button: 'bg-red-600 hover:bg-red-700'
-        };
-      case 'more_info':
-        return {
-          label: isProposal ? 'Request-info proposal' : 'Request-info evaluation',
-          shortLabel: 'Request info',
-          description: isProposal
-            ? 'This rubric supports asking the contributor for more evidence or clarification.'
-            : 'Use this when the project cannot be evaluated from the current evidence.',
-          border: 'border-blue-300',
-          container: 'bg-blue-50',
-          header: 'border-blue-200 bg-blue-100/70',
-          title: 'text-blue-950',
-          body: 'text-blue-800',
-          pill: 'bg-blue-600 text-white',
-          focus: 'focus:border-blue-500 focus:ring-blue-400',
-          button: 'bg-blue-600 hover:bg-blue-700'
-        };
-      default:
-        return {
-          label: isProposal ? 'Proposal' : 'Evaluation',
-          shortLabel: isProposal ? 'Proposal' : 'Evaluation',
-          description: isProposal
-            ? 'Choose the proposed action before submitting the rubric.'
-            : 'Choose the final decision before using the rubric.',
-          border: 'border-amber-300',
-          container: 'bg-amber-50',
-          header: 'border-amber-200 bg-amber-100/70',
-          title: 'text-amber-950',
-          body: 'text-amber-800',
-          pill: 'bg-amber-600 text-white',
-          focus: 'focus:border-amber-500 focus:ring-amber-400',
-          button: 'bg-amber-600 hover:bg-amber-700'
-        };
-    }
-  }
-
-  function canUseReviewAction(action) {
-    const normalized = normalizeAction(action);
-    if (normalized === 'accept') return canAccept;
-    if (normalized === 'reject') return canReject;
-    if (normalized === 'more_info') return canRequestInfo;
-    if (normalized === 'propose') return canPropose;
-    return false;
-  }
-
-  function getDefaultAction() {
-    // Pick the first available action as default
-    if (canAccept) return 'accept';
-    if (canReject) return 'reject';
-    if (canRequestInfo) return 'more_info';
-    if (canPropose) return 'propose';
-    return 'accept';
-  }
-
-  // Auto-fill form from proposal data when available. Wait until this card has
-  // permissions so proposal-only stewards do not get pinned to the accept view.
-  $effect(() => {
-    if (submission?.has_proposal && hasAnyAction && lastProposalFilled !== submission.id) {
-      lastProposalFilled = submission.id;
-
-      const action = normalizeProposedAction(submission.proposed_action) || 'accept';
-
-      if (canUseReviewAction(action)) {
-        reviewAction = action;
-      } else if (canPropose) {
-        reviewAction = 'propose';
-        proposedAction = action;
-      } else {
-        reviewAction = getDefaultAction();
-        proposedAction = 'accept';
-      }
-
-      selectedUser = submission.proposed_user || submission.user;
-      selectedType = submission.proposed_contribution_type || submission.contribution_type;
-      points = submission.proposed_points ?? submission.contribution_type_details?.min_points ?? 0;
-      staffReply = submission.proposed_staff_reply || '';
-      createHighlight = submission.proposed_create_highlight || false;
-      highlightTitle = submission.proposed_highlight_title || '';
-      highlightDescription = submission.proposed_highlight_description || '';
-
-      const type = contributionTypes.find(t => t.id === selectedType);
-      selectedCategory = type?.category || submission.contribution_type_details?.category || 'validator';
-
-      if (submission.rubric_review) {
-        applyRubricReview(submission.rubric_review);
-      }
-    }
-  });
-
-  $effect(() => {
-    if (hasAnyAction && !canUseReviewAction(reviewAction)) {
-      reviewAction = getDefaultAction();
-    }
-  });
-
-  $effect(() => {
-    if (submission?.rubric_review && lastProposalFilled !== submission.id) {
-      applyRubricReview(submission.rubric_review);
-    }
-  });
-
-  $effect(() => {
-    if (hasRubricGateFailures && proposedAction !== 'reject') {
-      proposedAction = 'reject';
-    }
-  });
-
-  $effect(() => {
-    if (submission.id !== lastQuestionSubmissionId) {
-      lastQuestionSubmissionId = submission.id;
-      showQuestionForm = false;
-      questionFeedback = '';
-      return;
-    }
-    if (!canQuestionProposal) {
-      showQuestionForm = false;
-    }
-  });
-
-  $effect(() => {
-    const nextContextKey = `${submission.id}:${submission.ai_analysis?.id ?? 'none'}`;
-    if (nextContextKey !== aiFeedbackContextKey) {
-      aiFeedbackContextKey = nextContextKey;
-      aiFeedbackRequestId += 1;
-      aiFeedbackRecords = [];
-      aiFeedbackLoading = false;
-      aiFeedbackLoaded = false;
-      aiFeedbackError = '';
-    }
-  });
-
-  // Sync selected contribution type with the ContributionSelection component
-  $effect(() => {
-    if (selectedContributionTypeObj && selectedContributionTypeObj.id !== selectedType) {
-      // Only update if the type actually changed
-      selectedType = selectedContributionTypeObj.id;
-      rubricPointsManuallyEdited = false;
-      // Update points to the minimum of the new type
-      const type = contributionTypes.find(t => t.id === selectedType);
-      if (type) {
-        points = type.min_points;
-      }
-    }
-  });
-
-  $effect(() => {
-    if (reviewAction === 'accept' && isSelectedMilestoneType && selectedUser) {
-      loadAcceptedProjectsForSelectedUser(selectedUser);
-    }
-    if (!isSelectedMilestoneType) {
-      acceptedProjectsError = '';
-      acceptedProjectsLoaded = false;
-    }
-  });
-
-  function canReviewContributionType(typeId) {
-    return permissions[typeId]?.includes('accept') || permissions[typeId]?.includes('reject');
-  }
-
-  async function handleContributionSelectionChange(category, contributionType) {
-    if (!contributionType || contributionTypeUpdating) return;
-    if (String(contributionType.id) === String(submission.contribution_type)) return;
-    if (!onContributionTypeUpdate || !canChangeContributionType) return;
-    if (!canReviewContributionType(contributionType.id)) {
-      showError('You need accept or reject permission on the selected type.');
-      selectedType = submission.contribution_type;
-      selectedContributionTypeObj = contributionTypes.find(
-        type => String(type.id) === String(submission.contribution_type)
-      ) || null;
-      return;
-    }
-    await onContributionTypeUpdate(submission.id, contributionType.id);
-  }
-
-  function getStateClass(state) {
-    switch (state) {
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'accepted':
-        return 'bg-green-100 text-green-800';
-      case 'rejected':
-        return 'bg-red-100 text-red-800';
-      case 'canceled':
-        return 'bg-gray-100 text-gray-700';
-      case 'more_info_needed':
-        return 'bg-blue-100 text-blue-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  }
-
-  function getStateBorderClass(state) {
-    switch (state) {
-      case 'pending':
-        return 'border-l-yellow-400';
-      case 'accepted':
-        return 'border-l-green-400';
-      case 'rejected':
-        return 'border-l-red-400';
-      case 'canceled':
-        return 'border-l-gray-400';
-      case 'more_info_needed':
-        return 'border-l-blue-400';
-      default:
-        return 'border-l-gray-400';
-    }
-  }
-
-  function getStateBackgroundClass(state) {
-    switch (state) {
-      case 'pending':
-        return 'bg-yellow-50';
-      case 'accepted':
-        return 'bg-green-50';
-      case 'rejected':
-        return 'bg-red-50';
-      case 'canceled':
-        return 'bg-gray-50';
-      case 'more_info_needed':
-        return 'bg-blue-50';
-      default:
-        return 'bg-gray-50';
-    }
-  }
-
-  function formatDate(dateString) {
-    if (!dateString) return 'N/A';
-    return format(new Date(dateString), 'MMM d, yyyy HH:mm');
-  }
-
-  function adjustPoints(delta) {
-    const type = selectedTypeDetails;
-    if (!type) return;
-
-    rubricPointsManuallyEdited = true;
-    const newPoints = points + delta;
-    points = Math.max(type.min_points, Math.min(type.max_points, newPoints));
-  }
-
-  function getFinalPoints() {
-    const multiplier = multipliers[selectedType] || 1;
-    return Math.round(points * multiplier);
-  }
-
-  function getTypeName(typeId) {
-    const type = contributionTypes.find(t => t.id === typeId);
-    return type?.name || 'Contribution';
-  }
-
-  function getGateFailure(key) {
-    return RUBRIC_GATE_FAILURES.find(gate => gate.key === key) || null;
-  }
-
-  function getGateFailureTemplate(key) {
-    const gate = getGateFailure(key);
-    if (!gate?.templateLabel) return null;
-    return rejectTemplates.find(template => template.label === gate.templateLabel) || null;
-  }
-
-  function applyTemplate(template) {
-    staffReply = template.text;
-    selectedTemplateId = template.id;
-  }
-
-  function applyGateFailureTemplate(key) {
-    const template = getGateFailureTemplate(key);
-    if (!template) return;
-    applyTemplate(template);
-    autoSelectedGateKey = key;
-    autoSelectedGateTemplateText = template.text;
-  }
-
-  function clearAutoGateTemplateIfUnchanged() {
-    if (autoSelectedGateTemplateText && staffReply === autoSelectedGateTemplateText) {
-      staffReply = '';
-      selectedTemplateId = null;
-    }
-    autoSelectedGateKey = null;
-    autoSelectedGateTemplateText = '';
-  }
-
-  function handleTemplateSelect(event) {
-    const templateId = event.target.value;
-    autoSelectedGateKey = null;
-    autoSelectedGateTemplateText = '';
-    if (!templateId) {
-      selectedTemplateId = null;
-      return;
-    }
-    const template = templates.find(t => String(t.id) === templateId);
-    if (template) {
-      applyTemplate(template);
-    }
-  }
-
-  function applyRubricReview(review) {
-    const state = hydrateRubricState(review);
-    rubricGateFailures = state.gateFailures;
-    rubricSections = state.sections;
-    rubricExtras = state.extras;
-    rubricOverallReason = state.overallReason;
-    updateProjectRubricPoints(state);
-  }
-
-  function updateProjectRubricPoints(state = rubricState) {
-    if (!isProjectReview || rubricPointsManuallyEdited || state.gateFailures?.length > 0) return;
-    points = clampPointsToSelectedType(
-      calculateRubricPoints(state, selectedTypeDetails?.rubric_extra_points)
-    );
-  }
-
-  function markPointsManuallyEdited() {
-    rubricPointsManuallyEdited = true;
-  }
-
-  function clampPointsToSelectedType(value) {
-    const min = Number(selectedTypeDetails?.min_points);
-    const max = Number(selectedTypeDetails?.max_points);
-    let nextValue = value;
-
-    if (Number.isFinite(min)) {
-      nextValue = Math.max(min, nextValue);
-    }
-    if (Number.isFinite(max)) {
-      nextValue = Math.min(max, nextValue);
-    }
-
-    return nextValue;
-  }
-
-  function toggleRubricGate(key) {
-    if (rubricGateFailures.includes(key)) {
-      const remainingGateFailures = rubricGateFailures.filter(item => item !== key);
-      rubricGateFailures = remainingGateFailures;
-      if (autoSelectedGateKey === key) {
-        if (remainingGateFailures.length > 0 && staffReply === autoSelectedGateTemplateText) {
-          applyGateFailureTemplate(remainingGateFailures[0]);
-        } else {
-          clearAutoGateTemplateIfUnchanged();
-        }
-      }
-      return;
-    }
-    rubricGateFailures = [...rubricGateFailures, key];
-    applyGateFailureTemplate(key);
-    if (reviewAction === 'propose') {
-      proposedAction = 'reject';
-    } else if (canReject) {
-      reviewAction = 'reject';
-    }
-  }
-
-  function toggleRubricExtra(key) {
-    if (rubricExtras.includes(key)) {
-      const nextExtras = rubricExtras.filter(item => item !== key);
-      rubricExtras = nextExtras;
-      updateProjectRubricPoints({ ...rubricState, extras: nextExtras });
-      return;
-    }
-    const nextExtras = [...rubricExtras, key];
-    rubricExtras = nextExtras;
-    updateProjectRubricPoints({ ...rubricState, extras: nextExtras });
-  }
-
-  function updateRubricScore(sectionKey, score) {
-    const nextSections = {
-      ...rubricSections,
-      [sectionKey]: {
-        ...(rubricSections[sectionKey] || { reason: '' }),
-        score: Number(score)
-      }
-    };
-    rubricSections = nextSections;
-    updateProjectRubricPoints({ ...rubricState, sections: nextSections });
-  }
-
-  function updateRubricReason(sectionKey, reason) {
-    rubricSections = {
-      ...rubricSections,
-      [sectionKey]: {
-        ...(rubricSections[sectionKey] || { score: 0 }),
-        reason
-      }
-    };
-  }
-
-  function getRubricSectionReason(sectionKey) {
-    return (rubricSections[sectionKey]?.reason || '').trim();
-  }
-
-  async function handleShowUserPicker() {
-    showUserPicker = true;
-    if (!usersLoaded && onRequestUsers) {
-      await onRequestUsers();
-    }
-  }
-
-  async function loadAcceptedProjectsForSelectedUser(userId) {
-    const userKey = String(userId || '');
-    if (!userKey) return;
-    if (acceptedProjectsLoading && acceptedProjectsUser === userKey) return;
-    if (acceptedProjectsLoaded && acceptedProjectsUser === userKey) return;
-
-    const requestId = ++acceptedProjectsRequestId;
-    const previousSelection = String(selectedProject || '');
-    acceptedProjectsUser = userKey;
-    acceptedProjects = [];
-    acceptedProjectsError = '';
-    acceptedProjectsLoaded = false;
-    acceptedProjectsLoading = true;
-
-    try {
-      const response = await stewardAPI.getAcceptedProjectsForUser(userKey, submission.id);
-      if (requestId !== acceptedProjectsRequestId) return;
-
-      const projects = response.data || [];
-      acceptedProjects = projects;
-      acceptedProjectsLoaded = true;
-
-      if (previousSelection && projects.some(project => String(project.id) === previousSelection)) {
-        selectedProject = previousSelection;
-        return;
-      }
-
-      const submissionProjectId = submission.project_contribution?.id;
-      if (
-        submissionProjectId &&
-        String(selectedUser) === String(submission.user) &&
-        projects.some(project => String(project.id) === String(submissionProjectId))
-      ) {
-        selectedProject = submissionProjectId;
-      } else {
-        selectedProject = '';
-      }
-    } catch (err) {
-      if (requestId !== acceptedProjectsRequestId) return;
-      acceptedProjectsError = err.response?.data?.detail || err.message || 'Failed to load accepted projects';
-      acceptedProjectsUser = null;
-      acceptedProjectsLoaded = false;
-      selectedProject = '';
-    } finally {
-      if (requestId === acceptedProjectsRequestId) {
-        acceptedProjectsLoading = false;
-      }
-    }
-  }
-
-  function handleReview() {
-    if (onReview) {
-      if (isProjectReview && reviewAction === 'accept' && hasRubricGateFailures) {
-        showError('Clear all gate failures before accepting this project.');
-        return;
-      }
-      if (reviewAction === 'accept' && isSelectedMilestoneType && !selectedProject) {
-        showError('Select the accepted project this milestone belongs to.');
-        return;
-      }
-
-      const data = {
-        action: reviewAction,
-        user: selectedUser,
-        contribution_type: selectedType,
-        points,
-        staff_reply: staffReply,
-        create_highlight: createHighlight,
-        highlight_title: highlightTitle,
-        highlight_description: highlightDescription,
-        template_id: selectedTemplateId
-      };
-      if (isSelectedMilestoneType) {
-        data.project_contribution = selectedProject;
-      }
-      if (isProjectReview && (reviewAction === 'accept' || reviewAction === 'reject')) {
-        data.rubric_review = buildRubricReviewPayload(rubricState);
-      }
-      onReview(submission.id, data);
-    }
-  }
-
   async function handleAppeal() {
-    if (!onAppeal) return;
     const reason = appealReason.trim();
-    if (!reason) return;
+    if (!onAppeal || !reason || submittingAppeal) return;
+
     submittingAppeal = true;
     try {
       await onAppeal(submission.id, reason);
@@ -877,510 +139,89 @@
     }
   }
 
-  function handlePropose() {
-    if (onPropose) {
-      if (isProjectReview) {
-        const validationError = validateRubricReviewState(rubricState, proposedAction);
-        if (validationError) {
-          showError(validationError);
-          return;
-        }
-      }
-
-      const data = {
-        proposed_action: proposedAction,
-        proposed_staff_reply: staffReply,
-        template_id: selectedTemplateId,
-      };
-
-      // Only include accept-specific fields when proposing accept
-      if (proposedAction === 'accept') {
-        if (!isProjectReview) {
-          data.proposed_points = points;
-        }
-        data.proposed_contribution_type = selectedType;
-        data.proposed_user = selectedUser;
-        if (!isProjectReview) {
-          data.proposed_create_highlight = createHighlight;
-          data.proposed_highlight_title = highlightTitle;
-          data.proposed_highlight_description = highlightDescription;
-        }
-      }
-
-      if (isProjectReview) {
-        data.rubric_review = buildRubricReviewPayload(rubricState);
-      }
-
-      onPropose(submission.id, data);
-    }
+  function editSubmission() {
+    const missionQuery = submission.mission?.id ? `?mission=${submission.mission.id}` : '';
+    push(`/contributions/${submission.id}${missionQuery}`);
   }
-
-  async function handleQuestionProposal() {
-    if (!onQuestionProposal) return;
-    const message = questionFeedback.trim();
-    if (!message) {
-      showError('Add feedback before questioning this proposal.');
-      return;
-    }
-
-    questionSubmitting = true;
-    try {
-      await onQuestionProposal(submission.id, message);
-      questionFeedback = '';
-      showQuestionForm = false;
-    } catch {
-      // Parent reports the error; keep the form open so feedback is not lost.
-    } finally {
-      questionSubmitting = false;
-    }
-  }
-
-  /** @param {boolean} [force] */
-  async function loadAIFeedback(force = false) {
-    if (!submission.ai_analysis || aiFeedbackLoading) return null;
-    if (aiFeedbackLoaded && !force) return aiFeedbackRecords;
-
-    const contextKey = `${submission.id}:${submission.ai_analysis.id ?? 'none'}`;
-    const requestId = ++aiFeedbackRequestId;
-    aiFeedbackLoading = true;
-    aiFeedbackError = '';
-
-    try {
-      const response = await stewardAPI.getAIFeedback(submission.id);
-      if (requestId !== aiFeedbackRequestId || contextKey !== aiFeedbackContextKey) return;
-      const records = Array.isArray(response.data)
-        ? response.data
-        : response.data?.results || [];
-      aiFeedbackRecords = records;
-      aiFeedbackLoaded = true;
-      return records;
-    } catch (error) {
-      if (requestId !== aiFeedbackRequestId || contextKey !== aiFeedbackContextKey) return;
-      const requestError = /** @type {any} */ (error);
-      if (requestError.response?.status === 403) {
-        aiFeedbackRecords = [];
-        aiFeedbackLoaded = true;
-        aiFeedbackError = '';
-        return [];
-      }
-      aiFeedbackError = 'Could not load steward feedback.';
-      showError('Failed to load AI review feedback: ' + (
-        requestError.response?.data?.detail || requestError.message
-      ));
-      return null;
-    } finally {
-      if (requestId === aiFeedbackRequestId && contextKey === aiFeedbackContextKey) {
-        aiFeedbackLoading = false;
-      }
-    }
-  }
-
-  /** @param {Record<string, any>} record */
-  function handleAIFeedbackSaved(record) {
-    if (!record) return;
-    const existingIndex = aiFeedbackRecords.findIndex(item =>
-      item.id === record.id || (
-        String(item.review_proposal_id) === String(record.review_proposal_id) &&
-        String(item.reviewer_id) === String(record.reviewer_id)
-      )
-    );
-    if (existingIndex === -1) {
-      aiFeedbackRecords = [record, ...aiFeedbackRecords];
-    } else {
-      aiFeedbackRecords = aiFeedbackRecords.map((item, index) => index === existingIndex ? record : item);
-    }
-    aiFeedbackLoaded = true;
-    aiFeedbackError = '';
-  }
-
-  const SOCIAL_PLATFORMS = [
-    {
-      key: 'github_connection',
-      label: 'GitHub',
-      color: '#24292f',
-      profileUrl: (u) => `https://github.com/${u}`,
-      icon: '<svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.45-1.15-1.11-1.46-1.11-1.46-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0012 2z"/></svg>',
-    },
-    {
-      key: 'twitter_connection',
-      label: 'X',
-      color: '#000000',
-      profileUrl: (u) => `https://x.com/${u}`,
-      icon: '<svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>',
-    },
-    {
-      key: 'discord_connection',
-      label: 'Discord',
-      color: '#5865F2',
-      profileUrl: null,
-      icon: '<svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>',
-    },
-  ];
 </script>
 
-{#snippet socialPills(user)}
-  {#if user}
-    {#each SOCIAL_PLATFORMS as platform}
-      {@const connection = user[platform.key]}
-      {#if connection?.platform_username}
-        {#if platform.profileUrl}
-          <a
-            href={platform.profileUrl(connection.platform_username)}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="social-pill"
-            style="background-color: {platform.color};"
-            title="{platform.label}: @{connection.platform_username}"
-          >
-            <span class="social-pill-icon">{@html platform.icon}</span>
-            <span class="social-pill-name">{connection.platform_username}</span>
-          </a>
-        {:else}
-          <span
-            class="social-pill"
-            style="background-color: {platform.color};"
-            title="{platform.label}: {connection.platform_username}"
-          >
-            <span class="social-pill-icon">{@html platform.icon}</span>
-            <span class="social-pill-name">{connection.platform_username}</span>
-          </span>
-        {/if}
-      {/if}
-    {/each}
-  {/if}
-{/snippet}
-
-{#snippet projectRubric()}
-  <div class="rounded-lg border {rubricTone.border} {rubricTone.container}">
-    <div class="border-b px-4 py-3 {rubricTone.header}">
-      <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h4 class="text-sm font-semibold {rubricTone.title}">Project rubric</h4>
-          <p class="mt-1 text-xs {rubricTone.body}">
-            {rubricTone.description}
-          </p>
-        </div>
-        <span class="inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-semibold {rubricTone.pill}">
-          {rubricTone.label}
-        </span>
-      </div>
-    </div>
-
-    <div class="space-y-4 p-4">
-      {#if hasRubricGateFailures}
-        <div class="rounded-md border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-800">
-          {isProposalRubric
-            ? 'Gate failures force a reject proposal. Clear all gate failures to propose accept or request info.'
-            : 'Gate failure selected. The action is set to reject and the matching rejection template is selected.'}
-        </div>
-      {/if}
-
-      <div>
-        <p class="mb-2 text-xs font-semibold uppercase text-slate-600">Gate failures</p>
-        <div class="grid gap-2 sm:grid-cols-2">
-          {#each RUBRIC_GATE_FAILURES as gate}
-            <label class="flex min-h-10 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium transition-colors {rubricGateFailures.includes(gate.key) ? 'border-red-300 bg-red-50 text-red-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}">
-              <input
-                type="checkbox"
-                checked={rubricGateFailures.includes(gate.key)}
-                onchange={() => toggleRubricGate(gate.key)}
-                class="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
-              />
-              <span>{gate.label}</span>
-            </label>
-          {/each}
-        </div>
-      </div>
-
-      {#if !isProposalRubric && rubricOverallReason}
-        <div class="rounded-md border border-slate-200 bg-white px-3 py-2">
-          <p class="mb-1 text-xs font-semibold uppercase text-slate-600">Overall reason</p>
-          <p class="whitespace-pre-wrap text-sm font-medium text-slate-900">{rubricOverallReason}</p>
-        </div>
-      {/if}
-
-      {#if !hasRubricGateFailures}
-        <div class="space-y-3">
-          {#each RUBRIC_SECTIONS as section}
-            {@const sectionReason = getRubricSectionReason(section.key)}
-            <div class="rounded-md border border-slate-200 bg-white p-3">
-              <div class="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <label for="rubric-score-{submission.id}-{section.key}" class="text-sm font-semibold text-slate-950">
-                    {section.label}
-                  </label>
-                  {#if !isProposalRubric && sectionReason}
-                    <p class="mt-1 text-xs text-slate-500">{sectionReason}</p>
-                  {/if}
-                </div>
-                <select
-                  id="rubric-score-{submission.id}-{section.key}"
-                  value={rubricSections[section.key]?.score ?? 0}
-                  onchange={(event) => updateRubricScore(section.key, event.currentTarget.value)}
-                  class="h-9 w-20 rounded-md border border-slate-300 bg-white px-2 text-sm font-semibold text-slate-900"
-                >
-                  {#each [0, 1, 2, 3, 4, 5] as scoreValue}
-                    <option value={scoreValue}>{scoreValue}/5</option>
-                  {/each}
-                </select>
-              </div>
-              {#if isProposalRubric}
-                <textarea
-                  value={rubricSections[section.key]?.reason || ''}
-                  oninput={(event) => updateRubricReason(section.key, event.currentTarget.value)}
-                  rows="2"
-                  aria-label="{section.label} reason optional"
-                  placeholder="Reason (optional)"
-                  class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 {rubricTone.focus}"
-                ></textarea>
-              {/if}
-            </div>
-          {/each}
-        </div>
-      {/if}
-
-      <div>
-        <p class="mb-2 text-xs font-semibold uppercase text-slate-600">Verified extras</p>
-        <div class="flex flex-wrap gap-2">
-          {#each RUBRIC_EXTRAS as extra}
-            <label class="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium transition-colors {rubricExtras.includes(extra.key) ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}">
-              <input
-                type="checkbox"
-                checked={rubricExtras.includes(extra.key)}
-                onchange={() => toggleRubricExtra(extra.key)}
-                class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-              />
-              <span>{extra.label}</span>
-            </label>
-          {/each}
-        </div>
-      </div>
-
-      {#if isProposalRubric}
-        <div>
-          <label for="rubric-overall-{submission.id}" class="mb-1 block text-sm font-medium text-slate-800">
-            Overall reason <span class="text-red-600">*</span>
-          </label>
-          <textarea
-            id="rubric-overall-{submission.id}"
-            bind:value={rubricOverallReason}
-            rows="3"
-            placeholder="Overall reason required"
-            class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 {rubricTone.focus}"
-          ></textarea>
-        </div>
-      {/if}
-    </div>
-  </div>
-{/snippet}
-
-<div class="bg-white shadow-lg rounded-lg border-l-4 {getStateBorderClass(submission.state)}">
-  <!-- Header -->
-  <div class="px-6 py-4 border-b {getStateBackgroundClass(submission.state)}">
-    <div class="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
+<div class="rounded-lg border-l-4 bg-white shadow-lg {stateStyle.border}">
+  <div class="border-b px-6 py-4 {stateStyle.header}">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div class="min-w-0">
-        <h3 class="text-lg font-semibold flex items-center gap-2 flex-wrap">
-          {#if isOwnSubmission}
-            {#if submission.mission}
-              <!-- Show mission name as title with Mission badge -->
-              <span>{submission.mission.name}</span>
-              <Badge
-                badge={{
-                  id: null,
-                  name: 'Mission',
-                  description: '',
-                  points: 0
-                }}
-                color="indigo"
-                size="sm"
-                clickable={false}
-                bold={false}
-              />
-            {:else}
-              <!-- Show contribution type as title when no mission -->
-              <span>{submission.contribution_type_name || getTypeName(submission.contribution_type)}</span>
-            {/if}
-            {#if isMilestoneSubmission && submission.milestone_version}
-              <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
-                v{submission.milestone_version}
-              </span>
-            {/if}
+        <h3 class="flex flex-wrap items-center gap-2 text-lg font-semibold">
+          {#if submission.mission}
+            <span>{submission.mission.name}</span>
+            <Badge
+              badge={{
+                id: null,
+                name: 'Mission',
+                description: '',
+                points: 0,
+                actionId: null,
+                actionName: '',
+                evidenceUrl: ''
+              }}
+              color="indigo"
+              size="sm"
+              clickable={false}
+              bold={false}
+            />
           {:else}
-            <div class="flex items-center gap-2">
-              <Avatar
-                user={submission.user_details}
-                size="sm"
-                clickable={true}
-              />
-              <span>{submission.user_details?.name || submission.user_details?.address?.slice(0, 8) + '...'}</span>
-            </div>
+            <span>{contributionTypeName}</span>
+          {/if}
+          {#if isMilestoneSubmission && submission.milestone_version}
+            <span class="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
+              v{submission.milestone_version}
+            </span>
           {/if}
         </h3>
-        <p class="text-sm text-gray-600">
-          Submitted {formatDate(submission.created_at)}
-        </p>
+        <p class="text-sm text-gray-600">Submitted {formatDate(submission.created_at)}</p>
       </div>
+
       <div class="flex flex-wrap items-center gap-2 sm:justify-end">
         <button
           type="button"
           onclick={handleCopySubmissionId}
           disabled={copyingSubmissionId}
-          class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors"
+          class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
           title="Copy submission ID"
         >
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16h8M8 12h8m-7 8h6a2 2 0 002-2V7.8a2 2 0 00-.59-1.41l-2.8-2.8A2 2 0 0012.2 3H9a2 2 0 00-2 2v13a2 2 0 002 2z" />
           </svg>
           <span>{copyingSubmissionId ? 'Copying...' : 'Copy ID'}</span>
         </button>
-        {#if !isOwnSubmission && onToggleInteresting}
-          <label
-            class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer select-none transition-colors {submission.is_interesting ? 'bg-purple-100 text-purple-800 hover:bg-purple-200' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}"
-            title="Mark this submission as internally interesting"
-          >
-            <input
-              type="checkbox"
-              checked={submission.is_interesting}
-              disabled={togglingInteresting}
-              onchange={handleToggleInteresting}
-              class="w-3.5 h-3.5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
-            />
-            <span>{submission.is_interesting ? 'Interesting' : 'Mark interesting'}</span>
-          </label>
-        {/if}
-        {#if submission.has_proposal}
-          <span class="px-2 py-0.5 rounded-full text-xs font-medium {isProposalQuestioned ? 'bg-orange-100 text-orange-800' : 'bg-amber-100 text-amber-800'}">
-            {isProposalQuestioned ? 'Proposal questioned' : 'Proposal'}
-          </span>
-        {/if}
-        {#if !isOwnSubmission && submission.has_appeal}
-          <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800" title="Submitter has appealed this submission">
-            Appealed
-          </span>
-        {/if}
-        {#if submission.notes_count > 0}
-          <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-            {submission.notes_count} note{submission.notes_count !== 1 ? 's' : ''}
-          </span>
-        {/if}
-        <span class="px-3 py-1 rounded-full text-sm font-medium {getStateClass(submission.state)}">
+        <span class="rounded-full px-3 py-1 text-sm font-medium {stateStyle.badge}">
           {submission.state_display}
         </span>
       </div>
     </div>
   </div>
 
-  <!-- Content -->
   <div class="px-6 py-4">
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-start">
-      <!-- Left Column - Submission Details + CRM Notes -->
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
       <div class="flex flex-col gap-4">
-        {#if !isOwnSubmission}
-          <div>
-            <h4 class="text-sm font-medium text-gray-700">User</h4>
-            <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-              <Avatar
-                user={submission.user_details}
-                size="xs"
-                clickable={true}
-              />
-              <span class="text-sm text-gray-900">
-                {submission.user_details?.name || submission.user_details?.address?.slice(0, 8) + '...'}
-              </span>
-              {@render socialPills(submission.user_details)}
-              {#if submission.user_details?.id || submission.user_details?.address}
-                <a
-                  href="/participant/{submission.user_details?.id ?? submission.user_details?.address}"
-                  class="text-xs text-primary-600 hover:text-primary-700 hover:underline"
-                >
-                  View Profile →
-                </a>
-              {/if}
-            </div>
-          </div>
-
+        {#if submission.mission}
           <div>
             <h4 class="text-sm font-medium text-gray-700">Contribution Type</h4>
-            <div class="mt-1 flex items-center gap-2 flex-wrap">
-              <span class="text-sm text-gray-900">
-                {submission.contribution_type_details?.name}
-              </span>
-              <span class="text-xs text-gray-500">
-                ({submission.contribution_type_details?.min_points}-{submission.contribution_type_details?.max_points} points)
-              </span>
-            </div>
-          </div>
-
-          {#if submission.mission}
-            <div>
-              <h4 class="text-sm font-medium text-gray-700">Mission</h4>
-              <div class="mt-1 flex items-center gap-2 flex-wrap">
-                <span class="text-sm text-gray-900">
-                  {submission.mission.name}
-                </span>
-              </div>
-            </div>
-          {/if}
-
-          {#if submission.project_contribution}
-            <div>
-              <h4 class="text-sm font-medium text-gray-700">Linked Project</h4>
-              <div class="mt-1 flex items-center gap-2 flex-wrap">
-                <span class="text-sm text-gray-900">
-                  {submission.project_contribution.title}
-                </span>
-                {#if isMilestoneSubmission && submission.milestone_version}
-                  <span class="text-xs text-indigo-700 bg-indigo-100 rounded-full px-2 py-0.5 font-medium">
-                    Milestone v{submission.milestone_version}
-                  </span>
-                {/if}
-                {#if submission.project_contribution.link}
-                  <a href={submission.project_contribution.link} class="text-xs text-primary-600 hover:text-primary-700 hover:underline">
-                    View Project →
-                  </a>
-                {/if}
-                {#if submission.project_contribution.github_url}
-                  <a
-                    href={submission.project_contribution.github_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="text-xs text-primary-600 hover:text-primary-700 hover:underline"
-                  >
-                    Project Repository ↗
-                  </a>
-                {/if}
-              </div>
-              {#if isMilestoneSubmission}
-                <p class="mt-1 text-xs text-gray-500">
-                  Review the project repository for the changes described in this milestone.
-                </p>
-              {/if}
-            </div>
-          {/if}
-        {/if}
-
-        {#if isOwnSubmission && submission.mission}
-          <div>
-            <h4 class="text-sm font-medium text-gray-700">Contribution Type</h4>
-            <p class="mt-1 text-sm text-gray-900">
-              {submission.contribution_type_name || getTypeName(submission.contribution_type)}
-            </p>
+            <p class="mt-1 text-sm text-gray-900">{contributionTypeName}</p>
           </div>
         {/if}
 
-        {#if isOwnSubmission && submission.project_contribution}
+        {#if submission.project_contribution}
           <div>
             <h4 class="text-sm font-medium text-gray-700">Linked Project</h4>
-            <div class="mt-1 flex items-center gap-2 flex-wrap">
+            <div class="mt-1 flex flex-wrap items-center gap-2">
               <p class="text-sm text-gray-900">{submission.project_contribution.title}</p>
               {#if isMilestoneSubmission && submission.milestone_version}
-                <span class="text-xs text-indigo-700 bg-indigo-100 rounded-full px-2 py-0.5 font-medium">
+                <span class="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
                   Milestone v{submission.milestone_version}
                 </span>
               {/if}
               {#if submission.project_contribution.link}
                 <a href={submission.project_contribution.link} class="text-xs text-primary-600 hover:text-primary-700 hover:underline">
-                  View Project →
+                  View Project
                 </a>
               {/if}
               {#if submission.project_contribution.github_url}
@@ -1390,7 +231,7 @@
                   rel="noopener noreferrer"
                   class="text-xs text-primary-600 hover:text-primary-700 hover:underline"
                 >
-                  Project Repository ↗
+                  Project Repository
                 </a>
               {/if}
             </div>
@@ -1409,15 +250,8 @@
           </div>
         {/if}
 
-        {#if !isOwnSubmission && submission.has_appeal && submission.appeal_reason}
-          <div class="border border-orange-200 rounded-lg p-3 bg-orange-50">
-            <h4 class="text-sm font-medium text-orange-900 mb-1">Appeal reason</h4>
-            <p class="text-sm text-orange-800 whitespace-pre-wrap">{submission.appeal_reason}</p>
-          </div>
-        {/if}
-
         {#if moreInfoRequests.length > 0}
-          <div class="border border-blue-200 rounded-lg p-3 bg-blue-50">
+          <div class="rounded-lg border border-blue-200 bg-blue-50 p-3">
             <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h4 class="text-sm font-medium text-blue-950">More information requested</h4>
               {#if moreInfoRequests.length > 1}
@@ -1432,9 +266,7 @@
                   <div class="markdown-content text-sm text-blue-900">{@html parseMarkdown(request.message)}</div>
                   <p class="mt-2 text-xs text-blue-700">
                     {request.user_name ? `Requested by ${request.user_name}` : 'Requested'}
-                    {#if request.created_at}
-                      on {formatDate(request.created_at)}
-                    {/if}
+                    {#if request.created_at}on {formatDate(request.created_at)}{/if}
                   </p>
                 </div>
               {/each}
@@ -1455,9 +287,7 @@
             {#if textOnlyEvidence.length > 0}
               <ul class="mt-2 space-y-1">
                 {#each textOnlyEvidence as evidence}
-                  <li class="text-sm text-gray-600">
-                    • {evidence.description}
-                  </li>
+                  <li class="text-sm text-gray-600">{evidence.description}</li>
                 {/each}
               </ul>
             {/if}
@@ -1465,719 +295,72 @@
         {/if}
 
         {#if showStaffResponse}
-          <div class="bg-gray-50 p-3 rounded">
-            <h4 class="text-sm font-medium text-gray-700 mb-1">Staff Response</h4>
+          <div class="rounded bg-gray-50 p-3">
+            <h4 class="mb-1 text-sm font-medium text-gray-700">Staff Response</h4>
             <div class="markdown-content text-sm text-gray-600">{@html parseMarkdown(submission.staff_reply)}</div>
           </div>
         {/if}
-
-        <!-- CRM Notes Panel (steward view only) -->
-        {#if showReviewForm && !isOwnSubmission}
-          <CRMNotesPanel
-            submissionId={submission.id}
-            {notes}
-            loading={notesLoading}
-            {onAddNote}
-            {onUpdateNote}
-            {activeProposalNoteId}
-          />
-        {/if}
       </div>
 
-      <!-- Right Column - Action Forms or Status or Contribution Card -->
       <div class="flex flex-col gap-4">
-        {#if submission.state === 'accepted' && submission.contribution && isOwnSubmission}
-          <!-- Show contribution card for accepted submissions in My Submissions -->
-          <ContributionCard
-            contribution={submission.contribution}
-            showUser={false}
-            variant="compact"
-          />
-          {:else if showReviewForm && isOpenReviewState}
-            {#if submission.ai_analysis}
-              <AIReviewAnalysisPanel
-                {submission}
-                aiAnalysis={submission.ai_analysis}
-                feedbackRecords={aiFeedbackRecords}
-                feedbackLoading={aiFeedbackLoading}
-                feedbackLoaded={aiFeedbackLoaded}
-                feedbackError={aiFeedbackError}
-                {canFileFeedback}
-                {currentUserId}
-                onRequestFeedback={loadAIFeedback}
-                onSaved={handleAIFeedbackSaved}
-              />
-            {/if}
-
-            <!-- Proposal Notice -->
-            {#if submission.has_proposal}
-            <div class="{isProposalQuestioned ? 'bg-orange-50 border-orange-300' : `${proposalNoticeTone.container} ${proposalNoticeTone.border}`} border rounded-lg px-3 py-2">
-              <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div class="flex items-center gap-2">
-                  <svg class="w-4 h-4 {isProposalQuestioned ? 'text-orange-800' : proposalNoticeTone.body} flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span class="text-sm {isProposalQuestioned ? 'text-orange-900' : proposalNoticeTone.body}">
-                    Proposed by <span class="font-medium">{submission.proposed_by_details?.name || 'a steward'}</span>
-                    {#if submission.proposed_at}
-                      on {formatDate(submission.proposed_at)}
-                    {/if}
-                  </span>
-                </div>
-                <div class="flex flex-wrap items-center gap-2">
-                  <span class="inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-semibold {isProposalQuestioned ? 'bg-orange-600 text-white' : proposalNoticeTone.pill}">
-                    {isProposalQuestioned ? 'Questioned' : proposalNoticeTone.label}
-                  </span>
-                  {#if canQuestionProposal}
-                    <button
-                      type="button"
-                      onclick={() => showQuestionForm = !showQuestionForm}
-                      class="inline-flex w-fit items-center rounded-md border border-orange-300 bg-white px-2.5 py-1 text-xs font-semibold text-orange-700 hover:bg-orange-50 transition-colors"
-                    >
-                      Question proposal
-                    </button>
-                  {/if}
-                </div>
-              </div>
-              {#if isProjectReview && submission.rubric_review}
-                <p class="mt-2 text-xs {isProposalQuestioned ? 'text-orange-800' : proposalNoticeTone.body}">
-                  Builder project rubric saved for this {proposalNoticeTone.shortLabel.toLowerCase()} proposal.
-                </p>
-              {/if}
-              {#if isProposalQuestioned}
-                <div class="mt-3 rounded-md border border-orange-200 bg-white px-3 py-2">
-                  <div class="mb-1 flex flex-wrap items-center gap-2 text-xs font-medium text-orange-900">
-                    <span>Feedback from {submission.proposal_questioned_by_details?.name || 'a steward'}</span>
-                    {#if submission.proposal_questioned_at}
-                      <span class="text-orange-700">{formatDate(submission.proposal_questioned_at)}</span>
-                    {/if}
-                  </div>
-                  <p class="text-sm text-orange-950 whitespace-pre-wrap">{submission.proposal_review_feedback}</p>
-                </div>
-              {/if}
-              {#if showQuestionForm}
-                <div class="mt-3 rounded-md border border-orange-200 bg-white p-3">
-                  <label for="question-proposal-{submission.id}" class="block text-sm font-medium text-orange-950 mb-1">
-                    Feedback to reviewer
-                  </label>
-                  <textarea
-                    id="question-proposal-{submission.id}"
-                    bind:value={questionFeedback}
-                    rows="3"
-                    placeholder="Explain what should be reconsidered before this proposal is resubmitted."
-                    class="w-full rounded-md border border-orange-200 px-3 py-2 text-sm text-gray-800 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-300"
-                  ></textarea>
-                  <div class="mt-2 flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onclick={() => { showQuestionForm = false; questionFeedback = ''; }}
-                      disabled={questionSubmitting}
-                      class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onclick={handleQuestionProposal}
-                      disabled={questionSubmitting || !questionFeedback.trim()}
-                      class="rounded-md bg-orange-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {questionSubmitting ? 'Sending...' : 'Send feedback'}
-                    </button>
-                  </div>
-                </div>
-              {/if}
-            </div>
-          {/if}
-
-          {#if hasAnyAction}
-            <div class="border {reviewAction === 'accept' ? 'border-green-200' : reviewAction === 'reject' ? 'border-red-200' : reviewAction === 'propose' ? 'border-amber-200' : 'border-blue-200'} rounded-lg">
-              <!-- Action Toggle Buttons - Only show actions the steward has permission for -->
-              <div class="flex flex-wrap">
-                {#if canAccept}
-                  <button
-                    type="button"
-                    disabled={isProjectReview && hasRubricGateFailures}
-                    title={isProjectReview && hasRubricGateFailures ? 'Clear all gate failures before accepting.' : undefined}
-                    onclick={() => reviewAction = 'accept'}
-                    class="flex-1 px-3 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 {reviewAction === 'accept' ? 'bg-green-600 text-white' : 'bg-green-50 text-green-700 hover:bg-green-100'} border-r border-gray-200"
-                  >
-                    Accept
-                  </button>
-                {/if}
-                {#if canReject}
-                  <button
-                    type="button"
-                    onclick={() => reviewAction = 'reject'}
-                    class="flex-1 px-3 py-2.5 text-sm font-medium transition-colors {reviewAction === 'reject' ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'} border-r border-gray-200"
-                  >
-                    Reject
-                  </button>
-                {/if}
-                {#if canRequestInfo}
-                  <button
-                    type="button"
-                    onclick={() => reviewAction = 'more_info'}
-                    class="flex-1 px-3 py-2.5 text-sm font-medium transition-colors {reviewAction === 'more_info' ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'} border-r border-gray-200"
-                  >
-                    Request Info
-                  </button>
-                {/if}
-                {#if canPropose}
-                  <button
-                    type="button"
-                    onclick={() => reviewAction = 'propose'}
-                    class="flex-1 px-3 py-2.5 text-sm font-medium transition-colors {reviewAction === 'propose' ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'}"
-                  >
-                    Propose
-                  </button>
-                {/if}
-              </div>
-
-              <!-- Dynamic Form Content -->
-              {#if reviewAction === 'accept' || reviewAction === 'propose'}
-                <div class="p-4 {reviewAction === 'accept' ? 'bg-green-50' : 'bg-amber-50'}">
-                  <div class="space-y-3">
-                    {#if reviewAction === 'propose'}
-                      <div>
-                        <p class="block text-sm font-medium text-gray-700 mb-2">Proposed Action</p>
-                        <div class="flex gap-2">
-                          <button type="button" onclick={() => proposedAction = 'accept'}
-                            disabled={hasRubricGateFailures}
-                            class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 {proposedAction === 'accept' ? 'bg-green-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}">
-                            Accept
-                          </button>
-                          <button type="button" onclick={() => proposedAction = 'reject'}
-                            class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors {proposedAction === 'reject' ? 'bg-red-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}">
-                            Reject
-                          </button>
-                          <button type="button" onclick={() => proposedAction = 'more_info'}
-                            disabled={hasRubricGateFailures}
-                            class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 {proposedAction === 'more_info' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}">
-                            Request Info
-                          </button>
-                        </div>
-                      </div>
-                    {/if}
-                    {#if showProjectRubric}
-                      {@render projectRubric()}
-                    {/if}
-                    {#if reviewAction === 'accept' || (proposedAction === 'accept' && !isProjectReview)}
-                    <div class="space-y-3">
-                    <div>
-                      <p class="block text-sm font-medium text-gray-700">
-                        Assign Contribution To
-                      </p>
-                      <div class="mt-1 flex items-center gap-2">
-                        <Avatar
-                          user={selectedUserDetails}
-                          size="sm"
-                        />
-                        {#if showUserPicker && users.length > 0}
-                          <select
-                            bind:value={selectedUser}
-                            class="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm bg-white"
-                          >
-                            {#each users as user}
-                              <option value={user.id}>
-                                {user.display_name}
-                              </option>
-                            {/each}
-                          </select>
-                        {:else}
-                          <div class="flex-1 min-w-0 px-3 py-2 border border-gray-200 rounded-md text-sm bg-white text-gray-700 truncate">
-                            {selectedUserLabel}
-                          </div>
-                          <button
-                            type="button"
-                            onclick={handleShowUserPicker}
-                            disabled={usersLoading}
-                            class="px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {usersLoading ? 'Loading...' : 'Change'}
-                          </button>
-                        {/if}
-                      </div>
-                      <p class="text-xs text-gray-500 mt-1">
-                        The contribution will be assigned to this user
-                      </p>
-                    </div>
-
-                    <div>
-                      <div class="mb-2 flex items-center justify-between gap-3">
-                        <p class="block text-sm font-medium text-gray-700">
-                          Contribution Type
-                        </p>
-                        {#if contributionTypeUpdating}
-                          <span class="text-xs font-medium text-gray-500">Saving...</span>
-                        {/if}
-                      </div>
-                      <ContributionSelection
-                        bind:selectedCategory
-                        bind:selectedContributionType={selectedContributionTypeObj}
-                        bind:selectedMission
-                        defaultContributionType={selectedType}
-                        defaultMission={submission.mission?.id}
-                        onlySubmittable={false}
-                        stewardMode={true}
-                        providedContributionTypes={contributionTypes}
-                        onSelectionChange={handleContributionSelectionChange}
-                      />
-                    </div>
-
-                    {#if reviewAction === 'accept' && isSelectedMilestoneType}
-                      <div class="rounded-lg border border-indigo-200 bg-indigo-50 p-3">
-                        <label for="project-contribution-{submission.id}" class="block text-sm font-medium text-indigo-950 mb-2">
-                          Related Project <span class="text-red-600">*</span>
-                        </label>
-                        {#if acceptedProjectsLoading}
-                          <div class="rounded-md border border-indigo-100 bg-white px-3 py-2 text-sm text-indigo-700">
-                            Loading accepted projects...
-                          </div>
-                        {:else if acceptedProjectsError}
-                          <div class="rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-red-700">
-                            {acceptedProjectsError}
-                          </div>
-                        {:else if acceptedProjects.length === 0}
-                          <div class="rounded-md border border-yellow-200 bg-white px-3 py-2 text-sm text-yellow-800">
-                            This user has no accepted Projects contributions.
-                          </div>
-                        {:else}
-                          <select
-                            id="project-contribution-{submission.id}"
-                            bind:value={selectedProject}
-                            class="w-full rounded-md border border-indigo-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                          >
-                            <option value="">Select accepted project...</option>
-                            {#each acceptedProjects as project}
-                              <option value={project.id}>
-                                {project.title} (next v{project.next_milestone_version || 1})
-                              </option>
-                            {/each}
-                          </select>
-                          {#if selectedProjectData}
-                            <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-indigo-800">
-                              <span class="rounded-full bg-indigo-100 px-2 py-0.5 font-medium">
-                                Milestone v{selectedProjectData.next_milestone_version || 1}
-                              </span>
-                              {#if selectedProjectData.github_url}
-                                <a
-                                  href={selectedProjectData.github_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  class="font-medium text-primary-600 hover:text-primary-700 hover:underline"
-                                >
-                                  Project Repository ↗
-                                </a>
-                              {/if}
-                            </div>
-                          {/if}
-                        {/if}
-                      </div>
-                    {/if}
-
-                    <div class="grid grid-cols-2 gap-4">
-                      <div>
-                        <label for="points-input-{submission.id}" class="block text-sm font-medium text-gray-700 mb-2">
-                          Points
-                        </label>
-                        <div class="inline-flex items-center">
-                          <button
-                            onclick={() => adjustPoints(points > 10 ? -5 : -1)}
-                            class="w-7 h-8 flex items-center justify-center bg-white hover:bg-gray-50 rounded-l-lg text-gray-600 hover:text-gray-800 font-bold transition-colors border border-r-0 border-gray-300"
-                            type="button"
-                          >
-                            −
-                          </button>
-                          <input
-                            id="points-input-{submission.id}"
-                            type="number"
-                            bind:value={points}
-                            oninput={markPointsManuallyEdited}
-                            class="w-12 h-8 px-1 border-y border-gray-300 text-sm text-center font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent focus:z-10"
-                          />
-                          <button
-                            onclick={() => adjustPoints(points > 10 ? 5 : 1)}
-                            class="w-7 h-8 flex items-center justify-center bg-white hover:bg-gray-50 rounded-r-lg text-gray-600 hover:text-gray-800 font-bold transition-colors border border-l-0 border-gray-300"
-                            type="button"
-                          >
-                            +
-                          </button>
-                        </div>
-                        <p class="text-xs text-gray-500 mt-1">
-                          Range: {selectedTypeDetails?.min_points || 0}-{selectedTypeDetails?.max_points || 100}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p class="block text-sm font-medium text-gray-700 mb-2">
-                          Final Points
-                        </p>
-                        <div class="text-2xl font-bold {reviewAction === 'accept' ? 'text-green-700' : 'text-amber-700'}">
-                          {getFinalPoints()}
-                        </div>
-                        <p class="text-xs text-gray-500 mt-1">
-                          ×{multipliers[selectedType] || 1} multiplier
-                        </p>
-                      </div>
-                    </div>
-
-                    <div class="border border-yellow-300 rounded-lg overflow-hidden">
-                      <button
-                        type="button"
-                        onclick={() => createHighlight = !createHighlight}
-                        class="w-full px-3 py-2 bg-yellow-50 hover:bg-yellow-100 transition-colors flex items-center justify-between text-left"
-                      >
-                        <span class="flex items-center gap-2">
-                          <svg class="w-4 h-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                          </svg>
-                          <span class="text-sm font-medium text-yellow-900">Feature this contribution</span>
-                        </span>
-                        <svg
-                          class="w-4 h-4 text-yellow-600 transition-transform {createHighlight ? 'rotate-180' : ''}"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-
-                      {#if createHighlight}
-                        <div class="px-4 py-3 bg-white border-t border-yellow-300 space-y-3">
-                          <p class="text-xs text-yellow-700 mb-2">
-                            Highlighted contributions are displayed on the dashboard and earn special recognition
-                          </p>
-
-                          <div>
-                            <label for="highlight-title-{submission.id}" class="block text-sm font-medium text-gray-700 mb-1">
-                              Feature Title <span class="text-red-500">*</span>
-                            </label>
-                            <input
-                              id="highlight-title-{submission.id}"
-                              type="text"
-                              bind:value={highlightTitle}
-                              placeholder="e.g., Outstanding Bug Discovery"
-                              class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                            />
-                          </div>
-
-                          <div>
-                            <label for="highlight-description-{submission.id}" class="block text-sm font-medium text-gray-700 mb-1">
-                              Feature Description <span class="text-red-500">*</span>
-                            </label>
-                            <textarea
-                              id="highlight-description-{submission.id}"
-                              bind:value={highlightDescription}
-                              placeholder="Describe why this contribution is being highlighted..."
-                              rows="3"
-                              class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                            ></textarea>
-                          </div>
-                        </div>
-                      {/if}
-                    </div>
-                    </div>
-                    {/if}
-
-                    <div>
-                      <label for="proposal-note-{submission.id}" class="block text-sm font-medium text-gray-700 mb-1">
-                        {reviewAction === 'propose' && proposedAction === 'reject' ? 'Rejection Reason' : reviewAction === 'propose' && proposedAction === 'more_info' ? 'Information Needed' : 'Note (optional)'}
-                      </label>
-                      {#if proposeContextTemplates.length > 0}
-                        <select
-                          aria-label="Select proposal template"
-                          value={selectedTemplateId || ''}
-                          onchange={handleTemplateSelect}
-                          class="w-full px-3 py-1.5 mb-2 border border-gray-300 rounded-md text-sm bg-white text-gray-600"
-                        >
-                          <option value="">-- Select template --</option>
-                          {#each proposeContextTemplates as template}
-                            <option value={template.id}>{template.label}</option>
-                          {/each}
-                        </select>
-                      {/if}
-                      <textarea
-                        id="proposal-note-{submission.id}"
-                        bind:value={staffReply}
-                        placeholder={reviewAction === 'propose' && proposedAction === 'reject' ? 'Please provide a reason for rejection...' : reviewAction === 'propose' && proposedAction === 'more_info' ? 'What additional information do you need?' : 'Add an optional note for this contribution...'}
-                        rows="3"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 {reviewAction === 'accept' ? 'focus:ring-green-500' : 'focus:ring-amber-500'}"
-                      ></textarea>
-                    </div>
-
-                    {#if reviewAction === 'accept'}
-                      <button
-                        onclick={handleReview}
-                        disabled={isProcessing}
-                        class="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
-                      >
-                        {isProcessing ? 'Processing...' : 'Accept & Create Contribution'}
-                      </button>
-                    {:else}
-                      <!-- Propose action -->
-                      <button
-                        onclick={handlePropose}
-                        disabled={isProcessing}
-                        class="w-full px-4 py-2 {isProjectReview ? rubricTone.button : 'bg-amber-600 hover:bg-amber-700'} text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
-                      >
-                        {isProcessing ? 'Processing...' : isProjectReview ? `Submit ${rubricTone.shortLabel} Proposal` : 'Submit Proposal'}
-                      </button>
-                    {/if}
-                  </div>
-                </div>
-              {:else if reviewAction === 'reject'}
-                <div class="p-4 bg-red-50">
-                  <div class="space-y-3">
-                    {#if showProjectRubric}
-                      {@render projectRubric()}
-                    {/if}
-
-                    <div>
-                      <label for="reject-reason-{submission.id}" class="block text-sm font-medium text-gray-700 mb-1">
-                        Rejection Reason
-                      </label>
-                      {#if rejectTemplates.length > 0}
-                        <select
-                          aria-label="Select rejection template"
-                          value={selectedTemplateId || ''}
-                          onchange={handleTemplateSelect}
-                          class="w-full px-3 py-1.5 mb-2 border border-gray-300 rounded-md text-sm bg-white text-gray-600"
-                        >
-                          <option value="">-- Select template --</option>
-                          {#each rejectTemplates as template}
-                            <option value={template.id}>{template.label}</option>
-                          {/each}
-                        </select>
-                      {/if}
-                      <textarea
-                        id="reject-reason-{submission.id}"
-                        bind:value={staffReply}
-                        placeholder="Please provide a reason for rejection..."
-                        rows="4"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white"
-                      ></textarea>
-                    </div>
-
-                    <button
-                      onclick={handleReview}
-                      disabled={isProcessing}
-                      class="w-full px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
-                    >
-                      {isProcessing ? 'Processing...' : 'Reject Submission'}
-                    </button>
-                  </div>
-                </div>
-              {:else if reviewAction === 'more_info'}
-                <div class="p-4 bg-blue-50">
-                  <div class="space-y-3">
-                    <div>
-                      <label for="more-info-reason-{submission.id}" class="block text-sm font-medium text-gray-700 mb-1">
-                        Information Needed
-                      </label>
-                      {#if moreInfoTemplates.length > 0}
-                        <select
-                          aria-label="Select more information template"
-                          value={selectedTemplateId || ''}
-                          onchange={handleTemplateSelect}
-                          class="w-full px-3 py-1.5 mb-2 border border-gray-300 rounded-md text-sm bg-white text-gray-600"
-                        >
-                          <option value="">-- Select template --</option>
-                          {#each moreInfoTemplates as template}
-                            <option value={template.id}>{template.label}</option>
-                          {/each}
-                        </select>
-                      {/if}
-                      <textarea
-                        id="more-info-reason-{submission.id}"
-                        bind:value={staffReply}
-                        placeholder="What additional information do you need from the submitter?"
-                        rows="4"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white"
-                      ></textarea>
-                    </div>
-
-                    <button
-                      onclick={handleReview}
-                      disabled={isProcessing}
-                      class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
-                    >
-                      {isProcessing ? 'Processing...' : 'Request Information'}
-                    </button>
-                  </div>
-                </div>
-              {/if}
-            </div>
-          {/if}
-        {:else if submission.state === 'accepted' && submission.contribution}
-          <!-- Show contribution details if accepted -->
-          <ContributionCard
-            contribution={submission.contribution}
-            submission={submission}
-            showExpand={true}
-          />
-
-          {#if showReviewForm && canEditAccepted && acceptedEdit}
-            <div class="overflow-hidden rounded-lg border border-emerald-200 bg-white shadow-sm">
-              <div class="border-b border-emerald-100 bg-emerald-50/80 px-4 py-3">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <div class="flex items-center gap-2">
-                      <span class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-                        <Icons name="points" size="sm" />
-                      </span>
-                      <h4 class="text-sm font-semibold text-gray-900">Accepted contribution settings</h4>
-                    </div>
-                    <p class="mt-1 text-xs text-emerald-800">
-                      Currently saved: {submission.contribution.frozen_global_points ?? submission.contribution.points ?? 0} pts
-                    </p>
-                  </div>
-
-                  {#if submission.contribution.highlight}
-                    <span class="inline-flex items-center gap-1.5 rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-medium text-yellow-800">
-                      <Icons name="star" size="xs" />
-                      Featured
-                    </span>
-                  {/if}
-                </div>
-              </div>
-
-              <div class="space-y-4 p-4">
-                <div>
-                  <label for="accepted-points-{submission.id}" class="mb-1.5 block text-sm font-medium text-gray-800">
-                    Awarded points
-                  </label>
-                  <div class="flex items-center gap-3">
-                    <input
-                      id="accepted-points-{submission.id}"
-                      type="number"
-                      min="0"
-                      value={acceptedEdit.points}
-                      oninput={(event) => onAcceptedEditChange?.(submission.id, 'points', event.currentTarget.value === '' ? '' : event.currentTarget.valueAsNumber)}
-                      disabled={acceptedUpdating}
-                      class="h-10 w-28 rounded-md border border-gray-300 px-3 text-sm font-semibold text-gray-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
-                    />
-                    <span class="text-sm text-gray-500">points after save</span>
-                  </div>
-                </div>
-
-                <div class="rounded-md border border-yellow-200 bg-yellow-50/70 p-3">
-                  <div class="mb-3 flex items-center gap-2">
-                    <Icons name="star" size="sm" className="text-yellow-600" />
-                    <h5 class="text-sm font-semibold text-yellow-950">Featured highlight</h5>
-                  </div>
-                  <p class="mb-3 text-xs text-yellow-900">
-                    Fill both fields to feature this contribution. Clear both fields to remove the feature.
-                  </p>
-
-                  <div class="space-y-3">
-                    <div>
-                      <label for="accepted-highlight-title-{submission.id}" class="mb-1 block text-xs font-medium uppercase text-yellow-900">
-                        Title
-                      </label>
-                      <input
-                        id="accepted-highlight-title-{submission.id}"
-                        type="text"
-                        value={acceptedEdit.highlight_title}
-                        oninput={(event) => onAcceptedEditChange?.(submission.id, 'highlight_title', event.currentTarget.value)}
-                        disabled={acceptedUpdating}
-                        placeholder="Feature title"
-                        class="w-full rounded-md border border-yellow-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-400 disabled:opacity-50"
-                      />
-                    </div>
-
-                    <div>
-                      <label for="accepted-highlight-description-{submission.id}" class="mb-1 block text-xs font-medium uppercase text-yellow-900">
-                        Description
-                      </label>
-                      <textarea
-                        id="accepted-highlight-description-{submission.id}"
-                        value={acceptedEdit.highlight_description}
-                        oninput={(event) => onAcceptedEditChange?.(submission.id, 'highlight_description', event.currentTarget.value)}
-                        disabled={acceptedUpdating}
-                        placeholder="Add the feature description"
-                        rows="3"
-                        class="w-full resize-y rounded-md border border-yellow-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-400 disabled:opacity-50"
-                      ></textarea>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="flex justify-end">
-                  <button
-                    type="button"
-                    onclick={() => onAcceptedUpdate?.(submission.id)}
-                    disabled={acceptedUpdating}
-                    class="inline-flex items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {acceptedUpdating ? 'Saving...' : 'Save accepted changes'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          {/if}
+        {#if submission.state === 'accepted' && submission.contribution}
+          <ContributionCard contribution={submission.contribution} showUser={false} variant="compact" />
         {:else if submission.state === 'rejected'}
           {#if submission.staff_reply}
-            <div class="border border-red-200 rounded-lg p-4 bg-red-50">
-              <h4 class="text-sm font-medium text-red-900 mb-2">Rejection Reason</h4>
+            <div class="rounded-lg border border-red-200 bg-red-50 p-4">
+              <h4 class="mb-2 text-sm font-medium text-red-900">Rejection Reason</h4>
               <div class="markdown-content text-sm text-red-700">{@html parseMarkdown(submission.staff_reply)}</div>
             </div>
           {/if}
-          {#if isOwnSubmission}
-            {#if submission.has_appeal}
-              <div class="border border-orange-200 rounded-lg p-3 bg-orange-50">
-                <p class="text-sm text-orange-800">
-                  You have already appealed this submission. Each submission can only be appealed once.
-                </p>
+
+          {#if submission.has_appeal}
+            <div class="rounded-lg border border-orange-200 bg-orange-50 p-3">
+              <p class="text-sm text-orange-800">
+                You have already appealed this submission. Each submission can only be appealed once.
+              </p>
+            </div>
+          {:else if onAppeal}
+            <div class="space-y-2 rounded-lg border border-orange-200 bg-orange-50 p-3">
+              <h4 class="text-sm font-medium text-orange-900">Appeal this rejection</h4>
+              <p class="text-xs text-orange-700">
+                You can appeal this rejection once. Explain why you believe it should be reconsidered.
+              </p>
+              <textarea
+                bind:value={appealReason}
+                aria-label="Appeal reason"
+                placeholder="Explain why you are appealing..."
+                rows="3"
+                maxlength="5000"
+                class="w-full rounded-md border border-orange-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              ></textarea>
+              <div class="flex justify-end">
+                <button
+                  type="button"
+                  onclick={handleAppeal}
+                  disabled={submittingAppeal || !appealReason.trim()}
+                  class="rounded-md bg-orange-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {submittingAppeal ? 'Submitting...' : 'Submit Appeal'}
+                </button>
               </div>
-            {:else if onAppeal}
-              <div class="border border-orange-200 rounded-lg p-3 bg-orange-50 space-y-2">
-                <h4 class="text-sm font-medium text-orange-900">Appeal this rejection</h4>
-                <p class="text-xs text-orange-700">
-                  You can appeal this rejection once. Explain why you believe it should be reconsidered.
-                </p>
-                <textarea
-                  bind:value={appealReason}
-                  placeholder="Explain why you are appealing..."
-                  rows="3"
-                  maxlength="5000"
-                  class="w-full px-3 py-2 border border-orange-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-                ></textarea>
-                <div class="flex justify-end">
-                  <button
-                    onclick={handleAppeal}
-                    disabled={submittingAppeal || !appealReason.trim()}
-                    class="px-4 py-1.5 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
-                  >
-                    {submittingAppeal ? 'Submitting...' : 'Submit Appeal'}
-                  </button>
-                </div>
-              </div>
-            {/if}
+            </div>
           {/if}
         {:else if submission.state === 'canceled'}
-          <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
-            <h4 class="text-sm font-medium text-gray-900 mb-2">Canceled</h4>
+          <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <h4 class="mb-2 text-sm font-medium text-gray-900">Canceled</h4>
             <p class="text-sm text-gray-700">Canceled by user</p>
           </div>
-        {:else if isOwnSubmission && submission.state === 'pending' && submission.has_appeal}
-          <div class="border border-orange-200 rounded-lg p-3 bg-orange-50">
-            <h4 class="text-sm font-medium text-orange-900 mb-1">Your appeal is under review</h4>
+        {:else if submission.state === 'pending' && submission.has_appeal}
+          <div class="rounded-lg border border-orange-200 bg-orange-50 p-3">
+            <h4 class="mb-1 text-sm font-medium text-orange-900">Your appeal is under review</h4>
             <p class="text-xs text-orange-700">A steward will re-review your submission.</p>
           </div>
-        {:else if isOwnSubmission && (submission.state === 'pending' || submission.state === 'more_info_needed')}
-          <!-- Edit button for pending and more_info_needed submissions -->
+        {:else if submission.state === 'pending' || submission.state === 'more_info_needed'}
           <div class="flex justify-end">
             <button
-              onclick={() => {
-                let url = `/contributions/${submission.id}`;
-                if (submission.mission?.id) {
-                  url += `?mission=${submission.mission.id}`;
-                }
-                push(url);
-              }}
-              class="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 text-gray-700"
+              type="button"
+              onclick={editSubmission}
+              class="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
             >
               Edit
             </button>
@@ -2197,31 +380,5 @@
   .markdown-content :global(ol) {
     list-style-type: decimal;
     margin-left: 1.5rem;
-  }
-
-  .social-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.125rem 0.5rem;
-    border-radius: 9999px;
-    color: white;
-    font-size: 11px;
-    line-height: 1.2;
-    font-weight: 500;
-    text-decoration: none;
-    max-width: 140px;
-  }
-  a.social-pill:hover {
-    filter: brightness(1.1);
-  }
-  .social-pill-icon {
-    display: inline-flex;
-    flex-shrink: 0;
-  }
-  .social-pill-name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 </style>

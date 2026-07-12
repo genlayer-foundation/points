@@ -506,8 +506,10 @@ const routes = {
 
 #### Steward Review Components (`src/components/`)
 
-- **`SubmissionCard.svelte`** - Steward submission details and unchanged final review/proposal actions. It lazy-loads exact-proposal AI feedback when the analysis panel expands and removes the human-only question action from AI proposals.
-- **`AIReviewAnalysisPanel.svelte`** - Compact, expandable AI reasoning and structured human-feedback surface. AI decision/scores remain fixed; reviewers can explicitly override decisions or score ranges, attach typed flaws to criterion/synthesis reasoning, mark the analysis accurate, and revise their own saved record without affecting review actions. Expected feedback-read 403s for visibility-only stewards are treated as unavailable rather than shown as errors.
+- **`SubmissionCard.svelte`** - Submitter-only card used by My Submissions. It shows submission details, evidence, staff responses, awarded contributions, editing, and appeals without exposing steward-only state.
+- **`StewardSubmissionCard.svelte`** - Dedicated steward workspace for review outcomes, proposals, rubric scoring, internal notes, accepted-contribution edits, and permission-aware submission behavior.
+- **`AIReviewSummary.svelte`** - Compact AI-only proposal summary that exposes the proposed action, confidence, and expandable synthesis.
+- **`AIFeedbackDialog.svelte`** - Focused benchmark-feedback dialog for criterion, decision, and synthesis corrections with stale-write resolution.
 - **`lib/aiFeedback.js`** - Closed frontend vocabularies plus state hydration, payload derivation, and API-mirroring validation. It preserves accepted but currently non-rendered feedback fields when editing an existing record.
 
 #### Generic UI Components (`src/components/ui/`)
