@@ -427,17 +427,17 @@ export async function verifyAuth(options = {}) {
   const { force = false } = options;
   const state = authState.get();
   
+  // If verification is already in progress, return the existing promise
+  if (verificationInProgress) {
+    return verificationInProgress;
+  }
+
   // Cached unauthenticated state is stable enough to avoid duplicate checks.
   // Authenticated state is revalidated because the server session can expire.
   if (state.hasVerified && !state.isAuthenticated && !force) {
     return Promise.resolve(state.isAuthenticated);
   }
-  
-  // If verification is already in progress, return the existing promise
-  if (verificationInProgress) {
-    return verificationInProgress;
-  }
-  
+
   // Start new verification
   verificationInProgress = performVerification();
   
