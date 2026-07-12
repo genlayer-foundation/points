@@ -242,10 +242,17 @@
         detectedProviders.set('trust', { provider, info });
       } else if (provider.isCoinbaseWallet) {
         detectedProviders.set('coinbase', { provider, info });
-      } else if (info?.uuid) {
+      } else if (info?.rdns || info?.uuid) {
         // Keep standards-compliant injected wallets usable even when they are
         // not part of the curated list. EIP-6963 icons stay inside <img> tags.
-        detectedProviders.set(`injected:${info.uuid}`, { provider, info });
+        const existingEntry = [...detectedProviders.entries()]
+          .find(([walletId, detail]) => walletId.startsWith('injected:') && detail.provider === provider);
+        const walletId = info.rdns ? `injected:${info.rdns}` : (existingEntry?.[0] || `injected:${info.uuid}`);
+
+        if (existingEntry && existingEntry[0] !== walletId) {
+          detectedProviders.delete(existingEntry[0]);
+        }
+        detectedProviders.set(walletId, { provider, info });
       }
       
       // Re-detect wallets after provider announcement

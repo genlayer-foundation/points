@@ -13,20 +13,22 @@ describe('WalletSelector provider support', () => {
     vi.restoreAllMocks();
   });
 
-  function announceProvider({ provider, name, rdns, uuid }) {
-    const announce = () => {
-      window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
-        detail: {
-          info: {
-            uuid,
-            name,
-            icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>',
-            rdns,
-          },
-          provider,
+  function dispatchProviderAnnouncement({ provider, name, rdns, uuid }) {
+    window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
+      detail: {
+        info: {
+          uuid,
+          name,
+          icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>',
+          rdns,
         },
-      }));
-    };
+        provider,
+      },
+    }));
+  }
+
+  function announceProvider(detail) {
+    const announce = () => dispatchProviderAnnouncement(detail);
     window.addEventListener('eip6963:requestProvider', announce, { once: true });
   }
 
@@ -118,6 +120,28 @@ describe('WalletSelector provider support', () => {
     expect(walletButton.textContent).toContain('Ready');
     await fireEvent.click(walletButton);
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith(provider, 'Example Wallet'));
+  });
+
+  it('reuses an injected wallet entry when the same provider changes UUID', async () => {
+    const provider = { request: vi.fn() };
+    announceProvider({
+      provider,
+      name: 'Example Wallet',
+      uuid: '08b353b7-7d16-4751-9689-96bff322b90a',
+    });
+
+    render(WalletSelector, { props: { isOpen: true } });
+    await screen.findByRole('button', { name: /Example Wallet/ });
+
+    dispatchProviderAnnouncement({
+      provider,
+      name: 'Example Wallet',
+      uuid: '0ecb060b-5f89-4fdc-aafd-d1b9e917a4a6',
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /Example Wallet/ })).toHaveLength(1);
+    });
   });
 
   it('explains the OKX app handoff on mobile browsers', async () => {
