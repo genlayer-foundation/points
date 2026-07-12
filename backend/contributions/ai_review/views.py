@@ -4,7 +4,14 @@ from django.db.models.expressions import Exists, OuterRef
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django_filters import BooleanFilter, CharFilter, FilterSet, NumberFilter
+from django_filters import (
+    BooleanFilter,
+    CharFilter,
+    DateTimeFilter,
+    FilterSet,
+    NumberFilter,
+    UUIDFilter,
+)
 from rest_framework import filters, mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
@@ -12,6 +19,7 @@ from rest_framework.response import Response
 
 from contributions.ai_attribution import AI_STEWARD_EMAIL, get_ai_steward
 from contributions.models import (
+    AIReviewFeedback,
     Evidence,
     ProjectMilestoneReview,
     ReviewProposal,
@@ -26,6 +34,7 @@ from service_accounts.scopes import AI_REVIEW_PROPOSE_SCOPE, AI_REVIEW_READ_SCOP
 from stewards.models import ReviewTemplate
 
 from .serializers import (
+    AIReviewFeedbackRecordSerializer,
     AIReviewProposeSerializer,
     AIReviewReviewedSubmissionSerializer,
     AIReviewSubmissionSerializer,
@@ -363,6 +372,17 @@ class AIReviewFilterSet(ProposalReviewStatusFilterMixin, FilterSet):
         if value:
             return queryset.exclude(mission_id=value)
         return queryset
+
+
+class AIReviewFeedbackFilterSet(FilterSet):
+    """Incremental benchmark filters for structured feedback records."""
+
+    updated_after = DateTimeFilter(field_name='updated_at', lookup_expr='gte')
+    submission = UUIDFilter(field_name='submitted_contribution_id')
+
+    class Meta:
+        model = AIReviewFeedback
+        fields = []
 
 
 # ─── ViewSet ──────────────────────────────────────────────────────────────────
@@ -711,6 +731,31 @@ class AIReviewViewSet(
             return self.get_paginated_response(serializer.data)
 
         serializer = AIReviewReviewedSubmissionSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='feedback')
+    def feedback(self, request):
+        """Export structured steward feedback for benchmark ingestion."""
+        queryset = (
+            AIReviewFeedback.objects
+            .select_related('reviewer')
+            .order_by('updated_at', 'id')
+        )
+        filterset = AIReviewFeedbackFilterSet(
+            data=request.query_params,
+            queryset=queryset,
+            request=request,
+        )
+        if not filterset.is_valid():
+            return Response(filterset.errors, status=status.HTTP_400_BAD_REQUEST)
+        queryset = filterset.qs
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = AIReviewFeedbackRecordSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = AIReviewFeedbackRecordSerializer(queryset, many=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'], url_path='templates')

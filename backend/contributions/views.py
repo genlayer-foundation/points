@@ -7,7 +7,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django_filters import FilterSet, CharFilter, BooleanFilter, NumberFilter
 from django.utils import timezone
 from django.conf import settings
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import (
     Count,
     DecimalField,
@@ -31,8 +31,10 @@ from .models import (
     Mission, StartupRequest,
     FeaturedContent, Alert, ContributionDiscordXPState,
     DiscordXPDistributionEvent, ProjectMilestoneReview, ReviewProposal,
+    AIReviewFeedback,
     sync_discord_xp_state_for_contribution,
 )
+from .ai_feedback import fetch_reviewed_commit_sha, resolve_proposal_binding
 from .constants import METRICS_POINTS_EXCLUDED_TYPE_SLUGS
 from .reviewer_rewards import compute_reviewer_reward, grant_reviewer_reward
 from .rubric_review import rubric_summary_text, uses_project_rubric
@@ -44,6 +46,8 @@ from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          StewardSubmissionTypeUpdateSerializer,
                          SubmissionNoteSerializer, SubmissionProposeSerializer,
                          SubmissionQuestionProposalSerializer,
+                         AIReviewFeedbackWriteSerializer,
+                         AIReviewFeedbackStewardSerializer,
                          MissionSerializer, MissionSummarySerializer,
                          StartupRequestListSerializer, StartupRequestDetailSerializer,
                          FeaturedContentSerializer, AlertSerializer,
@@ -3528,6 +3532,109 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(
             self.get_serializer(submission).data,
             status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=['get', 'post'], url_path='ai-feedback')
+    def ai_feedback(self, request, pk=None):
+        """List or revise proposal-specific human feedback on an AI review."""
+        submission = get_object_or_404(
+            self._visible_submission_queryset(),
+            pk=pk,
+        )
+        self.check_object_permissions(request, submission)
+        permission_response = self._check_type_permission(request, submission)
+        if permission_response is not None:
+            return permission_response
+
+        if request.method == 'GET':
+            feedback = (
+                submission.ai_feedback
+                .select_related('reviewer')
+                .order_by('-updated_at', '-id')
+            )
+            return Response(
+                AIReviewFeedbackStewardSerializer(feedback, many=True).data,
+            )
+
+        if submission.user_id == request.user.id:
+            return Response(
+                {'detail': 'You cannot submit AI review feedback on your own submission.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = AIReviewFeedbackWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data.copy()
+        review_proposal_id = data.pop('review_proposal_id', None)
+        expected_updated_at = data.pop('expected_updated_at', None)
+
+        try:
+            (
+                review_proposal,
+                proposal_ref,
+                proposal_source,
+                proposal_source_id,
+            ) = resolve_proposal_binding(
+                submission,
+                review_proposal_id=review_proposal_id,
+            )
+            lookup = {
+                'submitted_contribution': submission,
+                'reviewer': request.user,
+                'proposal_source': proposal_source,
+                'proposal_source_id': proposal_source_id,
+            }
+            defaults = {
+                'review_proposal': review_proposal,
+                'proposal_ref': proposal_ref,
+                **data,
+            }
+
+            if expected_updated_at is None:
+                if AIReviewFeedback.objects.filter(**lookup).exists():
+                    return Response(
+                        {'detail': 'Feedback changed since it was loaded. Reload it before saving again.'},
+                        status=status.HTTP_409_CONFLICT,
+                    )
+                reviewed_commit_sha = fetch_reviewed_commit_sha(submission)
+                feedback = AIReviewFeedback.objects.create(
+                    **lookup,
+                    **defaults,
+                    reviewed_commit_sha=reviewed_commit_sha,
+                )
+                created = True
+            else:
+                updated = AIReviewFeedback.objects.filter(
+                    **lookup,
+                    updated_at=expected_updated_at,
+                ).update(
+                    **defaults,
+                    updated_at=timezone.now(),
+                )
+                if updated != 1:
+                    return Response(
+                        {'detail': 'Feedback changed since it was loaded. Reload it before saving again.'},
+                        status=status.HTTP_409_CONFLICT,
+                    )
+                feedback = (
+                    AIReviewFeedback.objects
+                    .select_related('reviewer')
+                    .get(**lookup)
+                )
+                created = False
+        except IntegrityError:
+            return Response(
+                {'detail': 'Feedback changed since it was loaded. Reload it before saving again.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        return Response(
+            AIReviewFeedbackStewardSerializer(feedback).data,
+            status=(
+                status.HTTP_201_CREATED
+                if created
+                else status.HTTP_200_OK
+            ),
         )
 
     def _validate_proposal_note_update(self, request, submission, note):

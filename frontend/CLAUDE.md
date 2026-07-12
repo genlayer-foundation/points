@@ -476,7 +476,7 @@ const routes = {
   - `validatorsAPI.getWallOfShame(params)` - Public Wall of Shame list for active validators with Grafana metrics/logs status badges (renders in `routes/WallOfShame.svelte`)
   - `notificationsAPI` - Portal notifications (`list`, `unreadCount`, `markRead(id)`, `markAllRead`)
   - `socialTasksAPI` - Social tasks (`list({ status, category })`, `complete(slug)`)
-  - `stewardAPI` - Steward tools: submissions review plus Discord XP (`getDiscordXP(params)` lists community XP rows for contributions and social task completions; `recordDiscordXPCopy(stateId)`, `markDiscordXPDistributed(stateId)`, `unsetDiscordXPDistributed(stateId)` act on a row's state id — `row.id`, not the contribution id)
+  - `stewardAPI` - Steward tools: submissions review plus structured AI-review feedback (`getAIFeedback(id)` reads all reviewer records for a submission; `submitAIFeedback(id, data)` creates or versioned-revises the current reviewer's exact-proposal feedback) and Discord XP (`getDiscordXP(params)` lists community XP rows for contributions and social task completions; `recordDiscordXPCopy(stateId)`, `markDiscordXPDistributed(stateId)`, `unsetDiscordXPDistributed(stateId)` act on a row's state id — `row.id`, not the contribution id)
 
 ### Authentication (`src/lib/auth.js`)
 - **Auth Store**: Svelte store `authState`
@@ -503,6 +503,12 @@ const routes = {
 - **Reactive**: Updates reflect immediately in all components using `$userStore`
 
 ### Components
+
+#### Steward Review Components (`src/components/`)
+
+- **`SubmissionCard.svelte`** - Steward submission details and unchanged final review/proposal actions. It lazy-loads exact-proposal AI feedback when the analysis panel expands and removes the human-only question action from AI proposals.
+- **`AIReviewAnalysisPanel.svelte`** - Compact, expandable AI reasoning and structured human-feedback surface. AI decision/scores remain fixed; reviewers can explicitly override decisions or score ranges, attach typed flaws to criterion/synthesis reasoning, mark the analysis accurate, and revise their own saved record without affecting review actions. Expected feedback-read 403s for visibility-only stewards are treated as unavailable rather than shown as errors.
+- **`lib/aiFeedback.js`** - Closed frontend vocabularies plus state hydration, payload derivation, and API-mirroring validation. It preserves accepted but currently non-rendered feedback fields when editing an existing record.
 
 #### Generic UI Components (`src/components/ui/`)
 Reusable, data-driven display components that accept data via props. Used on Dashboard and can be reused on any page.

@@ -1,11 +1,17 @@
 from rest_framework import serializers
 
-from contributions.models import Evidence, ProjectMilestoneReview, SubmissionNote, SubmittedContribution
+from contributions.models import (
+    Evidence,
+    ProjectMilestoneReview,
+    SubmissionNote,
+    SubmittedContribution,
+)
 from contributions.rubric_review import (
     normalize_rubric_review_payload,
     validate_template_action,
     uses_project_rubric,
 )
+from contributions.serializers import AIReviewFeedbackStewardSerializer
 from stewards.models import ReviewTemplate
 
 
@@ -324,6 +330,10 @@ class AIReviewReviewedSubmissionSerializer(serializers.ModelSerializer):
         except ProjectMilestoneReview.DoesNotExist:
             return None
         return AIReviewRubricReviewSerializer(review).data
+
+
+class AIReviewFeedbackRecordSerializer(AIReviewFeedbackStewardSerializer):
+    """Stable benchmark export contract for structured human feedback."""
 
 
 class AIReviewProposeSerializer(serializers.Serializer):

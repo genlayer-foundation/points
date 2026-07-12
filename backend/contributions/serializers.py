@@ -1,3 +1,5 @@
+from collections.abc import Mapping
+
 from django.db import models, transaction
 from rest_framework import serializers
 from .models import (
@@ -5,7 +7,10 @@ from .models import (
     ContributionHighlight, Mission, StartupRequest, SubmissionNote,
     FeaturedContent, Alert, EvidenceURLType, ContributionDiscordXPState,
     DiscordXPDistributionEvent, ProjectMilestoneReview, ReviewProposal,
+    AIReviewFeedback,
 )
+from .ai_attribution import AI_STEWARD_EMAIL
+from .ai_feedback import normalize_feedback_payload
 from .rubric_review import (
     normalize_rubric_review_payload,
     validate_template_action,
@@ -1354,6 +1359,100 @@ class SubmissionQuestionProposalSerializer(serializers.Serializer):
     )
 
 
+class AIReviewFeedbackWriteSerializer(serializers.Serializer):
+    """Strict write contract for proposal-specific AI review feedback."""
+
+    review_proposal_id = serializers.IntegerField(required=False, min_value=1)
+    expected_updated_at = serializers.DateTimeField(required=False)
+    verdict = serializers.CharField()
+    correct_decision = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        default='',
+    )
+    gate_failures = serializers.JSONField(required=False, default=list)
+    criteria = serializers.JSONField(required=False, default=dict)
+    error_claims = serializers.JSONField(required=False, default=list)
+
+    def to_internal_value(self, data):
+        if isinstance(data, Mapping):
+            unknown = set(data) - set(self.fields)
+            if unknown:
+                values = ', '.join(sorted(str(key) for key in unknown))
+                raise serializers.ValidationError({
+                    'feedback': f'Unknown key(s): {values}.',
+                })
+        return super().to_internal_value(data)
+
+    def validate(self, data):
+        review_proposal_id = data.pop('review_proposal_id', None)
+        expected_updated_at = data.pop('expected_updated_at', None)
+        normalized = normalize_feedback_payload(data)
+        if review_proposal_id is not None:
+            normalized['review_proposal_id'] = review_proposal_id
+        if expected_updated_at is not None:
+            normalized['expected_updated_at'] = expected_updated_at
+        return normalized
+
+
+class AIReviewFeedbackStewardSerializer(serializers.ModelSerializer):
+    submission_id = serializers.UUIDField(
+        source='submitted_contribution_id',
+        read_only=True,
+    )
+    review_proposal_id = serializers.IntegerField(read_only=True, allow_null=True)
+    reviewer = serializers.SerializerMethodField()
+    reviewer_id = serializers.IntegerField(read_only=True)
+    reviewed_commit_sha = serializers.SerializerMethodField()
+    correct_decision = serializers.SerializerMethodField()
+    error_claims = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AIReviewFeedback
+        fields = [
+            'id',
+            'submission_id',
+            'review_proposal_id',
+            'proposal_source',
+            'proposal_source_id',
+            'proposal_ref',
+            'reviewer',
+            'reviewer_id',
+            'reviewed_commit_sha',
+            'verdict',
+            'correct_decision',
+            'gate_failures',
+            'criteria',
+            'error_claims',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = fields
+
+    def get_reviewed_commit_sha(self, obj):
+        return obj.reviewed_commit_sha or None
+
+    def get_reviewer(self, obj):
+        return obj.reviewer.name or str(obj.reviewer_id)
+
+    def get_correct_decision(self, obj):
+        return obj.correct_decision or None
+
+    def get_error_claims(self, obj):
+        return [
+            {
+                **claim,
+                'evidence_ref': (
+                    claim.get('evidence_ref', '')
+                    if isinstance(claim.get('evidence_ref', ''), str)
+                    else ''
+                ),
+            }
+            for claim in (obj.error_claims or [])
+        ]
+
+
 class StewardSubmissionSerializer(MoreInfoRequestsMixin, serializers.ModelSerializer):
     """
     Enhanced serializer for steward view of submissions with all needed data.
@@ -1370,6 +1469,7 @@ class StewardSubmissionSerializer(MoreInfoRequestsMixin, serializers.ModelSerial
     proposed_user_details = serializers.SerializerMethodField()
     proposal_questioned_by_details = serializers.SerializerMethodField()
     has_proposal = serializers.SerializerMethodField()
+    proposal_is_ai = serializers.SerializerMethodField()
     proposed_template_name = serializers.SerializerMethodField()
     notes_count = serializers.SerializerMethodField()
     rubric_review = serializers.SerializerMethodField()
@@ -1387,6 +1487,7 @@ class StewardSubmissionSerializer(MoreInfoRequestsMixin, serializers.ModelSerial
                   'proposed_staff_reply', 'proposed_create_highlight',
                   'proposed_highlight_title', 'proposed_highlight_description',
                   'proposed_by', 'proposed_at', 'proposed_by_details', 'has_proposal',
+                  'proposal_is_ai',
                   'proposed_confidence', 'proposed_template', 'proposed_template_name',
                   'proposal_review_status', 'proposal_review_feedback',
                   'proposal_questioned_by', 'proposal_questioned_by_details',
@@ -1545,6 +1646,12 @@ class StewardSubmissionSerializer(MoreInfoRequestsMixin, serializers.ModelSerial
 
     def get_has_proposal(self, obj):
         return obj.proposed_action is not None
+
+    def get_proposal_is_ai(self, obj):
+        return bool(
+            obj.proposed_by
+            and obj.proposed_by.email == AI_STEWARD_EMAIL
+        )
 
     def get_proposed_template_name(self, obj):
         if obj.proposed_template:

@@ -4,6 +4,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- AI-assisted project reviews now expose the AI's criterion reasoning and fixed scores in a dedicated feedback panel. Stewards can mark an AI review accurate in one click or record score/decision corrections and anchored, typed flaws without interrupting the normal Accept, Reject, Request Info, or Propose flow; structured feedback is pinned to the exact AI proposal and exported through a scoped benchmark API.
+
 - Reviewers can now always find and open their own proposals, including questioned ones on submissions awaiting more information or outside their current permissions, and the "Proposal questioned" notification link opens the submission regardless of its current status (52feac7d)
 
 - Bulk rejections now appear in the submission review history like individual rejections, every review decision and submission change is permanently recorded for auditing, and steward search suggests the is:ai-reviewed filter (664f0978)

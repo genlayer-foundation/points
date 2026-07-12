@@ -33,6 +33,7 @@ from .models import (
     StartupRequest,
     SubmissionNote,
     SubmissionStateTransition,
+    AIReviewFeedback,
     FeaturedContent,
     Alert,
     BlocklistedURL,
@@ -238,6 +239,55 @@ class SubmissionStateTransitionAdmin(admin.ModelAdmin):
     search_fields = ('submitted_contribution__id', 'actor__email', 'actor__name')
     date_hierarchy = 'created_at'
     readonly_fields = ('submitted_contribution', 'event', 'from_state', 'to_state', 'actor', 'created_at', 'updated_at')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(AIReviewFeedback)
+class AIReviewFeedbackAdmin(admin.ModelAdmin):
+    """Read-only view of steward feedback captured for the benchmark."""
+
+    list_select_related = ('submitted_contribution', 'review_proposal', 'reviewer')
+    list_display = (
+        'updated_at',
+        'verdict',
+        'correct_decision',
+        'reviewer',
+        'submitted_contribution',
+        'review_proposal',
+    )
+    list_filter = ('proposal_source', 'verdict', 'correct_decision')
+    search_fields = (
+        'submitted_contribution__id',
+        'reviewer__email',
+        'reviewer__name',
+        'proposal_source',
+        'reviewed_commit_sha',
+    )
+    date_hierarchy = 'updated_at'
+    readonly_fields = (
+        'submitted_contribution',
+        'review_proposal',
+        'proposal_source',
+        'proposal_source_id',
+        'proposal_ref',
+        'reviewer',
+        'verdict',
+        'correct_decision',
+        'gate_failures',
+        'criteria',
+        'error_claims',
+        'reviewed_commit_sha',
+        'created_at',
+        'updated_at',
+    )
 
     def has_add_permission(self, request):
         return False
