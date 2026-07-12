@@ -88,6 +88,7 @@ class AIReviewScopeTests(APITestCase):
             f'{LIST_URL}{submission.id}/',
             f'{LIST_URL}proposed/',
             f'{LIST_URL}reviewed/',
+            f'{LIST_URL}feedback/',
             f'{LIST_URL}templates/',
         ):
             response = self.client.get(url, **auth)

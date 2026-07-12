@@ -388,6 +388,12 @@ export const stewardAPI = {
   questionProposal: (id, message) =>
     api.post(`/steward-submissions/${id}/question-proposal/`, { message }),
 
+  // Structured human feedback on the AI review proposal
+  /** @param {string | number} id */
+  getAIFeedback: (id) => api.get(`/steward-submissions/${id}/ai-feedback/`),
+  /** @param {string | number} id @param {Record<string, any>} data */
+  submitAIFeedback: (id, data) => api.post(`/steward-submissions/${id}/ai-feedback/`, data),
+
   // CRM Notes
   getNotes: (id) => api.get(`/steward-submissions/${id}/notes/`),
   addNote: (id, message) => api.post(`/steward-submissions/${id}/notes/`, { message }),

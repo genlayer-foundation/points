@@ -1,6 +1,9 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte/svelte5';
+import { get } from 'svelte/store';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SubmissionCard from '../components/SubmissionCard.svelte';
+import { stewardAPI } from '../lib/api.js';
+import { toastStore } from '../lib/toastStore.js';
 
 function makeSubmission(overrides = {}) {
   return {
@@ -49,7 +52,9 @@ function makeSubmission(overrides = {}) {
     proposal_questioned_by: null,
     proposal_questioned_by_details: null,
     proposal_questioned_at: null,
+    proposal_is_ai: false,
     rubric_review: null,
+    ai_analysis: null,
     notes_count: 0,
     is_interesting: false,
     has_appeal: false,
@@ -66,6 +71,7 @@ describe('SubmissionCard', () => {
 
   beforeEach(() => {
     originalClipboard = navigator.clipboard;
+    toastStore.clearAll();
   });
 
   afterEach(() => {
@@ -771,6 +777,596 @@ describe('SubmissionCard', () => {
         'Please check the repository evidence first.'
       );
     });
+  });
+
+  it('hides the question action for AI proposals', () => {
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          has_proposal: true,
+          proposed_action: 'reject',
+          proposed_by: 21,
+          proposed_by_details: { name: 'GenLayer Steward' },
+          proposal_review_status: 'pending_review',
+          proposal_is_ai: true,
+          ai_analysis: {
+            id: 77,
+            action: 'reject',
+            confidence: 'high',
+            sections: {},
+            gate_failures: [],
+            extras: [],
+            synthesis: 'AI synthesis'
+          }
+        }),
+        showReviewForm: true,
+        onReview: vi.fn(),
+        onPropose: vi.fn(),
+        onQuestionProposal: vi.fn(),
+        permissions: { 7: ['accept', 'reject'] },
+        contributionTypes: [],
+        templates: [],
+        notes: [],
+        currentUserId: 22
+      }
+    });
+
+    expect(screen.queryByRole('button', { name: 'Question proposal' })).toBeNull();
+  });
+
+  it('loads feedback once when the AI analysis panel first expands', async () => {
+    stewardAPI.getAIFeedback.mockClear();
+    stewardAPI.getAIFeedback.mockResolvedValueOnce({ data: [] });
+
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          ai_analysis: {
+            id: 77,
+            action: 'accept',
+            confidence: 'high',
+            created_at: '2026-06-01T12:00:00Z',
+            sections: {
+              engineering: { score: 3, reason: 'The implementation is coherent.' }
+            },
+            gate_failures: [],
+            extras: [],
+            synthesis: 'The project meets the review bar.'
+          }
+        }),
+        showReviewForm: true,
+        permissions: { 7: ['accept'] },
+        contributionTypes: [],
+        templates: [],
+        notes: [],
+        currentUserId: 22
+      }
+    });
+
+    expect(screen.queryByRole('button', { name: 'Accurate' })).toBeNull();
+    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
+    await waitFor(() => expect(stewardAPI.getAIFeedback).toHaveBeenCalledWith(42));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Accurate' })).toBeTruthy());
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Hide AI review analysis' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
+    expect(stewardAPI.getAIFeedback).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats forbidden feedback reads as unavailable without an error', async () => {
+    stewardAPI.getAIFeedback.mockRejectedValueOnce({
+      response: { status: 403, data: { detail: 'Permission denied.' } }
+    });
+
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          ai_analysis: {
+            id: 77,
+            action: 'accept',
+            sections: {},
+            gate_failures: [],
+            extras: [],
+            synthesis: 'The project meets the review bar.'
+          }
+        }),
+        showReviewForm: true,
+        permissions: {},
+        contributionTypes: [],
+        templates: [],
+        notes: [],
+        currentUserId: 22
+      }
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
+    await waitFor(() => expect(stewardAPI.getAIFeedback).toHaveBeenCalledWith(42));
+
+    expect(screen.getByText('The project meets the review bar.')).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(get(toastStore)).toEqual([]);
+  });
+
+  it('keeps feedback load errors actionable for non-permission failures', async () => {
+    stewardAPI.getAIFeedback.mockRejectedValueOnce({
+      message: 'Request failed',
+      response: { status: 500, data: { detail: 'Service unavailable.' } }
+    });
+
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          ai_analysis: {
+            id: 77,
+            action: 'accept',
+            sections: {},
+            gate_failures: [],
+            extras: [],
+            synthesis: 'The project meets the review bar.'
+          }
+        }),
+        showReviewForm: true,
+        permissions: {},
+        contributionTypes: [],
+        templates: [],
+        notes: [],
+        currentUserId: 22
+      }
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
+
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Could not load steward feedback.'
+    );
+    expect(get(toastStore)).toEqual([
+      expect.objectContaining({
+        type: 'error',
+        message: 'Failed to load AI review feedback: Service unavailable.'
+      })
+    ]);
+  });
+
+  it('submits one-click agreement against the rendered AI proposal', async () => {
+    stewardAPI.getAIFeedback.mockResolvedValueOnce({ data: [] });
+    stewardAPI.submitAIFeedback.mockClear();
+    stewardAPI.submitAIFeedback.mockResolvedValueOnce({
+      data: {
+        id: 5,
+        review_proposal_id: 77,
+        reviewer_id: 22,
+        verdict: 'agree',
+        correct_decision: null,
+        gate_failures: [],
+        criteria: {},
+        error_claims: [],
+        updated_at: '2026-06-02T12:00:00Z'
+      }
+    });
+
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          ai_analysis: {
+            id: 77,
+            action: 'accept',
+            sections: {},
+            gate_failures: [],
+            extras: [],
+            synthesis: 'The project meets the review bar.'
+          }
+        }),
+        showReviewForm: true,
+        permissions: { 7: ['accept'] },
+        contributionTypes: [],
+        templates: [],
+        notes: [],
+        currentUserId: 22
+      }
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Accurate' })).toBeTruthy());
+    await fireEvent.click(screen.getByRole('button', { name: 'Accurate' }));
+
+    await waitFor(() => {
+      expect(stewardAPI.submitAIFeedback).toHaveBeenCalledWith(42, {
+        verdict: 'agree',
+        review_proposal_id: 77
+      });
+    });
+    expect(await screen.findByText('1 steward filed feedback')).toBeTruthy();
+  });
+
+  it('hides one-click agreement as soon as a reviewer starts a flaw draft', async () => {
+    stewardAPI.getAIFeedback.mockResolvedValueOnce({ data: [] });
+
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          ai_analysis: {
+            id: 77,
+            action: 'accept',
+            sections: {},
+            gate_failures: [],
+            extras: [],
+            synthesis: 'The project meets the review bar.'
+          }
+        }),
+        showReviewForm: true,
+        permissions: { 7: ['accept'] },
+        contributionTypes: [],
+        templates: [],
+        notes: [],
+        currentUserId: 22
+      }
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Accurate' })).toBeTruthy());
+
+    const decisionSelect = screen.getByLabelText('Override AI decision');
+    expect(Array.from(decisionSelect.options).map(option => option.value)).not.toContain('accept');
+    await fireEvent.click(screen.getByRole('button', { name: 'Flag flaw' }));
+
+    expect(screen.queryByRole('button', { name: 'Accurate' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Save feedback' })).toBeTruthy();
+  });
+
+  it('locks feedback controls while a save is pending', async () => {
+    stewardAPI.getAIFeedback.mockResolvedValueOnce({ data: [] });
+    /** @type {(value: any) => void} */
+    let resolveSave = () => {};
+    stewardAPI.submitAIFeedback.mockImplementationOnce(() => new Promise(resolve => {
+      resolveSave = resolve;
+    }));
+
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          ai_analysis: {
+            id: 77,
+            action: 'accept',
+            sections: { engineering: { score: 2, reason: 'AI reason' } },
+            gate_failures: [],
+            extras: [],
+            synthesis: 'AI synthesis'
+          }
+        }),
+        showReviewForm: true,
+        permissions: { 7: ['accept'] },
+        contributionTypes: [],
+        templates: [],
+        notes: [],
+        currentUserId: 22
+      }
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Accurate' })).toBeTruthy());
+    await fireEvent.change(screen.getByLabelText('Override Engineering score'), {
+      target: { value: '3' }
+    });
+    await fireEvent.click(screen.getByRole('button', { name: 'Save feedback' }));
+
+    expect(screen.queryByLabelText('Override Engineering score')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Flag flaw' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Saving feedback...' })).toBeTruthy();
+
+    resolveSave({
+      data: {
+        id: 5,
+        review_proposal_id: 77,
+        reviewer_id: 22,
+        verdict: 'agree_with_corrections',
+        correct_decision: null,
+        gate_failures: [],
+        criteria: { engineering: { range: [3, 3], reason: '' } },
+        error_claims: [],
+        updated_at: '2026-06-02T12:00:00Z'
+      }
+    });
+    expect(await screen.findByText('Corrected')).toBeTruthy();
+  });
+
+  it('shows only current-proposal feedback in the panel header', async () => {
+    stewardAPI.getAIFeedback.mockResolvedValueOnce({
+      data: [
+        {
+          id: 7,
+          review_proposal_id: 77,
+          reviewer_id: 22,
+          verdict: 'agree_with_corrections',
+          correct_decision: null,
+          gate_failures: [],
+          criteria: { engineering: { range: [3, 4], reason: 'Current correction' } },
+          error_claims: [],
+          updated_at: '2026-06-02T12:00:00Z'
+        },
+        {
+          id: 6,
+          review_proposal_id: 76,
+          reviewer_id: 31,
+          verdict: 'agree',
+          correct_decision: null,
+          gate_failures: [],
+          criteria: {},
+          error_claims: [],
+          updated_at: '2026-06-01T12:00:00Z'
+        }
+      ]
+    });
+
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          ai_analysis: {
+            id: 77,
+            action: 'accept',
+            sections: { engineering: { score: 2, reason: 'AI reason' } },
+            gate_failures: [],
+            extras: [],
+            synthesis: 'AI synthesis'
+          }
+        }),
+        showReviewForm: true,
+        permissions: { 7: ['accept'] },
+        contributionTypes: [],
+        templates: [],
+        notes: [],
+        currentUserId: 22
+      }
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
+    expect(await screen.findByText('Corrected')).toBeTruthy();
+    expect(screen.getByText('1 steward filed feedback')).toBeTruthy();
+    expect(screen.queryByText('2 stewards filed feedback')).toBeNull();
+  });
+
+  it('resets an edited record to its saved feedback without clearing hidden data', async () => {
+    stewardAPI.getAIFeedback.mockResolvedValueOnce({
+      data: [{
+        id: 7,
+        review_proposal_id: 77,
+        reviewer_id: 22,
+        verdict: 'agree_with_corrections',
+        correct_decision: null,
+        gate_failures: [],
+        criteria: {
+          engineering: { range: [3, 4], reason: 'Saved engineering correction' },
+          frontend_ux: { range: [1, 2], reason: 'Saved hidden correction' }
+        },
+        error_claims: [{ type: 'missed_issue', text: 'Saved general claim' }],
+        updated_at: '2026-06-02T12:00:00Z'
+      }]
+    });
+
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          ai_analysis: {
+            id: 77,
+            action: 'accept',
+            sections: { engineering: { score: 2, reason: 'AI reason' } },
+            gate_failures: [],
+            extras: [],
+            synthesis: 'AI synthesis'
+          }
+        }),
+        showReviewForm: true,
+        permissions: { 7: ['accept'] },
+        contributionTypes: [],
+        templates: [],
+        notes: [],
+        currentUserId: 22
+      }
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
+    expect(await screen.findByText('You: 3-4/5')).toBeTruthy();
+    await fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+    await waitFor(() => {
+      expect(screen.getByLabelText('Override Engineering score').value).toBe('3');
+    });
+    const scoreSelect = screen.getByLabelText('Override Engineering score');
+
+    await fireEvent.change(scoreSelect, { target: { value: '' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
+
+    expect(screen.getByLabelText('Override Engineering score').value).toBe('3');
+    expect(screen.getByLabelText('Flaw description for General feedback').value).toBe('Saved general claim');
+    expect(screen.getByText('Saved hidden correction')).toBeTruthy();
+  });
+
+  it.each([
+    {
+      bound: 'minimum',
+      savedRange: [3, 4],
+      control: 'Override Engineering score',
+      value: '2'
+    },
+    {
+      bound: 'maximum',
+      savedRange: [2, 4],
+      control: 'Maximum Engineering score',
+      value: '2'
+    }
+  ])('revalidates a saved score correction when its $bound changes', async ({
+    savedRange,
+    control,
+    value
+  }) => {
+    stewardAPI.getAIFeedback.mockResolvedValueOnce({
+      data: [{
+        id: 7,
+        review_proposal_id: 77,
+        reviewer_id: 22,
+        verdict: 'agree_with_corrections',
+        correct_decision: null,
+        gate_failures: [],
+        criteria: {
+          engineering: { range: savedRange, reason: 'Saved engineering correction' }
+        },
+        error_claims: [],
+        updated_at: '2026-06-02T12:00:00Z'
+      }]
+    });
+    stewardAPI.submitAIFeedback.mockClear();
+
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          ai_analysis: {
+            id: 77,
+            action: 'accept',
+            sections: { engineering: { score: 2, reason: 'AI reason' } },
+            gate_failures: [],
+            extras: [],
+            synthesis: 'AI synthesis'
+          }
+        }),
+        showReviewForm: true,
+        permissions: { 7: ['accept'] },
+        contributionTypes: [],
+        templates: [],
+        notes: [],
+        currentUserId: 22
+      }
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+    const scoreSelect = screen.getByLabelText(control);
+    await fireEvent.change(scoreSelect, { target: { value } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Save feedback' }));
+
+    expect(stewardAPI.submitAIFeedback).not.toHaveBeenCalled();
+  });
+
+  it('ignores a completed save when the rendered AI proposal changes', async () => {
+    stewardAPI.getAIFeedback.mockClear();
+    stewardAPI.submitAIFeedback.mockClear();
+    stewardAPI.getAIFeedback.mockResolvedValue({ data: [] });
+    /** @type {(value: any) => void} */
+    let resolveSave = () => {};
+    stewardAPI.submitAIFeedback.mockImplementationOnce(() => new Promise(resolve => {
+      resolveSave = resolve;
+    }));
+
+    const firstSubmission = makeSubmission({
+      ai_analysis: {
+        id: 77,
+        action: 'accept',
+        sections: {},
+        gate_failures: [],
+        extras: [],
+        synthesis: 'First proposal'
+      }
+    });
+    const { rerender } = render(SubmissionCard, {
+      props: {
+        submission: firstSubmission,
+        showReviewForm: true,
+        permissions: { 7: ['accept'] },
+        contributionTypes: [],
+        templates: [],
+        notes: [],
+        currentUserId: 22
+      }
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Accurate' }));
+
+    await rerender({
+      submission: makeSubmission({
+        id: firstSubmission.id,
+        ai_analysis: {
+          id: 78,
+          action: 'reject',
+          sections: {},
+          gate_failures: [],
+          extras: [],
+          synthesis: 'Replacement proposal'
+        }
+      })
+    });
+    resolveSave({
+      data: {
+        id: 5,
+        review_proposal_id: 77,
+        reviewer_id: 22,
+        verdict: 'agree',
+        criteria: {},
+        error_claims: []
+      }
+    });
+    await Promise.resolve();
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
+    await waitFor(() => expect(stewardAPI.getAIFeedback).toHaveBeenCalledTimes(2));
+  });
+
+  it('ignores a failed save when the rendered AI proposal changes', async () => {
+    stewardAPI.getAIFeedback.mockClear();
+    stewardAPI.submitAIFeedback.mockClear();
+    stewardAPI.getAIFeedback.mockResolvedValue({ data: [] });
+    /** @type {(reason?: any) => void} */
+    let rejectSave = () => {};
+    stewardAPI.submitAIFeedback.mockImplementationOnce(() => new Promise((resolve, reject) => {
+      rejectSave = reject;
+    }));
+
+    const firstSubmission = makeSubmission({
+      ai_analysis: {
+        id: 77,
+        action: 'accept',
+        sections: {},
+        gate_failures: [],
+        extras: [],
+        synthesis: 'First proposal'
+      }
+    });
+    const { rerender } = render(SubmissionCard, {
+      props: {
+        submission: firstSubmission,
+        showReviewForm: true,
+        permissions: { 7: ['accept'] },
+        contributionTypes: [],
+        templates: [],
+        notes: [],
+        currentUserId: 22
+      }
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Accurate' }));
+
+    await rerender({
+      submission: makeSubmission({
+        id: firstSubmission.id,
+        ai_analysis: {
+          id: 78,
+          action: 'reject',
+          sections: {},
+          gate_failures: [],
+          extras: [],
+          synthesis: 'Replacement proposal'
+        }
+      })
+    });
+    await fireEvent.click(screen.getByRole('button', { name: 'Show AI review analysis' }));
+    const replacementAccurate = await screen.findByRole('button', { name: 'Accurate' });
+    expect(replacementAccurate.disabled).toBe(false);
+
+    rejectSave({
+      response: { status: 500, data: { detail: 'Old proposal save failed.' } }
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(get(toastStore)).toEqual([]);
   });
 
   it('lets final reviewers question proposals on more-info submissions', async () => {
