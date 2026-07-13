@@ -86,8 +86,8 @@ aws iam create-role \
 # - App Runner and ECR mutations are limited to the environment service and
 #   repository ARNs; only the List*/GetAuthorizationToken calls that AWS does
 #   not support resource-scoping for remain on "*".
-# - iam:PassRole is restricted to the two App Runner roles and only towards
-#   the App Runner service principal.
+# - iam:PassRole is restricted to the two exact App Runner role ARNs. The
+#   deployment role has no actions for other services that accept roles.
 cat > github-actions-policy.json << EOF
 {
     "Version": "2012-10-17",
@@ -156,12 +156,7 @@ cat > github-actions-policy.json << EOF
             "Resource": [
                 "arn:aws:iam::$ACCOUNT_ID:role/$INSTANCE_ROLE_NAME",
                 "arn:aws:iam::$ACCOUNT_ID:role/AppRunnerECRAccessRole"
-            ],
-            "Condition": {
-                "StringLike": {
-                    "iam:PassedToService": "apprunner.amazonaws.com"
-                }
-            }
+            ]
         },
         {
             "Sid": "Identity",
