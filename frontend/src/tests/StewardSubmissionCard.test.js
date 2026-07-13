@@ -116,19 +116,26 @@ function reviewProps({ permissions, onReview = vi.fn(), onPropose = vi.fn() }) {
 
 describe('StewardSubmissionCard', () => {
   it('consolidates the submitter profile, avatar, socials, and submission date in the header', () => {
-    renderCard();
+    renderCard({
+      submission: makeSubmission({
+        contribution_date: '2026-05-20T08:00:00Z',
+        created_at: '2026-06-01T12:00:00Z'
+      })
+    });
 
     const profileLink = screen.getByRole('link', { name: 'View Project Builder profile' });
     expect(profileLink.getAttribute('href')).toBe('/participant/9');
     expect(screen.getByRole('img', { name: 'Project Builder' })).toBeTruthy();
-    expect(screen.getByText('View profile')).toBeTruthy();
     expect(screen.getByText(/Submitted /)).toBeTruthy();
 
     const githubLink = screen.getByRole('link', { name: 'GitHub: @builder-gh' });
     const xLink = screen.getByRole('link', { name: 'X: @builder-x' });
+    expect(profileLink.parentElement?.contains(githubLink)).toBe(true);
     expect(githubLink.getAttribute('href')).toBe('https://github.com/builder-gh');
     expect(xLink.getAttribute('href')).toBe('https://x.com/builder-x');
     expect(screen.getByLabelText('Discord: builder-discord')).toBeTruthy();
+    expect(screen.queryByText('Contribution date')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'More details' })).toBeNull();
   });
 
   it('keeps submission and internal notes collapsed until requested', async () => {
@@ -296,6 +303,80 @@ describe('StewardSubmissionCard', () => {
     expect(within(dialog).getByText('3 / 5')).toBeTruthy();
     expect(within(dialog).getByText('Immutable AI frontend assessment.')).toBeTruthy();
     expect(within(dialog).queryByText('Human frontend assessment.')).toBeNull();
+  });
+
+  it('makes a loaded AI rubric and reviewer score changes explicit', async () => {
+    const builderProjectType = {
+      ...contributionType,
+      review_flow: 'builder_project'
+    };
+    const aiAnalysis = makeAIAnalysis();
+    renderCard({
+      ...reviewProps({ permissions: ['accept', 'reject'] }),
+      submission: makeSubmission({
+        contribution_type_details: builderProjectType,
+        has_proposal: true,
+        proposal_is_ai: true,
+        proposed_action: 'accept',
+        rubric_review: {
+          action: 'accept',
+          gate_failures: [],
+          sections: aiAnalysis.sections,
+          extras: ['live_deployment'],
+          overall_reason: 'AI proposal rationale.'
+        },
+        ai_analysis: aiAnalysis
+      }),
+      contributionTypes: [builderProjectType],
+      permissions: { 7: ['accept', 'reject'] },
+      currentUserId: 22,
+      enableRubricReview: true
+    });
+
+    expect(await screen.findByText('AI proposal loaded')).toBeTruthy();
+    const fitScore = /** @type {HTMLSelectElement} */ (screen.getByLabelText('GenLayer fit'));
+    expect(fitScore.value).toBe('4');
+    expect(screen.getAllByText('AI proposed 4/5')).toHaveLength(2);
+
+    await fireEvent.change(fitScore, { target: { value: '2' } });
+    expect(screen.getByText('Adjusted')).toBeTruthy();
+    expect(fitScore.value).toBe('2');
+  });
+
+  it('shows verified extras directly and skips scores only for gate-failure rejects', async () => {
+    const onReview = vi.fn();
+    const builderProjectType = {
+      ...contributionType,
+      review_flow: 'builder_project'
+    };
+    renderCard({
+      ...reviewProps({ permissions: ['accept', 'reject'], onReview }),
+      submission: makeSubmission({ contribution_type_details: builderProjectType }),
+      contributionTypes: [builderProjectType],
+      permissions: { 7: ['accept', 'reject'] },
+      enableRubricReview: true
+    });
+
+    expect(await screen.findByRole('group', { name: 'Verified extras' })).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: 'Live deployment' })).toBeTruthy();
+    expect(screen.getByLabelText('GenLayer fit')).toBeTruthy();
+
+    await fireEvent.click(screen.getByRole('button', { name: /^Reject$/ }));
+    expect(screen.getByText('Required because this rejection does not use a hard gate failure.')).toBeTruthy();
+
+    await fireEvent.click(screen.getByRole('checkbox', { name: 'Repo does not build or work' }));
+    expect(screen.getByText('Criterion scoring skipped')).toBeTruthy();
+    expect(screen.queryByLabelText('GenLayer fit')).toBeNull();
+    expect(screen.getByRole('group', { name: 'Verified extras' })).toBeTruthy();
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Reject submission' }));
+    expect(onReview).toHaveBeenCalledWith(42, expect.objectContaining({
+      action: 'reject',
+      rubric_review: expect.objectContaining({
+        gate_failures: ['repo_does_not_build'],
+        sections: {}
+      })
+    }));
   });
 
   it('routes every outcome through proposals for a proposal-only steward', async () => {
