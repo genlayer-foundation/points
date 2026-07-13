@@ -87,7 +87,7 @@ aws iam create-role \
 #   repository ARNs; only the List*/GetAuthorizationToken calls that AWS does
 #   not support resource-scoping for remain on "*".
 # - iam:PassRole is restricted to the two App Runner roles and only towards
-#   the App Runner service principals.
+#   the App Runner service principal.
 cat > github-actions-policy.json << EOF
 {
     "Version": "2012-10-17",
@@ -158,12 +158,8 @@ cat > github-actions-policy.json << EOF
                 "arn:aws:iam::$ACCOUNT_ID:role/AppRunnerECRAccessRole"
             ],
             "Condition": {
-                "StringEquals": {
-                    "iam:PassedToService": [
-                        "apprunner.amazonaws.com",
-                        "build.apprunner.amazonaws.com",
-                        "tasks.apprunner.amazonaws.com"
-                    ]
+                "StringLike": {
+                    "iam:PassedToService": "apprunner.amazonaws.com"
                 }
             }
         },
