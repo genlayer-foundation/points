@@ -22,7 +22,11 @@ from social_connections.earned_roles import (
     SYNAPSE_POAPS,
     assign_earned_community_roles,
 )
-from social_connections.models import DiscordConnection, DiscordRole
+from social_connections.models import (
+    DiscordConnection,
+    DiscordEarnedRoleAssignment,
+    DiscordRole,
+)
 from social_tasks.models import SocialTask, SocialTaskCompletion
 from users.models import User
 
@@ -60,6 +64,17 @@ class AddMemberRoleTest(TestCase):
         self.assertEqual(
             args[1],
             'https://discord.com/api/v10/guilds/guild-1/members/user-1/roles/role-1',
+        )
+
+    @patch('social_connections.discord_roles.requests.request')
+    def test_sends_audit_log_reason(self, mock_request):
+        mock_request.return_value = mock_response(204)
+
+        self.service.add_member_role('user-1', 'role-1', audit_log_reason='Earned role: synapse')
+
+        self.assertEqual(
+            mock_request.call_args.kwargs['headers']['X-Audit-Log-Reason'],
+            'Earned%20role%3A%20synapse',
         )
 
     @patch('social_connections.discord_roles.requests.request')
@@ -148,6 +163,14 @@ class AssignEarnedCommunityRolesTest(TestCase):
         self.assertIn(f'discord-{user.id}', args_url)
         self.assertTrue(connection.current_roles.filter(role_id='role-synapse').exists())
         self.assertEqual(stats['assignments'][0]['role'], 'synapse')
+        assignment = DiscordEarnedRoleAssignment.objects.get()
+        self.assertEqual(assignment.connection, connection)
+        self.assertEqual(assignment.discord_user_id, f'discord-{user.id}')
+        self.assertEqual(assignment.role_id, 'role-synapse')
+        self.assertEqual(assignment.role_name, 'synapse')
+        self.assertEqual(assignment.total_points, SYNAPSE_CP)
+        self.assertEqual(assignment.poap_count, SYNAPSE_POAPS)
+        self.assertIsNotNone(assignment.created_at)
 
     @patch('social_connections.discord_roles.requests.request')
     def test_pending_social_task_points_count_toward_synapse(self, mock_request):
@@ -265,6 +288,7 @@ class AssignEarnedCommunityRolesTest(TestCase):
         self.assertEqual(len(stats['assignments']), 1)
         mock_request.assert_not_called()
         self.assertFalse(connection.current_roles.filter(role_id='role-synapse').exists())
+        self.assertFalse(DiscordEarnedRoleAssignment.objects.exists())
 
     @patch('social_connections.discord_roles.requests.request')
     def test_unconfigured_role_ids_noop(self, mock_request):
