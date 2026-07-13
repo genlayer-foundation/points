@@ -1770,3 +1770,41 @@ class TelegramReviewFixTests(TestCase):
         # No crash; the deleted row is simply gone.
         self.assertEqual(TelegramMessage.objects.count(), 0)
         self.assertEqual(stats['remaining'], 0)
+
+
+class TelegramInactiveUserDeliveryTests(TestCase):
+    """Deactivating a portal account must silence its Telegram delivery."""
+
+    def setUp(self):
+        from social_connections.models import TelegramConnection
+        self.user = make_user('linked@test.com', '0x1111111111111111111111111111111111111111')
+        self.connection = TelegramConnection.objects.create(
+            user=self.user,
+            platform_user_id='111',
+            platform_username='linked',
+            linked_at=timezone.now(),
+        )
+
+    def test_enqueue_skips_inactive_recipient(self):
+        from social_connections.models import TelegramMessage
+        User.objects.filter(pk=self.user.pk).update(is_active=False)
+        services.notify('submission.accepted', recipient=self.user, title='Hi')
+        self.assertFalse(
+            TelegramMessage.objects.filter(direction=TelegramMessage.DIRECTION_OUT).exists()
+        )
+
+    def test_drain_skips_user_deactivated_after_enqueue(self):
+        from unittest.mock import patch
+        from social_connections.models import TelegramMessage
+        from notifications.telegram import deliver_pending
+        services.notify('submission.accepted', recipient=self.user, title='Hi')
+        User.objects.filter(pk=self.user.pk).update(is_active=False)
+
+        with patch('notifications.telegram.send_telegram_message') as send_mock, \
+                patch('notifications.telegram.time.sleep'):
+            deliver_pending()
+
+        send_mock.assert_not_called()
+        row = TelegramMessage.objects.get(direction=TelegramMessage.DIRECTION_OUT)
+        self.assertEqual(row.status, TelegramMessage.STATUS_FAILED)
+        self.assertEqual(row.error, 'connection_gone')

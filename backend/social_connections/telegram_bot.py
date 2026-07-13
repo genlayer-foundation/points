@@ -58,7 +58,7 @@ def telegram_link_token(request):
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
 
-    PendingOAuthState.cleanup_old(minutes=LINK_TOKEN_MAX_AGE_MINUTES)
+    PendingOAuthState.cleanup_old(minutes=LINK_TOKEN_MAX_AGE_MINUTES, platform='telegram')
     token = secrets.token_urlsafe(32)  # 43 chars of [A-Za-z0-9_-]: valid start payload
     PendingOAuthState.objects.create(
         state_id=token,
@@ -134,9 +134,11 @@ def handle_update(update):
         return
 
     chat_id = str(chat['id'])
+    # Deactivated portal accounts lose Telegram access too: their connection
+    # resolves as unlinked, so commands answer nothing account-specific.
     connection = (
         TelegramConnection.objects
-        .filter(platform_user_id=str(sender['id']))
+        .filter(platform_user_id=str(sender['id']), user__is_active=True)
         .select_related('user')
         .first()
     )
@@ -216,6 +218,13 @@ def _handle_start(chat_id, sender, token, connection):
             chat_id, connection,
             "This link expired or was already used. "
             "Get a fresh one from your portal profile.",
+        )
+        return
+
+    if not pending.user.is_active:
+        _reply(
+            chat_id, connection,
+            "This portal account is deactivated, so it can't be linked to Telegram.",
         )
         return
 

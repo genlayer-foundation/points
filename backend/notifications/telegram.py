@@ -151,6 +151,7 @@ def render_notification_text(notification):
 def eligible_connections(users):
     return TelegramConnection.objects.filter(
         user__in=users,
+        user__is_active=True,
         notifications_enabled=True,
         blocked_at__isnull=True,
     )
@@ -177,6 +178,7 @@ def enqueue_personal(notification):
             TelegramConnection.objects
             .filter(
                 user=notification.recipient,
+                user__is_active=True,
                 notifications_enabled=True,
                 blocked_at__isnull=True,
             )
@@ -331,10 +333,12 @@ def _claim_batch(size, exclude_pks):
             )
     if not pks:
         return []
+    # No connection preload: the send loop refetches each connection right
+    # before delivery so relinks/deactivations during the batch are seen.
     return list(
         TelegramMessage.objects
         .filter(pk__in=pks)
-        .select_related('connection', 'notification')
+        .select_related('notification')
         .order_by('created_at')
     )
 
@@ -392,16 +396,29 @@ def deliver_pending(limit=DEFAULT_RUN_LIMIT):
                 failed += 1
                 continue
 
-            conn = message.connection
-            if conn is None or not conn.notifications_enabled or conn.blocked_at:
+            # Refetch immediately before delivery (not preloaded with the
+            # batch): a relink mid-batch must send to the LIVE chat id, a 403
+            # must mark the CURRENT row state, and a user deactivated after
+            # enqueue must not receive anything.
+            conn = (
+                TelegramConnection.objects
+                .select_related('user')
+                .filter(pk=message.connection_id)
+                .first()
+            ) if message.connection_id else None
+            if (
+                conn is None
+                or not conn.notifications_enabled
+                or conn.blocked_at
+                or not conn.user.is_active
+            ):
                 _finish(message, TelegramMessage.STATUS_FAILED, 'connection_gone')
                 failed += 1
                 continue
 
-            # Send to the connection's LIVE chat id: if the user re-linked a
-            # different Telegram account, message.chat_id is a stale record.
-            # The link button is built from the notification at send time, so
-            # the outbox stores only the rendered text.
+            # message.chat_id is only the historical record; the button is
+            # built from the notification at send time, so the outbox stores
+            # only the rendered text.
             ok, retry_after, description = send_telegram_message(
                 conn.platform_user_id,
                 message.text,

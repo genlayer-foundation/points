@@ -368,9 +368,18 @@ class PendingOAuthState(models.Model):
             return pending
 
     @classmethod
-    def cleanup_old(cls, minutes=10):
+    def cleanup_old(cls, minutes=10, platform=None):
+        """Delete expired rows, scoped to one platform.
+
+        Flows use different lifetimes (Telegram deep-link tokens live longer
+        than OAuth states), so each flow must only sweep its own platform;
+        an unscoped 10-minute sweep would expire Telegram tokens early.
+        """
         cutoff = timezone.now() - timedelta(minutes=minutes)
-        deleted, _ = cls.objects.filter(created_at__lt=cutoff).delete()
+        queryset = cls.objects.filter(created_at__lt=cutoff)
+        if platform:
+            queryset = queryset.filter(platform=platform)
+        deleted, _ = queryset.delete()
         if deleted:
             logger.debug(f"Cleaned up {deleted} expired pending OAuth states")
         return deleted

@@ -311,3 +311,76 @@ class TelegramIdentityUniquenessTests(TestCase):
 
         self.assertFalse(TelegramConnection.objects.exists())
         self.assertIn('different portal account', send_mock.call_args[0][1])
+
+
+@override_settings(**TELEGRAM_SETTINGS)
+class TelegramTokenLifetimeTests(TestCase):
+    """OAuth flows sweep expired states with a 10-minute lifetime; Telegram
+    tokens live 15. Cleanup must be platform-scoped or an unrelated OAuth
+    initiation would expire Telegram tokens five minutes early."""
+
+    def test_platform_scoped_cleanup_spares_other_platforms(self):
+        user = make_user('user@test.com', '0x1234567890123456789012345678901234567890')
+        for platform in ('telegram', 'github'):
+            pending = PendingOAuthState.objects.create(
+                state_id=f'{platform}-token', platform=platform, user=user,
+            )
+            PendingOAuthState.objects.filter(pk=pending.pk).update(
+                created_at=timezone.now() - timedelta(minutes=12)
+            )
+
+        PendingOAuthState.cleanup_old(minutes=10, platform='github')
+
+        self.assertFalse(PendingOAuthState.objects.filter(platform='github').exists())
+        self.assertTrue(PendingOAuthState.objects.filter(platform='telegram').exists())
+        # A 12-minute-old Telegram token is still redeemable.
+        self.assertIsNotNone(
+            PendingOAuthState.consume_deep_link('telegram-token', 'telegram', max_age_minutes=15)
+        )
+
+
+@override_settings(**TELEGRAM_SETTINGS)
+class TelegramInactiveUserTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = make_user('user@test.com', '0x1234567890123456789012345678901234567890')
+        patcher = patch(
+            'social_connections.telegram_bot.send_telegram_message',
+            return_value=(True, None, ''),
+        )
+        self.send_mock = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_start_token_for_deactivated_user_rejected(self):
+        pending = PendingOAuthState.objects.create(
+            state_id='inactive-token', platform='telegram', user=self.user,
+        )
+        User.objects.filter(pk=self.user.pk).update(is_active=False)
+
+        self.client.post(
+            WEBHOOK_URL,
+            data=json.dumps(start_update(111, f'/start {pending.state_id}')),
+            content_type='application/json',
+            HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN='s3cret',
+        )
+
+        self.assertFalse(TelegramConnection.objects.exists())
+        self.assertIn('deactivated', self.send_mock.call_args[0][1])
+
+    def test_commands_from_deactivated_user_resolve_as_unlinked(self):
+        from social_connections.telegram_bot import handle_update
+        from leaderboard.models import LeaderboardEntry
+        TelegramConnection.objects.create(
+            user=self.user,
+            platform_user_id='111',
+            platform_username='tester',
+            linked_at=timezone.now(),
+        )
+        LeaderboardEntry.objects.create(user=self.user, type='builder', total_points=999, rank=1)
+        User.objects.filter(pk=self.user.pk).update(is_active=False)
+
+        handle_update(start_update(111, '/rank'))
+
+        reply = self.send_mock.call_args[0][1]
+        self.assertIn("isn't linked", reply)
+        self.assertNotIn('999', reply)

@@ -7,7 +7,7 @@ import requests
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from social_connections.telegram import telegram_api_url
+from social_connections.telegram import redact_token, telegram_api_url
 
 
 class Command(BaseCommand):
@@ -22,15 +22,19 @@ class Command(BaseCommand):
         if not settings.TELEGRAM_WEBHOOK_SECRET:
             raise CommandError('TELEGRAM_WEBHOOK_SECRET is not configured')
 
-        response = requests.post(
-            telegram_api_url('setWebhook'),
-            json={
-                'url': options['url'],
-                'secret_token': settings.TELEGRAM_WEBHOOK_SECRET,
-                'allowed_updates': ['message'],
-            },
-            timeout=10,
-        )
+        try:
+            response = requests.post(
+                telegram_api_url('setWebhook'),
+                json={
+                    'url': options['url'],
+                    'secret_token': settings.TELEGRAM_WEBHOOK_SECRET,
+                    'allowed_updates': ['message'],
+                },
+                timeout=10,
+            )
+        except requests.RequestException as exc:
+            # Transport errors embed the request URL, which contains the token.
+            raise CommandError(f'setWebhook request failed: {redact_token(exc)}')
         self.stdout.write(f"{response.status_code}: {response.text}")
         if not response.ok:
             raise CommandError('setWebhook failed')
