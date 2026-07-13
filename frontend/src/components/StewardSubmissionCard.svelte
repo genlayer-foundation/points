@@ -68,7 +68,6 @@
   let questionTextarea = $state(null);
   let submissionNotesExpanded = $state(false);
   let internalNotesExpanded = $state(false);
-  let moreDetailsExpanded = $state(false);
   let expandedRubricReasons = $state(new Set());
   let feedbackDialogOpen = $state(false);
   let feedbackDialogAnchor = $state('decision');
@@ -320,6 +319,23 @@
   });
   let hasRubricGateFailures = $derived(rubricGateFailures.length > 0);
   let isProposalRubric = $derived(selectedSubmissionMode === 'proposal');
+  let skipRubricScoring = $derived(
+    reviewAction === 'reject' && hasRubricGateFailures
+  );
+  let isLoadedAIProposal = $derived(Boolean(
+    submission.has_proposal &&
+    submission.proposal_is_ai &&
+    submission.rubric_review
+  ));
+  let rubricModeLabel = $derived(
+    isProposalRubric
+      ? 'Draft proposal'
+      : isLoadedAIProposal
+        ? 'AI proposal loaded'
+        : submission.has_proposal
+          ? 'Proposal loaded'
+          : 'Final review'
+  );
   let showProjectRubric = $derived(
     isProjectReview && (
       reviewAction === 'accept' ||
@@ -357,10 +373,6 @@
   let selectedContributionTypeObj = $state(null);
   let selectedMission = $state(untrack(() => submission.mission || null));
   let isMilestoneSubmission = $derived(submission.contribution_type_details?.slug === 'milestones');
-  let hasDistinctContributionDate = $derived(Boolean(
-    submission.contribution_date &&
-    String(submission.contribution_date).slice(0, 10) !== String(submission.created_at || '').slice(0, 10)
-  ));
   let currentAIFeedbackRecord = $derived.by(() => {
     if (currentUserId === null || currentUserId === undefined || !submission.ai_analysis?.id) return null;
     return aiFeedbackRecords.find(record =>
@@ -1124,16 +1136,35 @@
 {#snippet compactProjectRubric()}
   <section class="-mx-4 overflow-hidden border-y border-slate-200 bg-white">
     <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-50 px-4 py-3">
-        <div class="min-w-0">
+      <div class="min-w-0 flex-1">
         <div class="flex flex-wrap items-center gap-2">
-          <h4 class="text-sm font-semibold text-slate-950">Project rubric</h4>
-          <span class="rounded-md bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-700 shadow-[0_0_0_1px_rgba(15,23,42,0.10)]">
-            {points} pts
-          </span>
-          <span class="rounded-md px-2 py-1 text-xs font-semibold {isProposalRubric ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-700'}">
-            {isProposalRubric ? 'Proposal rubric' : 'Final review'}
+          <h4 class="text-balance text-sm font-semibold text-slate-950">Builder project rubric</h4>
+          {#if skipRubricScoring}
+            <span class="rounded-md bg-red-100 px-2 py-1 text-xs font-semibold text-red-800">
+              Gate-failure rejection
+            </span>
+          {:else}
+            <span class="rounded-md bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-700 shadow-[0_0_0_1px_rgba(15,23,42,0.10)]">
+              {points} pts
+            </span>
+          {/if}
+          <span class="rounded-md px-2 py-1 text-xs font-semibold {isProposalRubric ? 'bg-amber-100 text-amber-800' : isLoadedAIProposal ? 'bg-sky-100 text-sky-800' : 'bg-slate-200 text-slate-700'}">
+            {rubricModeLabel}
           </span>
         </div>
+        <p class="mt-1.5 max-w-2xl text-pretty text-xs leading-5 text-slate-600">
+          {#if skipRubricScoring}
+            A hard gate failed, so criterion scores will not be submitted for this rejection.
+          {:else if reviewAction === 'reject'}
+            No hard gate is selected. Complete the criterion scores to support a rubric-based rejection.
+          {:else if isLoadedAIProposal}
+            The AI proposal is loaded below. Confirm or adjust each score before making the final decision.
+          {:else if isProposalRubric}
+            Score each criterion, verify any extras, and add an overall reason for the proposal.
+          {:else}
+            Confirm each criterion and verified extra before making the final decision.
+          {/if}
+        </p>
       </div>
       {#if submission.ai_analysis && canFileFeedback}
         <button
@@ -1165,10 +1196,15 @@
     {#if reviewAction === 'reject'}
       <fieldset class="border-t border-slate-200 px-4 py-3">
         <legend class="sr-only">Project gate failures</legend>
-        <p class="mb-2 text-xs font-semibold uppercase text-red-800">Gate failures</p>
+        <div class="mb-2">
+          <p class="text-xs font-semibold uppercase text-red-800">Hard gate failures</p>
+          <p class="mt-1 text-pretty text-xs leading-5 text-slate-600">
+            Select any hard-stop issue that applies. Once selected, criterion scoring is skipped.
+          </p>
+        </div>
         <div class="grid gap-2 sm:grid-cols-2">
           {#each RUBRIC_GATE_FAILURES as gate}
-            <label class="flex min-h-10 cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-xs font-medium shadow-[0_0_0_1px_rgba(15,23,42,0.10)] {rubricGateFailures.includes(gate.key) ? 'bg-red-50 text-red-800' : 'bg-white text-slate-700 hover:bg-slate-50'}">
+            <label class="flex min-h-10 cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-xs font-medium shadow-[0_0_0_1px_rgba(15,23,42,0.10)] transition-[background-color,box-shadow] {rubricGateFailures.includes(gate.key) ? 'bg-red-50 text-red-800 shadow-[0_0_0_1px_rgba(220,38,38,0.24)]' : 'bg-white text-slate-700 hover:bg-slate-50'}">
               <input
                 type="checkbox"
                 checked={rubricGateFailures.includes(gate.key)}
@@ -1179,107 +1215,149 @@
             </label>
           {/each}
         </div>
+        {#if hasRubricGateFailures}
+          <p class="mt-2 rounded-md bg-red-50 px-3 py-2 text-pretty text-xs font-medium leading-5 text-red-800" role="status">
+            {rubricGateFailures.length} gate {rubricGateFailures.length === 1 ? 'failure' : 'failures'} selected. Criterion scores will not be submitted.
+          </p>
+        {/if}
       </fieldset>
     {/if}
 
-    <div class="divide-y divide-slate-200 border-t border-slate-200">
-      {#each RUBRIC_SECTIONS as section}
-        {@const sectionReason = getRubricSectionReason(section.key)}
-        {@const aiSection = submission.ai_analysis?.sections?.[section.key]}
-        <div class="px-4 py-3">
-          <div class="grid items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
-            <div class="min-w-0">
-              <div class="flex flex-wrap items-center gap-2">
-                <label
-                  for="steward-rubric-score-{submission.id}-{section.key}"
-                  class="text-sm font-semibold text-slate-900"
-                >
-                  {section.label}
-                </label>
-                {#if aiSection}
-                  <span class="rounded-md bg-sky-50 px-2 py-0.5 text-xs font-semibold tabular-nums text-sky-800">
-                    AI {aiSection.score}/5
-                  </span>
-                {/if}
-                {#if sectionReason}
-                  <span class="text-xs font-medium text-emerald-700">Reason saved</span>
-                {/if}
-                {#if hasAIAnchorFeedback(section.key)}
-                  <span class="text-xs font-medium text-amber-700">AI feedback saved</span>
+    {#if skipRubricScoring}
+      <div class="border-t border-slate-200 bg-red-50/50 px-4 py-4">
+        <p class="text-sm font-semibold text-red-900">Criterion scoring skipped</p>
+        <p class="mt-1 text-pretty text-xs leading-5 text-red-800">
+          Hard gate failures override the score-based rubric, so the four criterion scores are kept out of this rejection.
+        </p>
+      </div>
+    {:else}
+      <div class="border-t border-slate-200 bg-white px-4 py-3">
+        <p class="text-sm font-semibold text-slate-900">Criterion scoring</p>
+        <p class="mt-1 text-pretty text-xs leading-5 text-slate-500">
+          {reviewAction === 'reject'
+            ? 'Required because this rejection does not use a hard gate failure.'
+            : 'Use a score from 0 to 5 for every criterion.'}
+        </p>
+      </div>
+      <div class="divide-y divide-slate-200 border-t border-slate-200">
+        {#each RUBRIC_SECTIONS as section}
+          {@const sectionReason = getRubricSectionReason(section.key)}
+          {@const aiSection = submission.ai_analysis?.sections?.[section.key]}
+          {@const selectedScore = Number(rubricSections[section.key]?.score ?? 0)}
+          {@const differsFromAI = Boolean(aiSection) && selectedScore !== Number(aiSection.score)}
+          <div class="px-4 py-3">
+            <div class="grid items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <label
+                    for="steward-rubric-score-{submission.id}-{section.key}"
+                    class="text-balance text-sm font-semibold text-slate-900"
+                  >
+                    {section.label}
+                  </label>
+                  {#if aiSection}
+                    <span class="rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums {differsFromAI ? 'bg-amber-50 text-amber-800' : 'bg-sky-50 text-sky-800'}">
+                      {isLoadedAIProposal ? 'AI proposed' : 'AI benchmark'} {aiSection.score}/5
+                    </span>
+                    {#if differsFromAI}
+                      <span class="text-xs font-medium text-amber-700">
+                        {isLoadedAIProposal ? 'Adjusted' : 'Different score'}
+                      </span>
+                    {/if}
+                  {/if}
+                  {#if sectionReason}
+                    <span class="text-xs font-medium text-emerald-700">Reason saved</span>
+                  {/if}
+                  {#if hasAIAnchorFeedback(section.key)}
+                    <span class="text-xs font-medium text-amber-700">AI feedback saved</span>
+                  {/if}
+                </div>
+                {#if !isProposalRubric && sectionReason}
+                  <p class="mt-1 line-clamp-copy text-pretty text-xs text-slate-600">{sectionReason}</p>
+                {:else}
+                  <p class="mt-1 text-pretty text-xs text-slate-500">{section.help}</p>
                 {/if}
               </div>
-              {#if !isProposalRubric && sectionReason}
-                <p class="mt-1 line-clamp-copy text-xs text-slate-600">{sectionReason}</p>
-              {:else}
-                <p class="mt-1 text-xs text-slate-500">{section.help}</p>
-              {/if}
+
+              <div class="sm:justify-self-end">
+                <span class="mb-1 block text-[0.6875rem] font-semibold uppercase tracking-wide text-slate-500">
+                  {isProposalRubric ? 'Proposal score' : 'Review score'}
+                </span>
+                <select
+                  id="steward-rubric-score-{submission.id}-{section.key}"
+                  value={rubricSections[section.key]?.score ?? 0}
+                  onchange={(event) => updateRubricScore(section.key, event.currentTarget.value)}
+                  class="h-10 w-24 rounded-md bg-white px-2 text-sm font-semibold tabular-nums text-slate-900 shadow-[0_0_0_1px_rgba(15,23,42,0.16)] focus:outline-none focus:ring-2 focus:ring-slate-400"
+                >
+                  {#each [0, 1, 2, 3, 4, 5] as scoreValue}
+                    <option value={scoreValue}>{scoreValue}/5</option>
+                  {/each}
+                </select>
+              </div>
+
+              <div class="flex items-center justify-end gap-1">
+                {#if isProposalRubric}
+                  <button
+                    type="button"
+                    onclick={() => toggleRubricReason(section.key)}
+                    aria-expanded={expandedRubricReasons.has(section.key)}
+                    aria-controls="rubric-reason-{submission.id}-{section.key}"
+                    class="min-h-10 rounded-md px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 active:scale-[0.96] transition-[background-color,transform]"
+                  >
+                    {sectionReason ? 'Edit reason' : 'Add reason'}
+                  </button>
+                {/if}
+                {#if aiSection && canFileFeedback}
+                  <button
+                    type="button"
+                    onclick={() => openAIFeedback(section.key)}
+                    class="min-h-10 rounded-md px-3 text-xs font-semibold text-sky-800 hover:bg-sky-100 active:scale-[0.96] transition-[background-color,transform]"
+                  >
+                    {hasAIAnchorFeedback(section.key) ? 'Edit AI feedback' : 'Flag AI issue'}
+                  </button>
+                {/if}
+              </div>
             </div>
 
-            <select
-              id="steward-rubric-score-{submission.id}-{section.key}"
-              value={rubricSections[section.key]?.score ?? 0}
-              onchange={(event) => updateRubricScore(section.key, event.currentTarget.value)}
-              class="h-10 w-24 rounded-md bg-white px-2 text-sm font-semibold tabular-nums text-slate-900 shadow-[0_0_0_1px_rgba(15,23,42,0.16)] focus:outline-none focus:ring-2 focus:ring-slate-400"
-            >
-              {#each [0, 1, 2, 3, 4, 5] as scoreValue}
-                <option value={scoreValue}>{scoreValue}/5</option>
-              {/each}
-            </select>
-
-            <div class="flex items-center justify-end gap-1">
-              {#if isProposalRubric}
-                <button
-                  type="button"
-                  onclick={() => toggleRubricReason(section.key)}
-                  aria-expanded={expandedRubricReasons.has(section.key)}
-                  aria-controls="rubric-reason-{submission.id}-{section.key}"
-                  class="min-h-10 rounded-md px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 active:scale-[0.96] transition-[background-color,transform]"
-                >
-                  {sectionReason ? 'Edit reason' : 'Add reason'}
-                </button>
-              {/if}
-              {#if aiSection && canFileFeedback}
-                <button
-                  type="button"
-                  onclick={() => openAIFeedback(section.key)}
-                  class="min-h-10 rounded-md px-3 text-xs font-semibold text-sky-800 hover:bg-sky-100 active:scale-[0.96] transition-[background-color,transform]"
-                >
-                  {hasAIAnchorFeedback(section.key) ? 'Edit AI feedback' : 'Flag AI issue'}
-                </button>
-              {/if}
-            </div>
+            {#if isProposalRubric && expandedRubricReasons.has(section.key)}
+              <div id="rubric-reason-{submission.id}-{section.key}" class="mt-3">
+                <label for="rubric-reason-input-{submission.id}-{section.key}" class="sr-only">
+                  {section.label} reason
+                </label>
+                <textarea
+                  id="rubric-reason-input-{submission.id}-{section.key}"
+                  value={rubricSections[section.key]?.reason || ''}
+                  oninput={(event) => updateRubricReason(section.key, event.currentTarget.value)}
+                  rows="2"
+                  maxlength="1000"
+                  placeholder="Optional reviewer rationale"
+                  class="w-full resize-y rounded-md bg-white px-3 py-2 text-sm text-slate-800 shadow-[0_0_0_1px_rgba(15,23,42,0.16)] focus:outline-none focus:ring-2 focus:ring-slate-400"
+                ></textarea>
+              </div>
+            {/if}
           </div>
+        {/each}
+      </div>
+    {/if}
 
-          {#if isProposalRubric && expandedRubricReasons.has(section.key)}
-            <div id="rubric-reason-{submission.id}-{section.key}" class="mt-3">
-              <label for="rubric-reason-input-{submission.id}-{section.key}" class="sr-only">
-                {section.label} reason
-              </label>
-              <textarea
-                id="rubric-reason-input-{submission.id}-{section.key}"
-                value={rubricSections[section.key]?.reason || ''}
-                oninput={(event) => updateRubricReason(section.key, event.currentTarget.value)}
-                rows="2"
-                maxlength="1000"
-                placeholder="Optional reviewer rationale"
-                class="w-full resize-y rounded-md bg-white px-3 py-2 text-sm text-slate-800 shadow-[0_0_0_1px_rgba(15,23,42,0.16)] focus:outline-none focus:ring-2 focus:ring-slate-400"
-              ></textarea>
-            </div>
-          {/if}
+    <fieldset class="border-t border-slate-200 px-4 py-3">
+      <legend class="sr-only">Verified extras</legend>
+      <div class="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p class="text-sm font-semibold text-slate-800">Verified extras</p>
+          <p class="mt-1 text-pretty text-xs leading-5 text-slate-500">
+            {skipRubricScoring
+              ? 'Record any verified context. Extras do not change a gate-failure rejection.'
+              : 'Select only extras you confirmed from the submitted evidence.'}
+          </p>
         </div>
-      {/each}
-    </div>
-
-    <details class="border-t border-slate-200 px-4 py-3">
-      <summary class="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-slate-800">
-        <span>Verified extras</span>
-        <span class="text-xs font-medium text-slate-500">
+        <span class="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium tabular-nums text-slate-600">
           {rubricExtras.length} selected
         </span>
-      </summary>
-      <div class="mt-2 flex flex-wrap gap-2">
+      </div>
+      <div class="mt-3 flex flex-wrap gap-2">
         {#each RUBRIC_EXTRAS as extra}
-          <label class="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-[0_0_0_1px_rgba(15,23,42,0.12)] hover:bg-slate-50">
+          <label class="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-[0_0_0_1px_rgba(15,23,42,0.12)] transition-[background-color,box-shadow] hover:bg-slate-50">
             <input
               type="checkbox"
               checked={rubricExtras.includes(extra.key)}
@@ -1290,7 +1368,7 @@
           </label>
         {/each}
       </div>
-    </details>
+    </fieldset>
 
     {#if isProposalRubric}
       <div class="border-t border-slate-200 px-4 py-3">
@@ -1319,32 +1397,32 @@
   <header class="border-b border-slate-200 px-4 py-4 sm:px-5">
     <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
       <div class="min-w-0">
-        <div class="flex min-w-0 items-start gap-3">
-          {#if submission.user_details?.id || submission.user_details?.address}
-            <a
-              href="/participant/{submission.user_details?.id ?? submission.user_details?.address}"
-              class="flex min-w-0 items-center gap-3 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-              aria-label="View {submission.user_details?.name || 'submitter'} profile"
-            >
-              <Avatar user={submission.user_details} size="md" clickable={false} />
-              <span class="min-w-0">
-                <span class="block truncate text-base font-semibold text-slate-950">
-                  {submission.user_details?.name || submission.user_details?.address?.slice(0, 10) + '...'}
+        <div class="flex min-w-0 items-center gap-3">
+          <Avatar user={submission.user_details} size="md" clickable={false} />
+          <div class="min-w-0">
+            <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              {#if submission.user_details?.id || submission.user_details?.address}
+                <a
+                  href="/participant/{submission.user_details?.id ?? submission.user_details?.address}"
+                  class="min-w-0 truncate rounded-sm text-base font-semibold text-slate-950 hover:text-primary-700 hover:underline hover:underline-offset-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  aria-label="View {submission.user_details?.name || 'submitter'} profile"
+                >
+                  {submission.user_details?.name
+                    || (submission.user_details?.address
+                      ? submission.user_details.address.slice(0, 10) + '...'
+                      : 'Submitter')}
+                </a>
+              {:else}
+                <span class="min-w-0 truncate text-base font-semibold text-slate-950">
+                  {submission.user_details?.name || 'Unknown submitter'}
                 </span>
-                <span class="block text-xs font-medium text-primary-700">View profile</span>
-              </span>
-            </a>
-          {:else}
-            <Avatar user={submission.user_details} size="md" clickable={false} />
-            <span class="truncate text-base font-semibold text-slate-950">
-              {submission.user_details?.name || 'Unknown submitter'}
-            </span>
-          {/if}
-        </div>
-
-        <div class="mt-2 flex flex-wrap items-center gap-2 pl-0 sm:pl-[3.25rem]">
-          {@render socialLinks(submission.user_details)}
-          <span class="text-xs text-slate-500">Submitted {formatDate(submission.created_at)}</span>
+              {/if}
+              <div class="flex min-w-0 flex-wrap items-center gap-1">
+                {@render socialLinks(submission.user_details)}
+              </div>
+            </div>
+            <p class="mt-0.5 text-xs text-slate-500">Submitted {formatDate(submission.created_at)}</p>
+          </div>
         </div>
       </div>
 
@@ -1434,27 +1512,6 @@
               </a>
             {/if}
           </div>
-        </div>
-      {/if}
-
-      {#if hasDistinctContributionDate}
-        <div class="overflow-hidden rounded-lg shadow-[0_0_0_1px_rgba(15,23,42,0.10)]">
-          <button
-            type="button"
-            onclick={() => moreDetailsExpanded = !moreDetailsExpanded}
-            aria-expanded={moreDetailsExpanded}
-            aria-controls="submission-more-details-{submission.id}"
-            class="flex min-h-10 w-full items-center justify-between gap-3 px-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            <span>More details</span>
-            <Icons name="chevronDown" size="sm" className="transition-transform {moreDetailsExpanded ? 'rotate-180' : ''}" />
-          </button>
-          {#if moreDetailsExpanded}
-            <div id="submission-more-details-{submission.id}" class="border-t border-slate-200 px-3 py-2">
-              <p class="text-xs font-semibold uppercase text-slate-500">Contribution date</p>
-              <p class="mt-1 text-sm text-slate-800">{formatDate(submission.contribution_date)}</p>
-            </div>
-          {/if}
         </div>
       {/if}
 
