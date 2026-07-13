@@ -1407,7 +1407,10 @@
                   class="min-w-0 truncate rounded-sm text-base font-semibold text-slate-950 hover:text-primary-700 hover:underline hover:underline-offset-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
                   aria-label="View {submission.user_details?.name || 'submitter'} profile"
                 >
-                  {submission.user_details?.name || submission.user_details?.address?.slice(0, 10) + '...'}
+                  {submission.user_details?.name
+                    || (submission.user_details?.address
+                      ? submission.user_details.address.slice(0, 10) + '...'
+                      : 'Submitter')}
                 </a>
               {:else}
                 <span class="min-w-0 truncate text-base font-semibold text-slate-950">

@@ -138,6 +138,18 @@ describe('StewardSubmissionCard', () => {
     expect(screen.queryByRole('button', { name: 'More details' })).toBeNull();
   });
 
+  it('uses a safe submitter label when a profile only has an ID', () => {
+    renderCard({
+      submission: makeSubmission({
+        user_details: { id: 9 }
+      })
+    });
+
+    const profileLink = screen.getByRole('link', { name: 'View submitter profile' });
+    expect(profileLink.textContent.trim()).toBe('Submitter');
+    expect(screen.queryByText('undefined...')).toBeNull();
+  });
+
   it('keeps submission and internal notes collapsed until requested', async () => {
     renderCard({
       submission: makeSubmission({ notes_count: 1 }),
