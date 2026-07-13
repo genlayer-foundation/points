@@ -374,7 +374,6 @@
         >
           <SubmissionCard
             {submission}
-            isOwnSubmission={true}
             onAppeal={handleAppeal}
           />
         </div>

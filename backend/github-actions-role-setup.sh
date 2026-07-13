@@ -4,11 +4,33 @@ set -e
 # GitHub Actions IAM Role Setup for Tally Backend Deployment
 # This script creates an IAM role that GitHub Actions can assume using OIDC
 
-REPO_OWNER=${1:-"genlayer-foundation"}  # Replace with your GitHub username
+REPO_OWNER=${1:-"genlayer-foundation"}  # Replace with your GitHub organization/user
 REPO_NAME=${2:-"tally"}                  # Replace with your repository name
+ENVIRONMENT=${3:-"prod"}                 # GitHub environment: dev or prod
 REGION=${AWS_DEFAULT_REGION:-us-east-1}
 
-echo "Setting up GitHub Actions IAM role for $REPO_OWNER/$REPO_NAME"
+case "$ENVIRONMENT" in
+    dev)
+        ROLE_NAME="GitHubActions-TallyBackendDeploy-dev"
+        SERVICE_NAME="tally-backend-dev"
+        SSM_PREFIX="/tally-backend"
+        SSM_ENV="dev"
+        INSTANCE_ROLE_NAME="AppRunnerInstanceRole-dev"
+        ;;
+    prod)
+        ROLE_NAME="GitHubActions-TallyBackendDeploy-prod"
+        SERVICE_NAME="tally-backend"
+        SSM_PREFIX="/tally"
+        SSM_ENV="prod"
+        INSTANCE_ROLE_NAME="AppRunnerInstanceRole-prod"
+        ;;
+    *)
+        echo "Error: environment must be 'dev' or 'prod'" >&2
+        exit 1
+        ;;
+esac
+
+echo "Setting up GitHub Actions IAM role for $REPO_OWNER/$REPO_NAME environment=$ENVIRONMENT"
 
 # Get AWS account ID
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -38,10 +60,8 @@ cat > github-actions-trust-policy.json << EOF
             "Action": "sts:AssumeRoleWithWebIdentity",
             "Condition": {
                 "StringEquals": {
-                    "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
-                },
-                "StringLike": {
-                    "token.actions.githubusercontent.com:sub": "repo:$REPO_OWNER/$REPO_NAME:*"
+                    "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+                    "token.actions.githubusercontent.com:sub": "repo:$REPO_OWNER/$REPO_NAME:environment:$ENVIRONMENT"
                 }
             }
         }
@@ -52,9 +72,9 @@ EOF
 # Create IAM role
 echo "Creating GitHub Actions IAM role..."
 aws iam create-role \
-    --role-name GitHubActions-TallyBackendDeploy \
+    --role-name "$ROLE_NAME" \
     --assume-role-policy-document file://github-actions-trust-policy.json \
-    --description "Role for GitHub Actions to deploy Tally backend to App Runner"
+    --description "Role for GitHub Actions to deploy Tally backend to App Runner ($ENVIRONMENT)"
 
 # Create policy for App Runner deployment.
 #
@@ -63,11 +83,11 @@ aws iam create-role \
 #   able to edit the App Runner instance-role policy is a privilege-escalation
 #   path (e.g. granting itself read access to every SSM secret). The one-time
 #   role bootstrap in deploy-apprunner.sh must be run by an administrator.
-# - App Runner and ECR mutations are limited to the tally-backend* service and
+# - App Runner and ECR mutations are limited to the environment service and
 #   repository ARNs; only the List*/GetAuthorizationToken calls that AWS does
 #   not support resource-scoping for remain on "*".
-# - iam:PassRole is restricted to the two App Runner roles and only towards
-#   the App Runner service principals.
+# - iam:PassRole is restricted to the two exact App Runner role ARNs. The
+#   deployment role has no actions for other services that accept roles.
 cat > github-actions-policy.json << EOF
 {
     "Version": "2012-10-17",
@@ -80,7 +100,7 @@ cat > github-actions-policy.json << EOF
                 "apprunner:UpdateService",
                 "apprunner:DescribeService"
             ],
-            "Resource": "arn:aws:apprunner:$REGION:$ACCOUNT_ID:service/tally-backend*"
+            "Resource": "arn:aws:apprunner:$REGION:$ACCOUNT_ID:service/$SERVICE_NAME/*"
         },
         {
             "Sid": "AppRunnerRead",
@@ -114,7 +134,7 @@ cat > github-actions-policy.json << EOF
                 "ecr:CompleteLayerUpload",
                 "ecr:PutImage"
             ],
-            "Resource": "arn:aws:ecr:$REGION:$ACCOUNT_ID:repository/tally-backend*"
+            "Resource": "arn:aws:ecr:$REGION:$ACCOUNT_ID:repository/$SERVICE_NAME"
         },
         {
             "Sid": "ReadAppRunnerRoles",
@@ -123,7 +143,7 @@ cat > github-actions-policy.json << EOF
                 "iam:GetRole"
             ],
             "Resource": [
-                "arn:aws:iam::$ACCOUNT_ID:role/AppRunnerInstanceRole",
+                "arn:aws:iam::$ACCOUNT_ID:role/$INSTANCE_ROLE_NAME",
                 "arn:aws:iam::$ACCOUNT_ID:role/AppRunnerECRAccessRole"
             ]
         },
@@ -134,18 +154,9 @@ cat > github-actions-policy.json << EOF
                 "iam:PassRole"
             ],
             "Resource": [
-                "arn:aws:iam::$ACCOUNT_ID:role/AppRunnerInstanceRole",
+                "arn:aws:iam::$ACCOUNT_ID:role/$INSTANCE_ROLE_NAME",
                 "arn:aws:iam::$ACCOUNT_ID:role/AppRunnerECRAccessRole"
-            ],
-            "Condition": {
-                "StringEquals": {
-                    "iam:PassedToService": [
-                        "apprunner.amazonaws.com",
-                        "build.apprunner.amazonaws.com",
-                        "tasks.apprunner.amazonaws.com"
-                    ]
-                }
-            }
+            ]
         },
         {
             "Sid": "Identity",
@@ -162,7 +173,7 @@ cat > github-actions-policy.json << EOF
                 "ssm:PutParameter"
             ],
             "Resource": [
-                "arn:aws:ssm:$REGION:$ACCOUNT_ID:parameter/tally-backend/dev/grafana_api_token"
+                "arn:aws:ssm:$REGION:$ACCOUNT_ID:parameter$SSM_PREFIX/$SSM_ENV/grafana_api_token"
             ]
         }
     ]
@@ -171,7 +182,7 @@ EOF
 
 # Create and attach policy
 aws iam put-role-policy \
-    --role-name GitHubActions-TallyBackendDeploy \
+    --role-name "$ROLE_NAME" \
     --policy-name TallyBackendDeploymentPolicy \
     --policy-document file://github-actions-policy.json
 
@@ -181,12 +192,12 @@ rm -f github-actions-trust-policy.json github-actions-policy.json
 echo ""
 echo "✅ GitHub Actions IAM role created successfully!"
 echo ""
-echo "Role ARN: arn:aws:iam::$ACCOUNT_ID:role/GitHubActions-TallyBackendDeploy"
+echo "Role ARN: arn:aws:iam::$ACCOUNT_ID:role/$ROLE_NAME"
 echo ""
 echo "Next steps:"
-echo "1. Add this role ARN to your GitHub repository secrets as AWS_ROLE_ARN"
+echo "1. Add this role ARN to the $ENVIRONMENT GitHub environment as AWS_ROLE_ARN"
 echo "2. Update your GitHub Actions workflow to use OIDC authentication"
 echo ""
 echo "GitHub Repository Settings → Secrets and variables → Actions → Add:"
-echo "  AWS_ROLE_ARN = arn:aws:iam::$ACCOUNT_ID:role/GitHubActions-TallyBackendDeploy"
+echo "  AWS_ROLE_ARN = arn:aws:iam::$ACCOUNT_ID:role/$ROLE_NAME"
 echo ""

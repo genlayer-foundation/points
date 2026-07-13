@@ -476,7 +476,7 @@ const routes = {
   - `validatorsAPI.getWallOfShame(params)` - Public Wall of Shame list for active validators with Grafana metrics/logs status badges (renders in `routes/WallOfShame.svelte`)
   - `notificationsAPI` - Portal notifications (`list`, `unreadCount`, `markRead(id)`, `markAllRead`)
   - `socialTasksAPI` - Social tasks (`list({ status, category })`, `complete(slug)`)
-  - `stewardAPI` - Steward tools: submissions review plus Discord XP (`getDiscordXP(params)` lists community XP rows for contributions and social task completions; `recordDiscordXPCopy(stateId)`, `markDiscordXPDistributed(stateId)`, `unsetDiscordXPDistributed(stateId)` act on a row's state id — `row.id`, not the contribution id)
+  - `stewardAPI` - Steward tools: submissions review plus structured AI-review feedback (`getAIFeedback(id)` reads all reviewer records for a submission; `submitAIFeedback(id, data)` creates or versioned-revises the current reviewer's exact-proposal feedback) and Discord XP (`getDiscordXP(params)` lists community XP rows for contributions and social task completions; `recordDiscordXPCopy(stateId)`, `markDiscordXPDistributed(stateId)`, `unsetDiscordXPDistributed(stateId)` act on a row's state id — `row.id`, not the contribution id)
 
 ### Authentication (`src/lib/auth.js`)
 - **Auth Store**: Svelte store `authState`
@@ -503,6 +503,14 @@ const routes = {
 - **Reactive**: Updates reflect immediately in all components using `$userStore`
 
 ### Components
+
+#### Steward Review Components (`src/components/`)
+
+- **`SubmissionCard.svelte`** - Submitter-only card used by My Submissions. It shows submission details, evidence, staff responses, awarded contributions, editing, and appeals without exposing steward-only state.
+- **`StewardSubmissionCard.svelte`** - Dedicated steward workspace for review outcomes, proposals, rubric scoring, internal notes, accepted-contribution edits, and permission-aware submission behavior.
+- **`AIReviewSummary.svelte`** - Compact AI-only proposal summary that exposes the proposed action, confidence, and expandable synthesis.
+- **`AIFeedbackDialog.svelte`** - Focused benchmark-feedback dialog for criterion, decision, and synthesis corrections with stale-write resolution.
+- **`lib/aiFeedback.js`** - Closed frontend vocabularies plus state hydration, payload derivation, and API-mirroring validation. It preserves accepted but currently non-rendered feedback fields when editing an existing record.
 
 #### Generic UI Components (`src/components/ui/`)
 Reusable, data-driven display components that accept data via props. Used on Dashboard and can be reused on any page.

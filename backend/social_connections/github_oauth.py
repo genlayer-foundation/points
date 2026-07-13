@@ -26,9 +26,11 @@ def github_oauth_initiate(request):
     """Initiate GitHub OAuth flow — full-page redirect."""
     redirect_url = request.GET.get('redirect', settings.FRONTEND_URL)
 
-    state = service.generate_state(request.user.id, extra_data={
-        'redirect_url': redirect_url,
-    })
+    state = service.create_pending_state(
+        request.user,
+        redirect_url=redirect_url,
+        request=request,
+    )
 
     params = {
         'client_id': service.get_client_id(),

@@ -191,7 +191,9 @@ vi.mock('../lib/api', () => {
       getMyPermissions: vi.fn().mockResolvedValue({ data: {} }),
       getStewards: vi.fn().mockResolvedValue({ data: [] }),
       getStats: vi.fn().mockResolvedValue({ data: {} }),
-      getTemplates: vi.fn().mockResolvedValue({ data: [] })
+      getTemplates: vi.fn().mockResolvedValue({ data: [] }),
+      getAIFeedback: vi.fn().mockResolvedValue({ data: [] }),
+      submitAIFeedback: vi.fn().mockResolvedValue({ data: {} })
     },
     projectsAPI: {
       list: vi.fn().mockResolvedValue({ data: [mockProject] }),

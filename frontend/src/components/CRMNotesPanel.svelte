@@ -7,7 +7,8 @@
     onAddNote = null,
     onUpdateNote = null,
     activeProposalNoteId = null,
-    loading = false
+    loading = false,
+    embedded = false
   } = $props();
 
   let newNote = $state('');
@@ -27,6 +28,8 @@
     try {
       await onAddNote(submissionId, newNote.trim());
       newNote = '';
+    } catch {
+      // Keep the draft on failure; the parent already reports the error toast.
     } finally {
       submitting = false;
     }
@@ -59,11 +62,13 @@
   }
 </script>
 
-<div class="border border-gray-200 rounded-lg flex flex-col flex-1 min-h-0">
-  <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
-    <h4 class="text-sm font-medium text-gray-700">Internal Notes</h4>
-    <span class="text-xs text-gray-500">{notes.length} note{notes.length !== 1 ? 's' : ''}</span>
-  </div>
+<div class="flex min-h-0 flex-1 flex-col {embedded ? '' : 'rounded-lg border border-gray-200'}">
+  {#if !embedded}
+    <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+      <h4 class="text-sm font-medium text-gray-700">Internal Notes</h4>
+      <span class="text-xs text-gray-500">{notes.length} note{notes.length !== 1 ? 's' : ''}</span>
+    </div>
+  {/if}
 
   <div class="flex-1 min-h-0 overflow-y-auto notes-scroll">
     {#if loading}
@@ -100,7 +105,7 @@
                     type="button"
                     onclick={cancelEdit}
                     disabled={updatingNote}
-                    class="px-2.5 py-1 text-xs rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                    class="min-h-10 px-2.5 text-xs rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
                   >
                     Cancel
                   </button>
@@ -108,7 +113,7 @@
                     type="button"
                     onclick={handleUpdateNote}
                     disabled={!editingMessage.trim() || updatingNote}
-                    class="px-2.5 py-1 text-xs rounded-md bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="min-h-10 px-2.5 text-xs rounded-md bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {updatingNote ? 'Saving...' : 'Save'}
                   </button>
@@ -121,7 +126,7 @@
                   <button
                     type="button"
                     onclick={() => startEdit(note)}
-                    class="flex-shrink-0 px-2 py-1 text-xs rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                    class="min-h-10 flex-shrink-0 px-2 text-xs rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
                   >
                     Edit
                   </button>
@@ -141,13 +146,14 @@
         type="text"
         bind:value={newNote}
         placeholder="Add a note..."
-        class="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
+        class="h-10 flex-1 px-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
         onkeydown={(e) => { if (e.key === 'Enter' && newNote.trim()) handleAddNote(); }}
       />
       <button
+        type="button"
         onclick={handleAddNote}
         disabled={!newNote.trim() || submitting}
-        class="px-3 py-1.5 text-sm bg-gray-600 text-white rounded-md hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        class="min-h-10 px-3 text-sm bg-gray-600 text-white rounded-md hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {submitting ? '...' : 'Add'}
       </button>

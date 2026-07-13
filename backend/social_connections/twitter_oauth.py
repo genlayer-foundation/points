@@ -36,6 +36,7 @@ def twitter_oauth_initiate(request):
         request.user,
         code_verifier=code_verifier,
         redirect_url=redirect_url,
+        request=request,
     )
     if len(state) > 500:
         logger.error("Twitter OAuth state exceeded X's 500 character limit (len=%d)", len(state))

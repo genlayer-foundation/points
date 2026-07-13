@@ -139,10 +139,12 @@ class TwitterOAuthTest(TestCase):
     def test_callback_full_flow(self, mock_requests):
         """Test the full Twitter OAuth callback flow with PKCE."""
         code_verifier = self.service.generate_code_verifier()
+        state_request = self.attach_session(self.factory.get('/api/auth/twitter/'))
         state = self.service.create_pending_state(
             self.user,
             code_verifier=code_verifier,
             redirect_url='http://localhost:5173/profile',
+            request=state_request,
         )
         state_id = self.service.validate_state(state)['state_id']
 
@@ -164,6 +166,8 @@ class TwitterOAuthTest(TestCase):
             'code': 'twitter_code_123',
             'state': state,
         })
+        request.session = state_request.session
+        request.user = self.user
         response = twitter_oauth_callback(request)
         self.assertEqual(response.status_code, 302)
         self.assertIn('oauth_platform=twitter', response.url)
@@ -179,7 +183,12 @@ class TwitterOAuthTest(TestCase):
 
     def test_callback_duplicate_code(self):
         """Test that a duplicate code is rejected."""
-        state = self.service.generate_state(self.user.id)
+        state_request = self.attach_session(self.factory.get('/api/auth/twitter/'))
+        state = self.service.create_pending_state(
+            self.user,
+            code_verifier=self.service.generate_code_verifier(),
+            request=state_request,
+        )
 
         from social_connections.twitter_oauth import twitter_oauth_callback
         from social_connections.models import UsedOAuthCode
@@ -189,6 +198,8 @@ class TwitterOAuthTest(TestCase):
             'code': 'dup_twitter_code',
             'state': state,
         })
+        request.session = state_request.session
+        request.user = self.user
         response = twitter_oauth_callback(request)
         self.assertEqual(response.status_code, 302)
         self.assertIn('oauth_platform=twitter', response.url)
@@ -209,10 +220,13 @@ class TwitterOAuthTest(TestCase):
         )
 
         code_verifier = self.service.generate_code_verifier()
-        state = self.service.generate_state(self.user.id, extra_data={
-            'code_verifier': code_verifier,
-            'redirect_url': 'http://localhost:5173',
-        })
+        state_request = self.attach_session(self.factory.get('/api/auth/twitter/'))
+        state = self.service.create_pending_state(
+            self.user,
+            code_verifier=code_verifier,
+            redirect_url='http://localhost:5173',
+            request=state_request,
+        )
 
         mock_token_response = MagicMock()
         mock_token_response.raise_for_status = MagicMock()
@@ -232,6 +246,8 @@ class TwitterOAuthTest(TestCase):
             'code': 'new_twitter_code_456',
             'state': state,
         })
+        request.session = state_request.session
+        request.user = self.user
         response = twitter_oauth_callback(request)
         self.assertEqual(response.status_code, 302)
         self.assertIn('oauth_platform=twitter', response.url)

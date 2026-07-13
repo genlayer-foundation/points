@@ -61,6 +61,7 @@ class GitHubOAuthServiceTest(TestCase):
         self.assertTrue(self.service.mark_code_used('code456'))
 
 
+@override_settings(SOCIAL_ENCRYPTION_KEY='', GITHUB_ENCRYPTION_KEY=TEST_ENCRYPTION_KEY)
 class TwitterOAuthServiceTest(TestCase):
     def setUp(self):
         self.service = TwitterOAuthService()

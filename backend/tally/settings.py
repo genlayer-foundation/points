@@ -226,6 +226,7 @@ REST_FRAMEWORK = {
         'existing_email_start': '10/hour',
         'existing_email_resend': '10/hour',
         'existing_email_confirm': '30/hour',
+        'community_post_verify': '10/hour',
     },
     'PAGE_SIZE': 10,
 }

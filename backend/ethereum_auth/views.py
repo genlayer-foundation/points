@@ -131,6 +131,9 @@ def get_nonce(request):
     """
     Generate a new nonce for SIWE authentication.
     """
+    if not request.session.session_key:
+        request.session.create()
+
     purpose = request.query_params.get('purpose', Nonce.PURPOSE_LOGIN)
     valid_purposes = {choice[0] for choice in Nonce.PURPOSE_CHOICES}
     if purpose not in valid_purposes:
@@ -146,6 +149,7 @@ def get_nonce(request):
     # Create and save the nonce
     nonce = Nonce.objects.create(
         value=nonce_value,
+        session_key=request.session.session_key,
         purpose=purpose,
         expires_at=expires_at
     )
@@ -209,6 +213,12 @@ def login(request):
             if not nonce.is_valid():
                 return Response(
                     {'error': 'Invalid or expired nonce.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if nonce.session_key != request.session.session_key:
+                return Response(
+                    {'error': 'Invalid nonce.'},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 

@@ -1,5 +1,6 @@
 from unittest.mock import patch, MagicMock
 
+from django.contrib.sessions.middleware import SessionMiddleware
 from django.test import TestCase, RequestFactory, override_settings
 from django.utils import timezone
 from rest_framework.test import force_authenticate
@@ -37,6 +38,27 @@ class GitHubOAuthTest(TestCase):
         )
         self.service = GitHubOAuthService()
 
+    def attach_session(self, request):
+        middleware = SessionMiddleware(lambda req: None)
+        middleware.process_request(request)
+        request.session.save()
+        return request
+
+    def callback_request(self, params, **state_kwargs):
+        state_request = self.attach_session(self.factory.get('/api/auth/github/'))
+        state = self.service.create_pending_state(
+            self.user,
+            request=state_request,
+            **state_kwargs,
+        )
+        request = self.factory.get('/api/auth/github/callback/', {
+            **params,
+            'state': state,
+        })
+        request.session = state_request.session
+        request.user = self.user
+        return request
+
     def test_initiate_requires_auth(self):
         request = self.factory.get('/api/auth/github/')
         request.session = {}
@@ -47,6 +69,7 @@ class GitHubOAuthTest(TestCase):
 
     def test_initiate_redirects_to_github(self):
         request = self.factory.get('/api/auth/github/')
+        self.attach_session(request)
         force_authenticate(request, user=self.user)
         response = github_oauth_initiate(request)
         self.assertEqual(response.status_code, 302)
@@ -132,9 +155,6 @@ class GitHubOAuthTest(TestCase):
     @patch('social_connections.oauth_service.requests')
     def test_callback_full_flow(self, mock_requests):
         """Test the full OAuth callback flow with mocked HTTP."""
-        # Generate a valid state token
-        state = self.service.generate_state(self.user.id)
-
         # Mock token exchange
         mock_token_response = MagicMock()
         mock_token_response.raise_for_status = MagicMock()
@@ -149,9 +169,8 @@ class GitHubOAuthTest(TestCase):
         mock_requests.get.return_value = mock_user_response
 
         from social_connections.github_oauth import github_oauth_callback
-        request = self.factory.get('/api/auth/github/callback/', {
+        request = self.callback_request({
             'code': 'test_code',
-            'state': state,
         })
         response = github_oauth_callback(request)
         self.assertEqual(response.status_code, 302)
@@ -165,15 +184,12 @@ class GitHubOAuthTest(TestCase):
 
     def test_callback_duplicate_code(self):
         """Test that a duplicate code is rejected."""
-        state = self.service.generate_state(self.user.id)
-
         from social_connections.github_oauth import github_oauth_callback
         from social_connections.models import UsedOAuthCode
         UsedOAuthCode.mark_used('duplicate_code', 'github')
 
-        request = self.factory.get('/api/auth/github/callback/', {
+        request = self.callback_request({
             'code': 'duplicate_code',
-            'state': state,
         })
         response = github_oauth_callback(request)
         self.assertEqual(response.status_code, 302)
@@ -194,8 +210,6 @@ class GitHubOAuthTest(TestCase):
             linked_at=timezone.now(),
         )
 
-        state = self.service.generate_state(self.user.id)
-
         mock_token_response = MagicMock()
         mock_token_response.raise_for_status = MagicMock()
         mock_token_response.json.return_value = {'access_token': 'test_token'}
@@ -208,9 +222,8 @@ class GitHubOAuthTest(TestCase):
         mock_requests.get.return_value = mock_user_response
 
         from social_connections.github_oauth import github_oauth_callback
-        request = self.factory.get('/api/auth/github/callback/', {
+        request = self.callback_request({
             'code': 'new_code_123',
-            'state': state,
         })
         response = github_oauth_callback(request)
         self.assertEqual(response.status_code, 302)

@@ -86,6 +86,22 @@ describe('auth session refresh', () => {
     await expect(Promise.all([firstRefresh, secondRefresh])).resolves.toEqual([true, true]);
   });
 
+  it('shares forced verification with concurrent cached callers', async () => {
+    const { verifyAuth } = await importAuth();
+    let resolveVerification;
+    mocks.get.mockImplementation(() => new Promise(resolve => {
+      resolveVerification = resolve;
+    }));
+
+    const forcedVerification = verifyAuth({ force: true });
+    const cachedVerification = verifyAuth();
+
+    expect(mocks.get).toHaveBeenCalledTimes(1);
+
+    resolveVerification({ data: { authenticated: true, address: '0x123' } });
+    await expect(Promise.all([forcedVerification, cachedVerification])).resolves.toEqual([true, true]);
+  });
+
   it('does not run the interval refresh while the document is hidden', async () => {
     const { authState } = await importAuth();
     mocks.post.mockResolvedValue({ data: {} });

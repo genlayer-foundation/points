@@ -5,14 +5,21 @@ on:
     - cron: '*/5 * * * *'
   workflow_dispatch:
 
+concurrency:
+  group: sync-validator-grafana-dev
+  cancel-in-progress: false
+
+permissions: {}
+
 jobs:
   sync:
     runs-on: ubuntu-latest
     environment: cron-job
+    timeout-minutes: 10
     steps:
       - name: Trigger Grafana Status Sync (dev)
         run: |
-          response=$(curl -s -w "\n%{http_code}" -X POST \
+          response=$(curl -sS --max-time 120 -w "\n%{http_code}" -X POST \
             -H "X-Cron-Token: ${{ secrets.CRON_SYNC_TOKEN }}" \
             "${{ secrets.DEV_API_BASE_URL }}/api/v1/validators/wallets/sync-grafana/")
 

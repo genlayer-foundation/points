@@ -1,9 +1,9 @@
 """Shared OAuth service base class for all social platform integrations."""
 
-import secrets
 import hashlib
 import base64
-from urllib.parse import urlencode, urlparse, urlunparse
+import secrets
+from urllib.parse import urlencode, urljoin, urlparse, urlunparse
 
 import requests
 from requests import HTTPError
@@ -26,41 +26,45 @@ logger = get_app_logger('social_oauth')
 def validate_redirect_url(url):
     """Validate that a redirect URL is safe to redirect to.
 
-    Accepts the URL if its scheme and port match any configured URL
-    (FRONTEND_URL or BACKEND_URL). This is adaptive across environments:
-    the redirect only carries informational query params (not tokens),
-    and the URL is embedded in a signed state token, so it cannot be
-    tampered with after creation.
-
     Returns the validated URL or FRONTEND_URL as fallback.
     """
     if not url:
         return settings.FRONTEND_URL
+
+    if isinstance(url, str) and url.startswith('/') and not url.startswith('//'):
+        return urljoin(settings.FRONTEND_URL, url)
 
     try:
         parsed = urlparse(url)
     except Exception:
         return settings.FRONTEND_URL
 
-    if parsed.scheme not in ('http', 'https'):
+    if (
+        parsed.scheme not in ('http', 'https')
+        or not parsed.netloc
+        or parsed.username
+        or parsed.password
+        or not parsed.hostname
+    ):
         return settings.FRONTEND_URL
 
-    # Collect allowed (scheme, port) pairs from configured URLs
-    allowed_scheme_ports = set()
+    allowed_origins = set()
     for setting_url in [settings.FRONTEND_URL, settings.BACKEND_URL]:
         try:
             p = urlparse(setting_url)
-            port = p.port or (443 if p.scheme == 'https' else 80)
-            allowed_scheme_ports.add((p.scheme, port))
+            if p.scheme in ('http', 'https') and p.hostname:
+                port = p.port or (443 if p.scheme == 'https' else 80)
+                allowed_origins.add((p.scheme, p.hostname.lower(), port))
         except Exception:
             pass
 
     request_port = parsed.port or (443 if parsed.scheme == 'https' else 80)
-    if (parsed.scheme, request_port) in allowed_scheme_ports:
+    request_origin = (parsed.scheme, parsed.hostname.lower(), request_port)
+    if request_origin in allowed_origins:
         return url
 
-    logger.warning("Rejected redirect URL %s (scheme/port not in allowed set: %s)",
-                    url, allowed_scheme_ports)
+    logger.warning("Rejected redirect URL %s (origin not in allowed set: %s)",
+                    url, allowed_origins)
     return settings.FRONTEND_URL
 
 
@@ -121,32 +125,46 @@ class OAuthService:
                 raise signing.BadSignature("Invalid state: code_verifier decryption failed")
         return data
 
-    def create_pending_state(self, user, code_verifier='', redirect_url=''):
+    def create_pending_state(self, user, code_verifier='', redirect_url='', request=None):
         """Persist bulky state data server-side and return a compact signed state."""
         PendingOAuthState.cleanup_old(minutes=10)
+        session_key = ''
+        if request is not None:
+            if not request.session.session_key:
+                request.session.create()
+            session_key = request.session.session_key
         pending = PendingOAuthState.objects.create(
             state_id=secrets.token_urlsafe(16),
             platform=self.platform_name,
             user=user,
+            session_key=session_key,
             code_verifier=encrypt_token(code_verifier) if code_verifier else '',
             redirect_url=validate_redirect_url(redirect_url),
         )
         return self.generate_state(user.id, extra_data={'state_id': pending.state_id})
 
-    def consume_pending_state(self, state_data):
+    def consume_pending_state(self, state_data, request=None):
         """Merge server-side state data into a validated state payload."""
         state_id = state_data.get('state_id')
         user_id = state_data.get('user_id')
-        if not state_id or not user_id:
-            return state_data
+        if not state_id or not user_id or request is None:
+            raise signing.BadSignature("Invalid state: pending state required")
 
         pending = PendingOAuthState.consume(
             state_id=state_id,
             platform=self.platform_name,
             user_id=user_id,
+            session_key=request.session.session_key,
         )
         if not pending:
             raise signing.BadSignature("Invalid state: pending state not found")
+
+        request_user = getattr(request, 'user', None)
+        if getattr(request_user, 'is_authenticated', False) and request_user.id != pending.user_id:
+            raise signing.BadSignature("Invalid state: user mismatch")
+        session_address = request.session.get('ethereum_address')
+        if session_address and pending.user.address and session_address.lower() != pending.user.address.lower():
+            raise signing.BadSignature("Invalid state: session user mismatch")
 
         if pending.code_verifier:
             try:
@@ -340,7 +358,7 @@ class OAuthService:
 
         try:
             state_data = self.validate_state(state)
-            state_data = self.consume_pending_state(state_data)
+            state_data = self.consume_pending_state(state_data, request=request)
             user_id = state_data.get('user_id')
             redirect_url = state_data.get('redirect_url')
         except signing.SignatureExpired:

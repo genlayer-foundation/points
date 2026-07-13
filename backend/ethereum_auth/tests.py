@@ -64,6 +64,19 @@ class EthereumAuthNoncePurposeTests(TestCase):
     def setUp(self):
         self.client = APIClient()
 
+    def _session_key(self):
+        session = self.client.session
+        session.save()
+        return session.session_key
+
+    def _nonce(self, value, purpose=Nonce.PURPOSE_LOGIN):
+        return Nonce.objects.create(
+            value=value,
+            session_key=self._session_key(),
+            purpose=purpose,
+            expires_at=timezone.now() + timezone.timedelta(minutes=5),
+        )
+
     def _login_message(self, account, nonce_value):
         return (
             'localhost:5173 wants you to sign in with your Ethereum account:\n'
@@ -122,11 +135,7 @@ class EthereumAuthNoncePurposeTests(TestCase):
 
     def test_login_accepts_frontend_host_when_siwe_domain_omits_port(self):
         account = Account.create()
-        nonce = Nonce.objects.create(
-            value='localLoginNonce1',
-            purpose=Nonce.PURPOSE_LOGIN,
-            expires_at=timezone.now() + timezone.timedelta(minutes=5),
-        )
+        nonce = self._nonce('localLoginNonce1')
         message = self._login_message(account, nonce.value)
 
         response = self.client.post('/api/auth/login/', {
@@ -143,11 +152,7 @@ class EthereumAuthNoncePurposeTests(TestCase):
 
     def test_login_ignores_oversized_referral_code_for_pending_signup(self):
         account = Account.create()
-        nonce = Nonce.objects.create(
-            value='oversizedReferralNonce1',
-            purpose=Nonce.PURPOSE_LOGIN,
-            expires_at=timezone.now() + timezone.timedelta(minutes=5),
-        )
+        nonce = self._nonce('oversizedReferralNonce1')
         message = self._login_message(account, nonce.value)
 
         response = self.client.post('/api/auth/login/', {
@@ -169,11 +174,7 @@ class EthereumAuthNoncePurposeTests(TestCase):
             address=account.address.lower(),
             is_email_verified=True,
         )
-        nonce = Nonce.objects.create(
-            value='knownWalletNonce1',
-            purpose=Nonce.PURPOSE_LOGIN,
-            expires_at=timezone.now() + timezone.timedelta(minutes=5),
-        )
+        nonce = self._nonce('knownWalletNonce1')
         message = self._login_message(account, nonce.value)
 
         response = self.client.post('/api/auth/login/', {
@@ -197,11 +198,7 @@ class EthereumAuthNoncePurposeTests(TestCase):
         )
         User.objects.filter(pk=user.pk).update(referral_code='')
         user.refresh_from_db()
-        nonce = Nonce.objects.create(
-            value='knownWalletNoReferral1',
-            purpose=Nonce.PURPOSE_LOGIN,
-            expires_at=timezone.now() + timezone.timedelta(minutes=5),
-        )
+        nonce = self._nonce('knownWalletNoReferral1')
         message = self._login_message(account, nonce.value)
 
         with patch.object(User, 'ensure_referral_code', side_effect=Exception('referral unavailable')):
@@ -217,11 +214,7 @@ class EthereumAuthNoncePurposeTests(TestCase):
 
     def test_login_rejects_recovery_purpose_nonce(self):
         account = Account.create()
-        nonce = Nonce.objects.create(
-            value='recoveryNonceForLogin1',
-            purpose=Nonce.PURPOSE_POAP_RECOVERY,
-            expires_at=timezone.now() + timezone.timedelta(minutes=5),
-        )
+        nonce = self._nonce('recoveryNonceForLogin1', purpose=Nonce.PURPOSE_POAP_RECOVERY)
         message = self._login_message(account, nonce.value)
 
         response = self.client.post('/api/auth/login/', {
@@ -235,12 +228,28 @@ class EthereumAuthNoncePurposeTests(TestCase):
 
     def test_login_rejects_recovery_message_shape(self):
         account = Account.create()
+        nonce = self._nonce('recoveryMessageNonce1', purpose=Nonce.PURPOSE_POAP_RECOVERY)
+        message = self._recovery_message(account, nonce.value)
+
+        response = self.client.post('/api/auth/login/', {
+            'message': message,
+            'signature': self._sign(account, message),
+        }, format='json')
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_login_rejects_nonce_from_other_session(self):
+        account = Account.create()
+        other_client = APIClient()
+        other_session = other_client.session
+        other_session.save()
         nonce = Nonce.objects.create(
-            value='recoveryMessageNonce1',
-            purpose=Nonce.PURPOSE_POAP_RECOVERY,
+            value='otherSessionNonce1',
+            session_key=other_session.session_key,
+            purpose=Nonce.PURPOSE_LOGIN,
             expires_at=timezone.now() + timezone.timedelta(minutes=5),
         )
-        message = self._recovery_message(account, nonce.value)
+        message = self._login_message(account, nonce.value)
 
         response = self.client.post('/api/auth/login/', {
             'message': message,

@@ -121,7 +121,7 @@ api.interceptors.response.use(
     if (error.response?.status === 403 || error.response?.status === 401) {
       // If we get an auth error, verify auth status
       import('./auth.js').then(({ verifyAuth }) => {
-        verifyAuth();
+        verifyAuth({ force: true });
       });
     }
     return Promise.reject(error);
@@ -387,6 +387,12 @@ export const stewardAPI = {
   proposeSubmission: (id, data) => api.post(`/steward-submissions/${id}/propose/`, data),
   questionProposal: (id, message) =>
     api.post(`/steward-submissions/${id}/question-proposal/`, { message }),
+
+  // Structured human feedback on the AI review proposal
+  /** @param {string | number} id */
+  getAIFeedback: (id) => api.get(`/steward-submissions/${id}/ai-feedback/`),
+  /** @param {string | number} id @param {Record<string, any>} data */
+  submitAIFeedback: (id, data) => api.post(`/steward-submissions/${id}/ai-feedback/`, data),
 
   // CRM Notes
   getNotes: (id) => api.get(`/steward-submissions/${id}/notes/`),

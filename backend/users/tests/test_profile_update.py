@@ -6,6 +6,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
+from validators.models import Validator
 
 from contributions.models import Category, Contribution, ContributionType
 from leaderboard.models import GlobalLeaderboardMultiplier, LeaderboardEntry
@@ -120,6 +121,18 @@ class UserProfileUpdateTests(TestCase):
         self.assertEqual(self.verified_user.description, 'This is my bio')
         self.assertEqual(self.verified_user.website, 'https://example.com')
         self.assertEqual(self.verified_user.telegram_handle, 'mytelegram')
+
+    def test_profile_patch_does_not_create_validator_profile(self):
+        """Node versions are Grafana-sourced and not writable via profile updates."""
+        self.authenticate(self.verified_user)
+
+        response = self.client.patch('/api/v1/users/me/', {
+            'node_version_asimov': '1.2.3',
+            'node_version_bradbury': '2.0.0',
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(Validator.objects.filter(user=self.verified_user).exists())
     
     def test_oauth_owned_handles_are_not_profile_editable(self):
         """Twitter and Discord handles are managed by social connections."""

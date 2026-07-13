@@ -290,6 +290,28 @@ class Contribution(BaseModel):
         indexes = [
             models.Index(fields=['created_at'], name='contrib_created_idx'),
         ]
+
+    def _points_require_current_range_validation(self):
+        """Return whether the current contribution type range should apply.
+
+        Contribution type ranges are current award rules, not retroactive
+        constraints on historical awards. Existing rows keep their original
+        points when a type's range changes, but changing either the points or
+        the contribution type must satisfy the current range.
+        """
+        if self._state.adding or not self.pk:
+            return True
+
+        original = type(self).objects.filter(pk=self.pk).values(
+            'points', 'contribution_type_id'
+        ).first()
+        if original is None:
+            return True
+
+        return (
+            self.points != original['points']
+            or self.contribution_type_id != original['contribution_type_id']
+        )
     
     def clean(self):
         """
@@ -313,8 +335,13 @@ class Contribution(BaseModel):
         if not self.contribution_date:
             self.contribution_date = timezone.now()
         
-        # Validate points are within the allowed range for this contribution type
-        if self.points < self.contribution_type.min_points or self.points > self.contribution_type.max_points:
+        # Validate new awards and point/type edits against the current range.
+        # Unchanged historical awards remain valid if the type range later changes.
+        points_out_of_range = (
+            self.points < self.contribution_type.min_points
+            or self.points > self.contribution_type.max_points
+        )
+        if points_out_of_range and self._points_require_current_range_validation():
             raise ValidationError(
                 f"Points must be between {self.contribution_type.min_points} and {self.contribution_type.max_points} "
                 f"for contribution type '{self.contribution_type}'."
@@ -1192,6 +1219,82 @@ class ReviewProposal(BaseModel):
 
     def __str__(self):
         return f"{self.submitted_contribution_id} - {self.source} - {self.action}"
+
+
+class AIReviewFeedback(BaseModel):
+    """A steward's revisable, proposal-specific AI review assessment."""
+
+    PROPOSAL_SOURCE_REVIEW = 'review_proposal'
+    PROPOSAL_SOURCE_NOTE = 'submission_note'
+    PROPOSAL_SOURCE_CHOICES = [
+        (PROPOSAL_SOURCE_REVIEW, 'Review proposal'),
+        (PROPOSAL_SOURCE_NOTE, 'Submission note'),
+    ]
+    VERDICT_CHOICES = [
+        ('agree', 'Agree'),
+        ('agree_with_corrections', 'Agree with corrections'),
+        ('disagree', 'Disagree'),
+    ]
+    DECISION_CHOICES = [
+        ('accept', 'Accept'),
+        ('reject', 'Reject'),
+        ('more_info', 'Request more information'),
+        ('skip', 'Skip'),
+    ]
+
+    submitted_contribution = models.ForeignKey(
+        SubmittedContribution,
+        on_delete=models.CASCADE,
+        related_name='ai_feedback',
+    )
+    review_proposal = models.ForeignKey(
+        ReviewProposal,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ai_feedback',
+    )
+    proposal_source = models.CharField(
+        max_length=20,
+        choices=PROPOSAL_SOURCE_CHOICES,
+    )
+    proposal_source_id = models.PositiveBigIntegerField()
+    proposal_ref = models.DateTimeField()
+    reviewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='ai_review_feedback',
+    )
+    verdict = models.CharField(max_length=30, choices=VERDICT_CHOICES)
+    correct_decision = models.CharField(
+        max_length=20,
+        choices=DECISION_CHOICES,
+        blank=True,
+        default='',
+    )
+    gate_failures = models.JSONField(default=list, blank=True)
+    criteria = models.JSONField(default=dict, blank=True)
+    error_claims = models.JSONField(default=list, blank=True)
+    reviewed_commit_sha = models.CharField(max_length=40, blank=True, default='')
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    'submitted_contribution',
+                    'reviewer',
+                    'proposal_source',
+                    'proposal_source_id',
+                ],
+                name='unique_ai_feedback_source_reviewer',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['updated_at'], name='ai_feedback_updated_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.submitted_contribution_id} - {self.reviewer_id} - {self.verdict}'
 
 
 class Evidence(BaseModel):

@@ -79,6 +79,8 @@
   function providerType(walletName) {
     const value = String(walletName || '').toLowerCase();
     if (value.includes('metamask')) return 'metamask';
+    if (value.includes('rabby')) return 'rabby';
+    if (value.includes('okx')) return 'okx';
     if (value.includes('phantom')) return 'phantom';
     if (value.includes('trust')) return 'trust';
     if (value.includes('coinbase')) return 'coinbase';

@@ -9,6 +9,7 @@ from django.conf import settings
 from django.db.models import Sum, Q
 from .models import BanAppeal, User
 from .utils import is_full_address, truncate_address, user_lookup_kwargs
+from utils.throttling import CommunityPostVerificationRateThrottle
 from .serializers import (
     BanAppealSerializer, UserSerializer,
     UserProfileUpdateSerializer, PublicUserListSerializer,
@@ -723,7 +724,8 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         from creators import community_journey as cj
         return Response(cj.journey_status(request.user), status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated],
+            throttle_classes=[CommunityPostVerificationRateThrottle])
     def verify_community_post(self, request):
         """Step 5: verify the user's X post (tags GenLayer + contains their code).
 
@@ -736,6 +738,12 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         from social_tasks.sorsa_client import get_default_client, SorsaError
 
         user = request.user
+        if CommunityPostProof.objects.filter(user=user).exists():
+            return Response(
+                {'status': 'verified', 'journey': cj.journey_status(user)},
+                status=status.HTTP_200_OK,
+            )
+
         post_url = (request.data.get('post_url') or '').strip()
         if not post_url:
             return Response(
@@ -1084,9 +1092,23 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        appeal = BanAppeal.objects.create(
-            user=request.user,
-            appeal_text=appeal_text,
-        )
+        try:
+            appeal, created = BanAppeal.objects.get_or_create(
+                user=request.user,
+                defaults={'appeal_text': appeal_text},
+            )
+        except Exception:
+            logger.exception("Failed to create ban appeal")
+            return Response(
+                {'error': 'Could not submit appeal.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not created:
+            return Response(
+                {'error': 'You have already submitted an appeal. '
+                          'Each user may only appeal once.'},
+                status=status.HTTP_409_CONFLICT,
+            )
         serializer = BanAppealSerializer(appeal)
         return Response(serializer.data, status=status.HTTP_201_CREATED)

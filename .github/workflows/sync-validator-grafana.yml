@@ -13,17 +13,25 @@ on:
           - dev
         default: prod
 
+concurrency:
+  group: sync-validator-grafana
+  cancel-in-progress: false
+
+permissions: {}
+
 jobs:
   sync:
     runs-on: ubuntu-latest
     environment: cron-job
+    timeout-minutes: 10
     steps:
       - name: Trigger Grafana Status Sync
         env:
           BASE_URL: ${{ inputs.target == 'dev' && secrets.DEV_API_BASE_URL || secrets.API_BASE_URL }}
+          TARGET: ${{ inputs.target || 'prod' }}
         run: |
-          echo "Target: ${{ inputs.target || 'prod' }}"
-          response=$(curl -s -w "\n%{http_code}" -X POST \
+          echo "Target: $TARGET"
+          response=$(curl -sS --max-time 120 -w "\n%{http_code}" -X POST \
             -H "X-Cron-Token: ${{ secrets.CRON_SYNC_TOKEN }}" \
             "$BASE_URL/api/v1/validators/wallets/sync-grafana/")
 
