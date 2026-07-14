@@ -109,13 +109,21 @@
     isDisconnecting = true;
     try {
       await telegramAPI.disconnect();
-      const user = await getCurrentUser();
-      showSuccess("Telegram account unlinked.");
-      onLinked(user);
     } catch {
       showError("Failed to unlink Telegram. Please try again.");
+      return;
     } finally {
       isDisconnecting = false;
+    }
+
+    // The unlink itself succeeded; a failed profile refresh must not
+    // report failure or leave the stale connected pill in place.
+    showSuccess("Telegram account unlinked.");
+    try {
+      const user = await getCurrentUser();
+      onLinked(user);
+    } catch {
+      onLinked({ telegram_connection: null });
     }
   }
 </script>

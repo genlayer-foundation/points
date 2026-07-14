@@ -131,7 +131,7 @@ class TelegramConnection(SocialConnection):
         ]
 
 
-class TelegramMessage(models.Model):
+class TelegramMessage(BaseModel):
     """Telegram message log and delivery outbox in one table.
 
     Inbound rows (direction='in') are a permanent conversation log. Outbound
@@ -189,8 +189,6 @@ class TelegramMessage(models.Model):
     )
     error = models.CharField(max_length=200, blank=True)
     sent_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'social_connections_telegram_message'

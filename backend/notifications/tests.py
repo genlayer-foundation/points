@@ -1808,3 +1808,33 @@ class TelegramInactiveUserDeliveryTests(TestCase):
         row = TelegramMessage.objects.get(direction=TelegramMessage.DIRECTION_OUT)
         self.assertEqual(row.status, TelegramMessage.STATUS_FAILED)
         self.assertEqual(row.error, 'connection_gone')
+
+
+class TelegramDeliveryDeadlineTests(TestCase):
+    """The drain runs inside an HTTP request; App Runner kills requests at
+    120s, so a run must stop at its wall-clock budget and leave the rest
+    pending for the next cron tick."""
+
+    def test_run_stops_at_wall_clock_budget(self):
+        from unittest.mock import patch
+        from social_connections.models import TelegramConnection, TelegramMessage
+        from notifications.telegram import deliver_pending
+        user = make_user('linked@test.com', '0x1111111111111111111111111111111111111111')
+        TelegramConnection.objects.create(
+            user=user,
+            platform_user_id='111',
+            platform_username='linked',
+            linked_at=timezone.now(),
+        )
+        services.notify('submission.accepted', recipient=user, title='Hi')
+
+        with patch('notifications.telegram.send_telegram_message') as send_mock, \
+                patch('notifications.telegram.time.sleep'):
+            stats = deliver_pending(max_run_seconds=0)
+
+        send_mock.assert_not_called()
+        self.assertEqual(stats['sent'], 0)
+        self.assertEqual(stats['remaining'], 1)
+        row = TelegramMessage.objects.get(direction=TelegramMessage.DIRECTION_OUT)
+        self.assertEqual(row.status, TelegramMessage.STATUS_PENDING)
+        self.assertEqual(row.attempts, 0)

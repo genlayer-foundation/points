@@ -35,6 +35,11 @@ CLAIM_BATCH_SIZE = 25
 DEFAULT_RUN_LIMIT = 400
 MAX_ATTEMPTS = 3
 STALE_SENDING_MINUTES = 10
+# The drain runs inside an HTTP request and App Runner kills requests at
+# 120s. The happy path (~16s for 400 rows) never gets near this; the budget
+# exists for runs where slow Telegram responses (10s timeout, degraded
+# retries) pile up. Unfinished rows return to pending for the next tick.
+MAX_RUN_SECONDS = 90
 
 
 # ---------------------------------------------------------------------------
@@ -353,12 +358,21 @@ def _finish(message, status, error=''):
     TelegramMessage.objects.filter(pk=message.pk).update(**updates)
 
 
-def deliver_pending(limit=DEFAULT_RUN_LIMIT):
+def _unclaim(messages):
+    """Return claimed-but-unprocessed rows to pending, undoing the attempt."""
+    TelegramMessage.objects.filter(pk__in=[m.pk for m in messages]).update(
+        status=TelegramMessage.STATUS_PENDING,
+        attempts=F('attempts') - 1,
+    )
+
+
+def deliver_pending(limit=DEFAULT_RUN_LIMIT, max_run_seconds=MAX_RUN_SECONDS):
     """Send queued messages, pacing to Telegram's rate budget.
 
-    Returns {'sent': n, 'failed': n, 'remaining': n}. On a 429 the whole
-    run stops and unclaimed rows return to pending; the next cron tick
-    resumes. Delivery is at-least-once, bounded by MAX_ATTEMPTS.
+    Returns {'sent': n, 'failed': n, 'remaining': n}. On a 429 or when the
+    wall-clock budget runs out, the run stops and unprocessed rows return to
+    pending; the next cron tick resumes. Delivery is at-least-once, bounded
+    by MAX_ATTEMPTS.
     """
     # A worker that crashed mid-send on a row's FINAL attempt leaves it
     # 'sending' with attempts == MAX_ATTEMPTS; claims require attempts < MAX,
@@ -376,10 +390,11 @@ def deliver_pending(limit=DEFAULT_RUN_LIMIT):
     )
 
     sent = failed = processed = 0
-    rate_limited = False
+    stopped = False
     seen_pks = set()
+    deadline = time.monotonic() + max_run_seconds
 
-    while processed < limit and not rate_limited:
+    while processed < limit and not stopped and time.monotonic() < deadline:
         batch = _claim_batch(min(CLAIM_BATCH_SIZE, limit - processed), seen_pks)
         if not batch:
             break
@@ -388,6 +403,12 @@ def deliver_pending(limit=DEFAULT_RUN_LIMIT):
         batch_started = time.monotonic()
 
         for index, message in enumerate(batch):
+            if time.monotonic() >= deadline:
+                _unclaim(batch[index:])
+                stopped = True
+                logger.warning("Telegram delivery run hit its %ss budget; run stopped", max_run_seconds)
+                break
+
             # Enqueued rows always carry a notification; a null FK means the
             # notification was deleted (recalled) after enqueue, so the
             # content must not be sent.
@@ -431,12 +452,8 @@ def deliver_pending(limit=DEFAULT_RUN_LIMIT):
             elif retry_after is not None:
                 # Rate limited: unclaim this row and the rest of the batch,
                 # stop the run. The next cron tick resumes.
-                remaining_pks = [m.pk for m in batch[index:]]
-                TelegramMessage.objects.filter(pk__in=remaining_pks).update(
-                    status=TelegramMessage.STATUS_PENDING,
-                    attempts=F('attempts') - 1,
-                )
-                rate_limited = True
+                _unclaim(batch[index:])
+                stopped = True
                 logger.warning("Telegram rate limited (retry_after=%s); run stopped", retry_after)
                 break
             else:
@@ -447,7 +464,7 @@ def deliver_pending(limit=DEFAULT_RUN_LIMIT):
                     _finish(message, TelegramMessage.STATUS_PENDING, description)
 
         elapsed = time.monotonic() - batch_started
-        if elapsed < 1 and processed < limit and not rate_limited:
+        if elapsed < 1 and processed < limit and not stopped:
             time.sleep(1 - elapsed)
 
     remaining = TelegramMessage.objects.filter(
