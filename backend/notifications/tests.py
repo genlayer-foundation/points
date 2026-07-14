@@ -1863,7 +1863,7 @@ class TelegramRecallMidBatchTests(TestCase):
             services.notify('submission.accepted', recipient=user, title='Hi')
         self.assertEqual(TelegramMessage.objects.count(), 2)
 
-        def send_and_recall_everything(chat_id, text, **kwargs):
+        def send_and_recall_everything(_chat_id, _text, **_kwargs):
             # Recall lands while the batch is mid-processing: every claimed
             # row is deleted before the second row's turn.
             TelegramMessage.objects.all().delete()
@@ -1878,3 +1878,44 @@ class TelegramRecallMidBatchTests(TestCase):
         # Only the first row reached Telegram; the second was skipped by the
         # live pre-send check instead of delivering recalled content.
         send_mock.assert_called_once()
+
+
+class TelegramDeliveryMidBatchDeadlineTests(TestCase):
+    """Exercise the in-loop deadline branch: the budget trips after a batch
+    is claimed, so the claimed rows must be unclaimed and the run stopped."""
+
+    def test_mid_batch_deadline_unclaims_claimed_rows(self):
+        from unittest.mock import patch
+        from social_connections.models import TelegramConnection, TelegramMessage
+        from notifications.telegram import deliver_pending
+
+        for suffix in ('1', '2'):
+            user = make_user(f'linked{suffix}@test.com', f'0x{suffix * 40}')
+            TelegramConnection.objects.create(
+                user=user,
+                platform_user_id=f'11{suffix}',
+                platform_username=f'linked{suffix}',
+                linked_at=timezone.now(),
+            )
+            services.notify('submission.accepted', recipient=user, title='Hi')
+
+        # Each monotonic() call advances 6s: the deadline (10s budget) is
+        # computed first, the while check still passes, and the first
+        # per-message check lands past the deadline with the batch claimed.
+        clock = {'value': 0.0}
+
+        def advancing_monotonic():
+            clock['value'] += 6.0
+            return clock['value']
+
+        with patch('notifications.telegram.send_telegram_message') as send_mock, \
+                patch('notifications.telegram.time.sleep'), \
+                patch('notifications.telegram.time.monotonic', side_effect=advancing_monotonic):
+            stats = deliver_pending(max_run_seconds=10)
+
+        send_mock.assert_not_called()
+        self.assertEqual(stats['sent'], 0)
+        self.assertEqual(stats['remaining'], 2)
+        for row in TelegramMessage.objects.filter(direction=TelegramMessage.DIRECTION_OUT):
+            self.assertEqual(row.status, TelegramMessage.STATUS_PENDING)
+            self.assertEqual(row.attempts, 0)

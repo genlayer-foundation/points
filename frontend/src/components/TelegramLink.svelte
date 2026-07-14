@@ -111,19 +111,22 @@
       await telegramAPI.disconnect();
     } catch {
       showError("Failed to unlink Telegram. Please try again.");
-      return;
-    } finally {
       isDisconnecting = false;
+      return;
     }
 
     // The unlink itself succeeded; a failed profile refresh must not
-    // report failure or leave the stale connected pill in place.
+    // report failure or leave the stale connected pill in place. The
+    // fallback is a MERGE into the parent's participant state (see
+    // Profile.svelte's onParticipantUpdated), so it only clears this key.
     showSuccess("Telegram account unlinked.");
     try {
       const user = await getCurrentUser();
       onLinked(user);
     } catch {
       onLinked({ telegram_connection: null });
+    } finally {
+      isDisconnecting = false;
     }
   }
 </script>
