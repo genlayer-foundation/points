@@ -1,0 +1,12 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools-items %}
+  {% if can_run_assignment %}
+    <li>
+      <a href="{% url 'admin:social_connections_discordearnedroleassignment_run_assignment' %}" class="addlink">
+        Run earned role assignment
+      </a>
+    </li>
+  {% endif %}
+  {{ block.super }}
+{% endblock %}

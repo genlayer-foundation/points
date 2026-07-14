@@ -396,20 +396,13 @@ def sync_discord_roles(request):
     }, status=status.HTTP_202_ACCEPTED)
 
 
-@api_view(['POST'])
-@authentication_classes([])
-@permission_classes([IsCronToken])
-def assign_earned_discord_roles(request):
-    """Trigger a background assignment of earned community roles (Synapse/Brain)."""
+def start_earned_role_assignment():
+    """Start earned role assignment in the background if no run is active."""
     from .earned_roles import assign_earned_community_roles
 
     lock_token, elapsed_seconds = _acquire_role_sync_lock(DISCORD_EARNED_ROLE_LOCK_NAME)
     if lock_token is None:
-        elapsed = f' ({elapsed_seconds:.0f}s since last heartbeat)' if elapsed_seconds is not None else ''
-        return Response({
-            'success': False,
-            'message': f'Earned role assignment already in progress{elapsed}',
-        }, status=status.HTTP_409_CONFLICT)
+        return False, elapsed_seconds
 
     heartbeat_stop = threading.Event()
 
@@ -452,6 +445,22 @@ def assign_earned_discord_roles(request):
         heartbeat_stop.set()
         _release_role_sync_lock(lock_token, DISCORD_EARNED_ROLE_LOCK_NAME)
         raise
+
+    return True, None
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([IsCronToken])
+def assign_earned_discord_roles(request):
+    """Trigger a background assignment of earned community roles (Synapse/Brain)."""
+    started, elapsed_seconds = start_earned_role_assignment()
+    if not started:
+        elapsed = f' ({elapsed_seconds:.0f}s since last heartbeat)' if elapsed_seconds is not None else ''
+        return Response({
+            'success': False,
+            'message': f'Earned role assignment already in progress{elapsed}',
+        }, status=status.HTTP_409_CONFLICT)
 
     return Response({
         'success': True,
