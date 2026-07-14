@@ -1838,3 +1838,43 @@ class TelegramDeliveryDeadlineTests(TestCase):
         row = TelegramMessage.objects.get(direction=TelegramMessage.DIRECTION_OUT)
         self.assertEqual(row.status, TelegramMessage.STATUS_PENDING)
         self.assertEqual(row.attempts, 0)
+
+
+class TelegramRecallMidBatchTests(TestCase):
+    """A recall landing while a claimed batch is being processed must stop
+    the not-yet-sent rows: each row is re-checked live right before its send."""
+
+    def test_rows_deleted_mid_batch_are_skipped_without_sending(self):
+        from unittest.mock import patch
+        from social_connections.models import TelegramConnection, TelegramMessage
+        from notifications.telegram import deliver_pending
+
+        for suffix in ('1', '2'):
+            user = make_user(
+                f'linked{suffix}@test.com',
+                f'0x{suffix * 40}',
+            )
+            TelegramConnection.objects.create(
+                user=user,
+                platform_user_id=f'11{suffix}',
+                platform_username=f'linked{suffix}',
+                linked_at=timezone.now(),
+            )
+            services.notify('submission.accepted', recipient=user, title='Hi')
+        self.assertEqual(TelegramMessage.objects.count(), 2)
+
+        def send_and_recall_everything(chat_id, text, **kwargs):
+            # Recall lands while the batch is mid-processing: every claimed
+            # row is deleted before the second row's turn.
+            TelegramMessage.objects.all().delete()
+            return True, None, ''
+
+        with patch(
+            'notifications.telegram.send_telegram_message',
+            side_effect=send_and_recall_everything,
+        ) as send_mock, patch('notifications.telegram.time.sleep'):
+            deliver_pending()
+
+        # Only the first row reached Telegram; the second was skipped by the
+        # live pre-send check instead of delivering recalled content.
+        send_mock.assert_called_once()

@@ -1,5 +1,12 @@
 name: Deliver Telegram Notifications (dev)
 
+permissions:
+  contents: read
+
+concurrency:
+  group: telegram-deliver-dev
+  cancel-in-progress: false
+
 on:
   schedule:
     # GitHub Actions schedules are best-effort; avoid crowded :00/:15/:30/:45 slots.

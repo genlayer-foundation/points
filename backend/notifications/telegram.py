@@ -409,10 +409,19 @@ def deliver_pending(limit=DEFAULT_RUN_LIMIT, max_run_seconds=MAX_RUN_SECONDS):
                 logger.warning("Telegram delivery run hit its %ss budget; run stopped", max_run_seconds)
                 break
 
-            # Enqueued rows always carry a notification; a null FK means the
-            # notification was deleted (recalled) after enqueue, so the
-            # content must not be sent.
-            if message.notification_id is None:
+            # Re-check the LIVE row, not the batch-time snapshot: a recall
+            # during the batch deletes claimed rows (row gone -> skip) or
+            # nulls the notification FK (enqueued rows always carry one), and
+            # neither must reach Telegram.
+            live = (
+                TelegramMessage.objects
+                .filter(pk=message.pk)
+                .values_list('status', 'notification_id')
+                .first()
+            )
+            if live is None or live[0] != TelegramMessage.STATUS_SENDING:
+                continue
+            if live[1] is None:
                 _finish(message, TelegramMessage.STATUS_FAILED, 'notification_recalled')
                 failed += 1
                 continue

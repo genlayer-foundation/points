@@ -208,7 +208,7 @@ class SendTelegramMessageTests(TestCase):
     def test_success(self):
         with patch('social_connections.telegram.requests.post') as post:
             post.return_value = self.mock_response(200, {'ok': True})
-            ok, retry_after, description = send_telegram_message('111', 'hi')
+            ok, retry_after, _description = send_telegram_message('111', 'hi')
         self.assertTrue(ok)
         self.assertIsNone(retry_after)
         self.assertEqual(post.call_args.kwargs['json']['parse_mode'], 'HTML')
@@ -218,7 +218,7 @@ class SendTelegramMessageTests(TestCase):
             post.return_value = self.mock_response(
                 403, {'ok': False, 'description': 'Forbidden: bot was blocked by the user'}
             )
-            ok, retry_after, description = send_telegram_message(
+            ok, _retry_after, description = send_telegram_message(
                 '111', 'hi', connection=self.connection
             )
         self.assertFalse(ok)
