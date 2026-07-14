@@ -49,12 +49,28 @@ def truncate(text, limit=TELEGRAM_MAX_LEN):
     return text[: limit - 1] + '…'
 
 
-def _mark_blocked(connection):
+def _mark_blocked(connection, chat_id):
+    """Disable delivery after Telegram reports the chat blocked/gone.
+
+    Conditional queryset update keyed on the pk AND the chat id that got the
+    403: the row is per-user, so a disconnect (row deleted) or a relink (row
+    repointed at a new Telegram account) while the send was in flight makes
+    this a no-op. Saving the stale instance instead would raise on the
+    deleted row or wrongly disable the freshly linked account.
+    """
     if connection is None:
         return
-    connection.blocked_at = timezone.now()
-    connection.notifications_enabled = False
-    connection.save(update_fields=['blocked_at', 'notifications_enabled', 'updated_at'])
+    from .models import TelegramConnection
+
+    now = timezone.now()
+    TelegramConnection.objects.filter(
+        pk=connection.pk,
+        platform_user_id=str(chat_id),
+    ).update(
+        blocked_at=now,
+        notifications_enabled=False,
+        updated_at=now,
+    )
 
 
 def send_telegram_message(
@@ -101,7 +117,7 @@ def send_telegram_message(
             description = response.text or ''
 
         if response.status_code == 403:
-            _mark_blocked(connection)
+            _mark_blocked(connection, chat_id)
             return False, None, 'blocked'
 
         if response.status_code == 429:

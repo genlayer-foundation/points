@@ -280,3 +280,61 @@ class SendTelegramMessageTests(TestCase):
         self.assertFalse(ok)
         self.assertEqual(description, 'bot_token_not_configured')
         post.assert_not_called()
+
+
+@override_settings(**TELEGRAM_SETTINGS)
+class MarkBlockedRaceTests(TestCase):
+    """A 403 must only disable the row if it still represents the chat that
+    was messaged: a disconnect or relink mid-flight makes it a no-op."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='user@test.com',
+            address='0x1234567890123456789012345678901234567890',
+            password='testpass123',
+        )
+        self.connection = TelegramConnection.objects.create(
+            user=self.user,
+            platform_user_id='111',
+            platform_username='tester',
+            linked_at=timezone.now(),
+        )
+
+    def blocked_response(self):
+        from unittest.mock import MagicMock
+        response = MagicMock()
+        response.status_code = 403
+        response.json.return_value = {
+            'ok': False, 'description': 'Forbidden: bot was blocked by the user',
+        }
+        return response
+
+    def test_403_after_disconnect_is_a_noop_and_does_not_raise(self):
+        stale = TelegramConnection.objects.get(pk=self.connection.pk)
+        self.connection.delete()
+
+        with patch('social_connections.telegram.requests.post') as post:
+            post.return_value = self.blocked_response()
+            ok, _retry_after, description = send_telegram_message(
+                '111', 'hi', connection=stale
+            )
+
+        self.assertFalse(ok)
+        self.assertEqual(description, 'blocked')
+        self.assertFalse(TelegramConnection.objects.exists())
+
+    def test_403_for_old_chat_after_relink_does_not_disable_new_account(self):
+        stale = TelegramConnection.objects.get(pk=self.connection.pk)
+        # User relinks a different Telegram account while the send to the
+        # old chat id is in flight (same row: the connection is per-user).
+        TelegramConnection.objects.filter(pk=self.connection.pk).update(
+            platform_user_id='222', platform_username='newaccount',
+        )
+
+        with patch('social_connections.telegram.requests.post') as post:
+            post.return_value = self.blocked_response()
+            send_telegram_message('111', 'hi', connection=stale)
+
+        self.connection.refresh_from_db()
+        self.assertIsNone(self.connection.blocked_at)
+        self.assertTrue(self.connection.notifications_enabled)
