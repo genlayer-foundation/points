@@ -16,6 +16,7 @@ from contributions.models import (
     ContributionType,
     Evidence,
     SubmissionNote,
+    SubmissionStateTransition,
     SubmittedContribution,
 )
 from leaderboard.models import GlobalLeaderboardMultiplier
@@ -442,6 +443,92 @@ class TestAIReviewAPI(APITestCase):
         self.assertNotIn(str(unassigned.id), exclude_ids)
         self.assertNotIn(str(assigned_to_steward.id), exclude_ids)
         self.assertIn(str(assigned_to_ai.id), exclude_ids)
+
+    def test_ai_review_can_filter_and_identify_more_info_resubmissions(self):
+        resubmitted = self.fixtures['submission']
+        SubmissionStateTransition.record(
+            resubmitted,
+            SubmissionStateTransition.EVENT_EDITED,
+            from_state='more_info_needed',
+            actor=self.fixtures['submitter'],
+        )
+        ordinary_pending = SubmittedContribution.objects.create(
+            user=self.fixtures['submitter'],
+            contribution_type=self.fixtures['ct'],
+            contribution_date=timezone.now(),
+            notes='Ordinary pending submission.',
+            state='pending',
+        )
+
+        response = self.client.get(
+            '/api/v1/ai-review/',
+            data={
+                'assigned_to': 'unassigned',
+                'is_more_info_resubmitted': 'true',
+            },
+            **self.ai_auth,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data['results']), 1)
+        self.assertEqual(str(response.data['results'][0]['id']), str(resubmitted.id))
+        self.assertTrue(response.data['results'][0]['is_more_info_resubmitted'])
+
+        response = self.client.get(
+            '/api/v1/ai-review/',
+            data={'is_more_info_resubmitted': 'false'},
+            **self.ai_auth,
+        )
+        result_by_id = {str(item['id']): item for item in response.data['results']}
+        self.assertIn(str(ordinary_pending.id), result_by_id)
+        self.assertFalse(result_by_id[str(ordinary_pending.id)]['is_more_info_resubmitted'])
+        self.assertNotIn(str(resubmitted.id), result_by_id)
+
+    def test_ai_review_can_filter_pending_submissions_with_more_info_request_blocks(self):
+        requested = self.fixtures['submission']
+        SubmissionNote.objects.create(
+            submitted_contribution=requested,
+            user=self.fixtures['steward_user'],
+            message='Reviewed: more_info',
+            is_proposal=False,
+            data={
+                'action': 'more_info',
+                'staff_reply': 'Please add the missing evidence.',
+            },
+        )
+        ordinary_pending = SubmittedContribution.objects.create(
+            user=self.fixtures['submitter'],
+            contribution_type=self.fixtures['ct'],
+            contribution_date=timezone.now(),
+            notes='Ordinary pending submission.',
+            state='pending',
+        )
+
+        response = self.client.get(
+            '/api/v1/ai-review/',
+            data={
+                'assigned_to': 'unassigned',
+                'has_more_info_request': 'true',
+            },
+            **self.ai_auth,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data['results']), 1)
+        payload = response.data['results'][0]
+        self.assertEqual(str(payload['id']), str(requested.id))
+        self.assertTrue(payload['has_more_info_request'])
+        self.assertFalse(payload['is_more_info_resubmitted'])
+
+        response = self.client.get(
+            '/api/v1/ai-review/',
+            data={'has_more_info_request': 'false'},
+            **self.ai_auth,
+        )
+        result_by_id = {str(item['id']): item for item in response.data['results']}
+        self.assertIn(str(ordinary_pending.id), result_by_id)
+        self.assertFalse(result_by_id[str(ordinary_pending.id)]['has_more_info_request'])
+        self.assertNotIn(str(requested.id), result_by_id)
 
     def test_ai_review_invalid_steward_id_filters_do_not_error(self):
         submission = self.fixtures['submission']
