@@ -98,8 +98,10 @@ def send_telegram_message(
     if reply_markup:
         payload['reply_markup'] = reply_markup
 
-    # Original attempt + up to two degraded retries (no parse_mode, no buttons).
-    for _ in range(3):
+    # Original attempt + up to two degraded retries (no parse_mode, no
+    # buttons). Terminates because every branch returns except the two
+    # degrade retries, and each of those pops its payload key exactly once.
+    while True:
         try:
             response = requests.post(
                 telegram_api_url('sendMessage'), json=payload, timeout=REQUEST_TIMEOUT
@@ -141,5 +143,3 @@ def send_telegram_message(
             f"Telegram sendMessage failed ({response.status_code}): {description[:200]}"
         )
         return False, None, description[:200] or f'http_{response.status_code}'
-
-    return False, None, 'unreachable'
