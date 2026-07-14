@@ -5,6 +5,7 @@ never removed by this system. Each role's threshold is evaluated independently.
 """
 
 from django.conf import settings
+from django.db import transaction
 from django.db.models import Count
 
 from tally.middleware.logging_utils import get_app_logger
@@ -14,7 +15,7 @@ from .discord_roles import (
     DiscordRoleSyncService,
     DiscordRoleSyncUnavailable,
 )
-from .models import DiscordConnection
+from .models import DiscordConnection, DiscordEarnedRoleAssignment
 
 logger = get_app_logger('discord_roles')
 
@@ -120,7 +121,15 @@ def assign_earned_community_roles(dry_run=False, service=None):
         for label, role_id in _wanted_roles(role_ids, total_points, poap_count, held):
             if not dry_run:
                 try:
-                    assigned = service.add_member_role(connection.platform_user_id, role_id)
+                    audit_reason = (
+                        f'Automatic earned role assignment: {label} '
+                        f'({total_points} CP, {poap_count} POAPs)'
+                    )
+                    assigned = service.add_member_role(
+                        connection.platform_user_id,
+                        role_id,
+                        audit_log_reason=audit_reason,
+                    )
                 except DiscordRoleSyncConfigurationError as exc:
                     logger.warning("Earned role assignment aborted: %s", exc)
                     stats['errors'] += 1
@@ -144,7 +153,17 @@ def assign_earned_community_roles(dry_run=False, service=None):
                     stats['skipped_not_member'] += 1
                     continue
 
-                connection.current_roles.add(*service._get_or_create_missing_roles([role_id]))
+                with transaction.atomic():
+                    connection.current_roles.add(*service._get_or_create_missing_roles([role_id]))
+                    DiscordEarnedRoleAssignment.objects.create(
+                        connection=connection,
+                        discord_user_id=connection.platform_user_id,
+                        discord_username=connection.platform_username,
+                        role_id=role_id,
+                        role_name=label,
+                        total_points=total_points,
+                        poap_count=poap_count,
+                    )
                 logger.info(
                     "Assigned %s role to user %s (discord %s): %s CP, %s POAPs",
                     label,

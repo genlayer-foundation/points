@@ -6,6 +6,8 @@ from django.db import IntegrityError, transaction
 from django.db import models
 from django.utils import timezone
 
+from utils.models import BaseModel
+
 logger = logging.getLogger(__name__)
 
 
@@ -141,6 +143,32 @@ class DiscordRoleSyncLock(models.Model):
 
     def __str__(self):
         return f"DiscordRoleSyncLock({self.name}, acquired={self.acquired_at})"
+
+
+class DiscordEarnedRoleAssignment(BaseModel):
+    """Append-only record of an earned Discord role granted by the portal."""
+
+    connection = models.ForeignKey(
+        DiscordConnection,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='earned_role_assignments',
+    )
+    discord_user_id = models.CharField(max_length=100, db_index=True)
+    discord_username = models.CharField(max_length=100, blank=True)
+    role_id = models.CharField(max_length=100, db_index=True)
+    role_name = models.CharField(max_length=100)
+    total_points = models.PositiveIntegerField()
+    poap_count = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = 'social_connections_discord_earned_role_assignment'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.discord_username or self.discord_user_id}: {self.role_name}"
 
 
 class PendingOAuthState(models.Model):

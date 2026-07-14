@@ -3,6 +3,7 @@
 import time
 from dataclasses import dataclass
 from datetime import timedelta, timezone as datetime_timezone
+from urllib.parse import quote
 
 import requests
 from django.conf import settings
@@ -77,7 +78,7 @@ class DiscordRoleSyncService:
         except (TypeError, ValueError):
             return None
 
-    def _request(self, method, path, trace_name, retry_once=True):
+    def _request(self, method, path, trace_name, retry_once=True, audit_log_reason=None):
         self._ensure_configured()
 
         url = f"{self.api_base_url}{path}"
@@ -85,6 +86,8 @@ class DiscordRoleSyncService:
             'Authorization': f'Bot {self.bot_token}',
             'Accept': 'application/json',
         }
+        if audit_log_reason:
+            headers['X-Audit-Log-Reason'] = quote(audit_log_reason, safe='')
 
         try:
             with trace_external('discord', trace_name):
@@ -109,7 +112,13 @@ class DiscordRoleSyncService:
             retry_after = self._parse_retry_after(response)
             if retry_after is not None and retry_after <= 2:
                 time.sleep(retry_after)
-                return self._request(method, path, trace_name, retry_once=False)
+                return self._request(
+                    method,
+                    path,
+                    trace_name,
+                    retry_once=False,
+                    audit_log_reason=audit_log_reason,
+                )
             raise DiscordRoleSyncUnavailable(
                 'Discord rate limit exceeded',
                 status_code=429,
@@ -285,12 +294,13 @@ class DiscordRoleSyncService:
         connection.current_roles.set(roles)
         return MemberRoleSyncResult(connection=connection, is_member=True)
 
-    def add_member_role(self, discord_user_id, role_id):
+    def add_member_role(self, discord_user_id, role_id, audit_log_reason=None):
         """Assign one guild role to a member. Returns False if the member left."""
         response = self._request(
             'PUT',
             f'/guilds/{self.guild_id}/members/{discord_user_id}/roles/{role_id}',
             'add_member_role',
+            audit_log_reason=audit_log_reason,
         )
 
         if response.status_code == 404:

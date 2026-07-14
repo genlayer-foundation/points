@@ -2,6 +2,7 @@ from django.contrib import admin
 
 from .models import (
     DiscordConnection,
+    DiscordEarnedRoleAssignment,
     DiscordRole,
     DiscordRoleSyncLock,
     GitHubConnection,
@@ -92,6 +93,34 @@ class DiscordRoleAdmin(admin.ModelAdmin):
 class DiscordRoleSyncLockAdmin(admin.ModelAdmin):
     list_display = ('name', 'owner_token', 'acquired_at', 'heartbeat_at', 'released_at')
     readonly_fields = ('name', 'owner_token', 'acquired_at', 'heartbeat_at', 'released_at')
+
+
+@admin.register(DiscordEarnedRoleAssignment)
+class DiscordEarnedRoleAssignmentAdmin(admin.ModelAdmin):
+    list_select_related = ('connection__user',)
+    list_display = ('created_at', 'role_name', 'discord_username', 'connection', 'total_points', 'poap_count')
+    list_filter = ('role_name',)
+    search_fields = ('discord_username', 'discord_user_id', 'connection__user__email')
+    date_hierarchy = 'created_at'
+    readonly_fields = (
+        'connection',
+        'discord_user_id',
+        'discord_username',
+        'role_id',
+        'role_name',
+        'total_points',
+        'poap_count',
+        'created_at',
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(PendingOAuthState)
