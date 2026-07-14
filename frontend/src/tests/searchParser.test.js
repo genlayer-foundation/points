@@ -59,6 +59,34 @@ describe("steward search negation", () => {
     expect(paramsFor("-is:ai-reviewed")).toEqual({ has_ai_analysis: false });
   });
 
+  it("maps durable more-info resubmission aliases and negation", () => {
+    expect(paramsFor("is:more-info-resubmitted")).toEqual({
+      is_more_info_resubmitted: true,
+    });
+    expect(paramsFor("is:resubmitted")).toEqual({
+      is_more_info_resubmitted: true,
+    });
+    expect(paramsFor("not:more-info-resubmitted")).toEqual({
+      is_more_info_resubmitted: false,
+    });
+    expect(paramsFor("-is:more-info-resubmitted")).toEqual({
+      is_more_info_resubmitted: false,
+    });
+  });
+
+  it("maps recorded more-info request presence and absence", () => {
+    expect(paramsFor("status:pending has:more-info-request")).toEqual({
+      state: "pending",
+      has_more_info_request: true,
+    });
+    expect(paramsFor("no:more-info-request")).toEqual({
+      has_more_info_request: false,
+    });
+    expect(paramsFor("-has:more-info-request")).toEqual({
+      has_more_info_request: false,
+    });
+  });
+
   it("supports NOT before multi-value filters", () => {
     expect(paramsFor("NOT has:proposal")).toEqual({ has_proposal: false });
     expect(paramsFor("NOT is:interesting")).toEqual({ is_interesting: false });

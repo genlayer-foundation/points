@@ -95,7 +95,7 @@ backend/
   - ProjectMetric - Admin-managed title/value/detail metric rows for project pages
   - ProjectPageRevision - Owner-submitted ordered page blocks rendered through whitelisted portal components
 - **AI Review**: `contributions/ai_review/views.py`
-  - `/api/v1/ai-review/` - List pending unproposed submissions for the external AI review agent; proposal filters such as `has_proposal=true` opt into active proposals
+  - `/api/v1/ai-review/` - List pending unproposed submissions for the external AI review agent; `has_more_info_request=true` selects submissions with recorded request blocks, while `is_more_info_resubmitted=true` selects audited resubmissions
   - `/api/v1/ai-review/{id}/` - Retrieve a pending submission with evidence and user history
   - `/api/v1/ai-review/{id}/propose/` - Submit an AI proposal for human approval
   - `/api/v1/ai-review/proposed/` - List pending submissions with active proposals awaiting steward review; use `proposed_by=ai` for AI-created proposals only
@@ -351,6 +351,7 @@ backend/
 - **Audit**: `DiscordEarnedRoleAssignment` stores each successful automatic grant with the Discord member, role, CP/POAP snapshot, and creation time; records are read-only in admin.
 - **Service**: `DiscordRoleSyncService.add_member_role(discord_user_id, role_id)` PUTs to Discord; 404 (member left) returns False.
 - **Trigger**: `POST /api/v1/users/discord/assign-earned-roles/` (cron-protected, background thread + `DiscordRoleSyncLock` row `discord_earned_role_assign`), called daily at 00:30 UTC by `.github/workflows/assign-discord-roles.yml` (after the 00:00 MEE6 XP sync). Manual/backfill: `python manage.py assign_earned_discord_roles [--dry-run]`; dry run prints the would-assign list for review.
+- **Admin**: superusers can start the same locked background assignment from the `DiscordEarnedRoleAssignment` changelist after confirming the operation.
 - **Ops**: the bot needs Manage Roles and its role above Synapse/Brain in the guild hierarchy.
 
 ### Database & Migrations

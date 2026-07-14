@@ -4,6 +4,7 @@ from contributions.models import (
     Evidence,
     ProjectMilestoneReview,
     SubmissionNote,
+    SubmissionStateTransition,
     SubmittedContribution,
 )
 from contributions.rubric_review import (
@@ -36,7 +37,35 @@ class AIReviewMissionSerializer(serializers.Serializer):
         return obj.is_active()
 
 
-class AIReviewProposalFieldsMixin(serializers.Serializer):
+class AIReviewLifecycleFieldsMixin(serializers.Serializer):
+    """Recorded request history and durable lifecycle facts for DAI."""
+
+    has_more_info_request = serializers.SerializerMethodField()
+    is_more_info_resubmitted = serializers.SerializerMethodField()
+
+    def get_has_more_info_request(self, obj):
+        annotated = getattr(obj, 'has_more_info_request_flag', None)
+        if annotated is not None:
+            return bool(annotated)
+        return SubmissionNote.objects.filter(
+            submitted_contribution=obj,
+            is_proposal=False,
+            data__action='more_info',
+        ).exists()
+
+    def get_is_more_info_resubmitted(self, obj):
+        annotated = getattr(obj, 'more_info_resubmitted_flag', None)
+        if annotated is not None:
+            return bool(annotated)
+        return SubmissionStateTransition.objects.filter(
+            submitted_contribution=obj,
+            event=SubmissionStateTransition.EVENT_EDITED,
+            from_state='more_info_needed',
+            to_state='pending',
+        ).exists()
+
+
+class AIReviewProposalFieldsMixin(AIReviewLifecycleFieldsMixin):
     """Shared active-proposal fields for list and detail AI review payloads."""
 
     proposed_by_name = serializers.SerializerMethodField()
@@ -112,6 +141,8 @@ class LightAIReviewSubmissionSerializer(AIReviewProposalFieldsMixin, serializers
             'gate_reviewed',
             'has_appeal',
             'appeal_reason',
+            'has_more_info_request',
+            'is_more_info_resubmitted',
             'has_proposal',
             'assigned_to',
             'assigned_to_name',
@@ -224,6 +255,8 @@ class AIReviewSubmissionSerializer(AIReviewProposalFieldsMixin, serializers.Mode
             'gate_reviewed',
             'has_appeal',
             'appeal_reason',
+            'has_more_info_request',
+            'is_more_info_resubmitted',
             'evidence_items',
             'internal_notes',
             'user_history',
@@ -277,7 +310,10 @@ class AIReviewSubmissionSerializer(AIReviewProposalFieldsMixin, serializers.Mode
         return obj.proposed_action is not None
 
 
-class AIReviewReviewedSubmissionSerializer(serializers.ModelSerializer):
+class AIReviewReviewedSubmissionSerializer(
+    AIReviewLifecycleFieldsMixin,
+    serializers.ModelSerializer,
+):
     """Serializer for reviewed submissions — includes review outcome and notes."""
 
     contribution_type_name = serializers.CharField(
@@ -311,6 +347,8 @@ class AIReviewReviewedSubmissionSerializer(serializers.ModelSerializer):
             'gate_reviewed',
             'has_appeal',
             'appeal_reason',
+            'has_more_info_request',
+            'is_more_info_resubmitted',
             'reviewed_at',
             'evidence_items',
             'internal_notes',

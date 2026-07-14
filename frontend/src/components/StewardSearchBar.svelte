@@ -49,10 +49,10 @@
     { name: 'proposed-by', description: 'Filter by proposal creator', values: () => ['ai', 'me', 'none', ...stewardSearchValues()] },
     { name: 'exclude', description: 'Exclude submissions containing text', values: () => ['medium.com'] },
     { name: 'include', description: 'Only show submissions containing text', values: () => [] },
-    { name: 'has', description: 'Filter by presence', values: () => ['url', 'evidence', 'proposal', 'appeal'] },
-    { name: 'no', description: 'Filter by absence', values: () => ['url', 'evidence', 'proposal', 'appeal'] },
-    { name: 'is', description: 'Filter by internal flag', values: () => ['interesting', 'appealed', 'ai-reviewed'] },
-    { name: 'not', description: 'Exclude by internal flag', values: () => ['interesting', 'appealed', 'ai-reviewed'] },
+    { name: 'has', description: 'Filter by presence', values: () => ['more-info-request', 'url', 'evidence', 'proposal', 'appeal'] },
+    { name: 'no', description: 'Filter by absence', values: () => ['more-info-request', 'url', 'evidence', 'proposal', 'appeal'] },
+    { name: 'is', description: 'Filter by lifecycle or internal flag', values: () => ['more-info-resubmitted', 'interesting', 'appealed', 'ai-reviewed'] },
+    { name: 'not', description: 'Exclude by lifecycle or internal flag', values: () => ['more-info-resubmitted', 'interesting', 'appealed', 'ai-reviewed'] },
     { name: 'proposal', description: 'Filter by proposed action', values: () => ['accept', 'reject', 'more-info'] },
     { name: 'proposal-status', description: 'Filter by proposal review status', values: () => ['pending', 'questioned'] },
     { name: 'confidence', description: 'Filter by proposal confidence', values: () => ['high', 'medium', 'low'] },
@@ -62,7 +62,7 @@
     { name: 'sort', description: 'Sort order', values: () => ['created', '-created', 'date', '-date', 'reviewed', '-reviewed', 'points', '-points'] }
   ];
 
-  const TAGS = variant === 'xp' ? XP_TAGS : SUBMISSION_TAGS;
+  let TAGS = $derived(variant === 'xp' ? XP_TAGS : SUBMISSION_TAGS);
 
   function getCurrentWord() {
     if (!inputRef) return { word: '', start: 0, end: 0 };
@@ -129,14 +129,16 @@
     const needsSpace = !suggestion.endsWith(':');
     const spacer = needsSpace ? ' ' : '';
     value = before + suggestion + (after.startsWith(' ') || !needsSpace ? after.trimStart() : spacer + after.trimStart());
-    showAutocomplete = false;
-
     // Focus input and move cursor
     if (inputRef) {
-      inputRef.focus();
+      const selectedInput = inputRef;
+      selectedInput.focus();
       const newPos = before.length + suggestion.length + (needsSpace ? 1 : 0);
-      setTimeout(() => inputRef.setSelectionRange(newPos, newPos), 0);
+      setTimeout(() => selectedInput?.setSelectionRange(newPos, newPos), 0);
     }
+    // Focusing the input invokes handleFocus, so close the menu afterwards.
+    showAutocomplete = false;
+    selectedIndex = -1;
   }
 
   function handleKeydown(event) {
@@ -225,6 +227,11 @@
       onblur={handleBlur}
       {placeholder}
       class="search-input"
+      role="combobox"
+      aria-autocomplete="list"
+      aria-expanded={showAutocomplete && suggestions.length > 0}
+      aria-controls="submission-search-suggestions"
+      aria-activedescendant={selectedIndex >= 0 ? `submission-search-suggestion-${selectedIndex}` : undefined}
     />
     <button type="button" class="help-button" onclick={toggleHelp} title="Search syntax help">
       ?
@@ -232,11 +239,14 @@
   </div>
 
   {#if showAutocomplete && suggestions.length > 0}
-    <div class="autocomplete-dropdown">
+    <div class="autocomplete-dropdown" id="submission-search-suggestions" role="listbox">
       {#each suggestions as suggestion, index}
         <button
           type="button"
           class="suggestion {index === selectedIndex ? 'selected' : ''}"
+          id={`submission-search-suggestion-${index}`}
+          role="option"
+          aria-selected={index === selectedIndex}
           onclick={() => selectSuggestion(suggestion)}
           onmouseenter={() => { selectedIndex = index; }}
         >
@@ -286,6 +296,8 @@
           <div class="help-row"><code>no:url</code><span>Only submissions without URL evidence</span></div>
           <div class="help-row"><code>is:interesting</code><span>Flagged as interesting</span></div>
           <div class="help-row"><code>is:ai-reviewed</code><span>Has an AI review analysis</span></div>
+          <div class="help-row"><code>is:more-info-resubmitted</code><span>Resubmitted after a request for more information</span></div>
+          <div class="help-row"><code>has:more-info-request</code><span>Has a recorded more-information request block</span></div>
         </div>
         <div class="help-section">
           <div class="help-subtitle">Status and Sorting</div>
@@ -314,6 +326,7 @@
           <div class="help-row"><code>-assigned:unassigned -assigned:Joaquin</code><span>Repeated exclusions also work</span></div>
           <div class="help-row"><code>-proposed-by:ai</code><span>Exclude active AI proposals</span></div>
           <div class="help-row"><code>-mission:name</code><span>Exclude a mission while keeping other matches</span></div>
+          <div class="help-row"><code>not:more-info-resubmitted</code><span>Exclude submissions reopened after a more-info request</span></div>
         </div>
         <div class="help-section">
           <div class="help-subtitle">Examples</div>
@@ -324,6 +337,8 @@
           <div class="help-example">-assigned:unassigned,Joaquin has:url</div>
           <div class="help-example">https://x.com/user/status/123</div>
           <div class="help-example">type:bug-report -mission:wallet-login is:ai-reviewed</div>
+          <div class="help-example">assigned:unassigned is:more-info-resubmitted</div>
+          <div class="help-example">status:pending assigned:unassigned has:more-info-request</div>
         </div>
         <div class="help-note">Untagged text and URLs search submitter, title, notes, and evidence. Use quotes for values with spaces.</div>
       </div>

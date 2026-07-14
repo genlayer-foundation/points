@@ -263,6 +263,19 @@ export function searchToParams(parsed, options = {}) {
     params.has_appeal = false;
   }
 
+  // has:more-info-request / no:more-info-request → recorded request history
+  const moreInfoRequestAliases = [
+    'more-info-request',
+    'more_info_request',
+    'more-info',
+    'more_info',
+  ];
+  if (hasValue(filters.has, moreInfoRequestAliases)) {
+    params.has_more_info_request = true;
+  } else if (hasValue(filters.no, moreInfoRequestAliases)) {
+    params.has_more_info_request = false;
+  }
+
   // is:interesting / not:interesting → is_interesting filter
   if (hasValue(filters.is, ['interesting'])) {
     params.is_interesting = true;
@@ -275,6 +288,18 @@ export function searchToParams(parsed, options = {}) {
     params.has_ai_analysis = true;
   } else if (hasValue(filters.not, ['ai-reviewed', 'ai_reviewed'])) {
     params.has_ai_analysis = false;
+  }
+
+  // is:more-info-resubmitted / not:more-info-resubmitted → lifecycle filter
+  const moreInfoResubmittedAliases = [
+    'more-info-resubmitted',
+    'more_info_resubmitted',
+    'resubmitted',
+  ];
+  if (hasValue(filters.is, moreInfoResubmittedAliases)) {
+    params.is_more_info_resubmitted = true;
+  } else if (hasValue(filters.not, moreInfoResubmittedAliases)) {
+    params.is_more_info_resubmitted = false;
   }
 
   // min-contributions

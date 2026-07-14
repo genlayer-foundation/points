@@ -26,6 +26,10 @@ from contributions.models import (
     SubmissionNote,
     SubmittedContribution,
 )
+from contributions.lifecycle_filters import (
+    SubmissionLifecycleFilterMixin,
+    annotate_more_info_flags,
+)
 from contributions.proposal_filters import ProposalReviewStatusFilterMixin
 from contributions.rubric_review import rubric_summary_text, uses_project_rubric
 from service_accounts.authentication import ServiceAccountAuthentication
@@ -51,7 +55,11 @@ class AIReviewPagination(PageNumberPagination):
 
 # ─── FilterSet ────────────────────────────────────────────────────────────────
 
-class AIReviewFilterSet(ProposalReviewStatusFilterMixin, FilterSet):
+class AIReviewFilterSet(
+    SubmissionLifecycleFilterMixin,
+    ProposalReviewStatusFilterMixin,
+    FilterSet,
+):
     """Filterset for AI review agent submission queries."""
 
     contribution_type = NumberFilter(field_name='contribution_type_id')
@@ -82,6 +90,8 @@ class AIReviewFilterSet(ProposalReviewStatusFilterMixin, FilterSet):
     search = CharFilter(method='filter_search')
     mission = CharFilter(method='filter_mission')
     exclude_mission = CharFilter(method='filter_exclude_mission')
+    has_more_info_request = BooleanFilter(method='filter_has_more_info_request')
+    is_more_info_resubmitted = BooleanFilter(method='filter_is_more_info_resubmitted')
 
     class Meta:
         model = SubmittedContribution
@@ -441,7 +451,7 @@ class AIReviewViewSet(
         if self.action != 'list':
             prefetches.append('internal_notes')
 
-        return (
+        return annotate_more_info_flags(
             qs.select_related(
                 'contribution_type',
                 'contribution_type__category',
@@ -653,7 +663,7 @@ class AIReviewViewSet(
         Use GET /ai-review/{id}/ to retrieve full proposal details for any
         submission returned here.
         """
-        queryset = (
+        queryset = annotate_more_info_flags(
             SubmittedContribution.objects.filter(
                 state='pending',
                 proposed_action__isnull=False,
@@ -706,7 +716,7 @@ class AIReviewViewSet(
             user__email=AI_STEWARD_EMAIL,
         )
 
-        queryset = (
+        queryset = annotate_more_info_flags(
             SubmittedContribution.objects
             .filter(
                 state__in=['accepted', 'rejected', 'more_info_needed'],
