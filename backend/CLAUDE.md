@@ -351,6 +351,7 @@ backend/
 - **Audit**: `DiscordEarnedRoleAssignment` stores each successful automatic grant with the Discord member, role, CP/POAP snapshot, and creation time; records are read-only in admin.
 - **Service**: `DiscordRoleSyncService.add_member_role(discord_user_id, role_id)` PUTs to Discord; 404 (member left) returns False.
 - **Trigger**: `POST /api/v1/users/discord/assign-earned-roles/` (cron-protected, background thread + `DiscordRoleSyncLock` row `discord_earned_role_assign`), called daily at 00:30 UTC by `.github/workflows/assign-discord-roles.yml` (after the 00:00 MEE6 XP sync). Manual/backfill: `python manage.py assign_earned_discord_roles [--dry-run]`; dry run prints the would-assign list for review.
+- **Admin**: superusers can start the same locked background assignment from the `DiscordEarnedRoleAssignment` changelist after confirming the operation.
 - **Ops**: the bot needs Manage Roles and its role above Synapse/Brain in the guild hierarchy.
 
 ### Database & Migrations
