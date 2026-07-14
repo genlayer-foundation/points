@@ -95,7 +95,7 @@ backend/
   - ProjectMetric - Admin-managed title/value/detail metric rows for project pages
   - ProjectPageRevision - Owner-submitted ordered page blocks rendered through whitelisted portal components
 - **AI Review**: `contributions/ai_review/views.py`
-  - `/api/v1/ai-review/` - List pending unproposed submissions for the external AI review agent; proposal filters such as `has_proposal=true` opt into active proposals
+  - `/api/v1/ai-review/` - List pending unproposed submissions for the external AI review agent; `has_more_info_request=true` selects submissions with recorded request blocks, while `is_more_info_resubmitted=true` selects audited resubmissions
   - `/api/v1/ai-review/{id}/` - Retrieve a pending submission with evidence and user history
   - `/api/v1/ai-review/{id}/propose/` - Submit an AI proposal for human approval
   - `/api/v1/ai-review/proposed/` - List pending submissions with active proposals awaiting steward review; use `proposed_by=ai` for AI-created proposals only

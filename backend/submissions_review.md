@@ -84,10 +84,21 @@ The external AI agent accesses submissions via the `/api/v1/ai-review/` API endp
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/v1/ai-review/` | GET | List pending submissions (paginated, filterable) |
+| `/api/v1/ai-review/` | GET | List pending submissions (paginated, filterable); use `has_more_info_request=true` for submissions with recorded request blocks or `is_more_info_resubmitted=true` for audited resubmissions |
 | `/api/v1/ai-review/{id}/` | GET | Submission detail with evidence and user history |
 | `/api/v1/ai-review/{id}/propose/` | POST | Submit a review proposal |
 | `/api/v1/ai-review/templates/` | GET | List review templates |
+
+DAI can combine lifecycle and assignment filters directly:
+
+```text
+GET /api/v1/ai-review/?assigned_to=unassigned&has_more_info_request=true
+```
+
+List and detail payloads distinguish `has_more_info_request`, backed by the
+same structured notes rendered in submission cards, from
+`is_more_info_resubmitted`, backed only by an append-only transition from
+`more_info_needed` to `pending`.
 
 ### Project Rubric Proposals
 
