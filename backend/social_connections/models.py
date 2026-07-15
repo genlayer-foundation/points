@@ -166,12 +166,12 @@ class DiscordEarnedRoleAssignment(BaseModel):
     class Meta:
         db_table = 'social_connections_discord_earned_role_assignment'
         ordering = ['-created_at']
-        permissions = [
+        permissions = (
             (
                 'run_discord_earned_role_assignment',
                 'Can run Discord earned role assignment',
             ),
-        ]
+        )
 
     def __str__(self):
         return f"{self.discord_username or self.discord_user_id}: {self.role_name}"

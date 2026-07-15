@@ -14,12 +14,12 @@ class Migration(migrations.Migration):
             name='discordearnedroleassignment',
             options={
                 'ordering': ['-created_at'],
-                'permissions': [
+                'permissions': (
                     (
                         'run_discord_earned_role_assignment',
                         'Can run Discord earned role assignment',
                     ),
-                ],
+                ),
             },
         ),
     ]
