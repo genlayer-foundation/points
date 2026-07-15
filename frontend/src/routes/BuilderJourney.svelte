@@ -39,7 +39,7 @@
   };
 
   const BRADBURY_NETWORK = {
-    chainId: '0x107D',
+    chainId: '0x107d',
     chainName: 'GenLayer Bradbury',
     nativeCurrency: { name: 'GEN', symbol: 'GEN', decimals: 18 },
     rpcUrls: ['https://rpc-bradbury.genlayer.com'],
@@ -47,7 +47,7 @@
   };
 
   const ASIMOV_NETWORK = {
-    chainId: '0x107D',
+    chainId: '0x107d',
     chainName: 'GenLayer Asimov',
     nativeCurrency: { name: 'GEN', symbol: 'GEN', decimals: 18 },
     rpcUrls: ['https://rpc-asimov.genlayer.com'],
@@ -55,11 +55,11 @@
   };
 
   const STUDIO_NETWORK = {
-    chainId: '0xF22F',
+    chainId: '0xf22f',
     chainName: 'GenLayer Studio',
     nativeCurrency: { name: 'GEN', symbol: 'GEN', decimals: 18 },
     rpcUrls: ['https://studio.genlayer.com/api'],
-    blockExplorerUrls: [],
+    blockExplorerUrls: ['https://explorer-studio.genlayer.com'],
   };
 
   const NETWORKS = [

@@ -102,6 +102,7 @@ class DiscordRoleSyncLockAdmin(admin.ModelAdmin):
 
 @admin.register(DiscordEarnedRoleAssignment)
 class DiscordEarnedRoleAssignmentAdmin(admin.ModelAdmin):
+    run_assignment_permission = 'social_connections.run_discord_earned_role_assignment'
     change_list_template = 'admin/social_connections/discordearnedroleassignment/change_list.html'
     list_select_related = ('connection__user',)
     list_display = ('created_at', 'role_name', 'discord_username', 'connection', 'total_points', 'poap_count')
@@ -130,11 +131,14 @@ class DiscordEarnedRoleAssignmentAdmin(admin.ModelAdmin):
 
     def changelist_view(self, request, extra_context=None):
         extra_context = extra_context or {}
-        extra_context['can_run_assignment'] = request.user.is_superuser
+        extra_context['can_run_assignment'] = self.has_run_assignment_permission(request)
         return super().changelist_view(request, extra_context=extra_context)
 
+    def has_run_assignment_permission(self, request):
+        return request.user.has_perm(self.run_assignment_permission)
+
     def run_assignment_view(self, request):
-        if not request.user.is_superuser:
+        if not self.has_run_assignment_permission(request):
             raise PermissionDenied
 
         changelist_url = reverse(
@@ -174,6 +178,12 @@ class DiscordEarnedRoleAssignmentAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+    def has_view_permission(self, request, obj=None):
+        return (
+            super().has_view_permission(request, obj=obj)
+            or self.has_run_assignment_permission(request)
+        )
 
     def has_change_permission(self, request, obj=None):
         return False
