@@ -2,8 +2,9 @@ name: Assign Earned Discord Roles
 
 on:
   schedule:
-    # Daily, shortly after the 00:00 UTC MEE6 XP sync so fresh XP counts.
-    - cron: '30 0 * * *'
+    # Every 3 hours, shortly after the :37 Discord role sync. The 00:43 run
+    # also follows the daily 00:00 UTC MEE6 XP sync.
+    - cron: '43 */3 * * *'
   workflow_dispatch:
     inputs:
       target:
