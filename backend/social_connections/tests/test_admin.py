@@ -57,7 +57,7 @@ class DiscordEarnedRoleAssignmentAdminTest(TestCase):
         self.assertContains(response, '12 seconds ago')
         mock_start.assert_called_once_with()
 
-    def test_non_superuser_cannot_run_assignment(self):
+    def test_staff_with_view_permission_cannot_run_assignment(self):
         staff = get_user_model().objects.create_user(
             email='staff@test.com',
             password='password',
@@ -69,7 +69,37 @@ class DiscordEarnedRoleAssignmentAdminTest(TestCase):
         self.client.force_login(staff)
 
         changelist_response = self.client.get(self.changelist_url)
+        confirmation_response = self.client.get(self.run_url)
         run_response = self.client.post(self.run_url)
 
         self.assertNotContains(changelist_response, 'Run earned role assignment')
+        self.assertEqual(confirmation_response.status_code, 403)
         self.assertEqual(run_response.status_code, 403)
+
+    @patch(
+        'social_connections.admin.start_earned_role_assignment',
+        return_value=(True, None),
+    )
+    def test_staff_with_run_permission_can_run_assignment(self, mock_start):
+        staff = get_user_model().objects.create_user(
+            email='role-manager@test.com',
+            password='password',
+            is_staff=True,
+        )
+        staff.user_permissions.add(
+            Permission.objects.get(codename='run_discord_earned_role_assignment')
+        )
+        self.client.force_login(staff)
+
+        admin_index_response = self.client.get(reverse('admin:index'))
+        changelist_response = self.client.get(self.changelist_url)
+        confirmation_response = self.client.get(self.run_url)
+        run_response = self.client.post(self.run_url, follow=True)
+
+        self.assertContains(admin_index_response, self.changelist_url)
+        self.assertEqual(changelist_response.status_code, 200)
+        self.assertContains(changelist_response, 'Run earned role assignment')
+        self.assertEqual(confirmation_response.status_code, 200)
+        self.assertRedirects(run_response, self.changelist_url)
+        self.assertContains(run_response, 'Earned Discord role assignment started.')
+        mock_start.assert_called_once_with()
