@@ -4,6 +4,10 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Scrolling the Overview page on phones no longer gets stuck on the first swipe while the page is loading (f45bc38a)
+
+- Social task action icons stay right-aligned on narrow screens instead of crowding the Verify button (ed37966b)
+
 - AI-assisted project reviews now expose the AI's criterion reasoning and fixed scores in a dedicated feedback panel. Stewards can mark an AI review accurate in one click or record score/decision corrections and anchored, typed flaws without interrupting the normal Accept, Reject, Request Info, or Propose flow; structured feedback is pinned to the exact AI proposal and exported through a scoped benchmark API.
 
 - Reviewers can now always find and open their own proposals, including questioned ones on submissions awaiting more information or outside their current permissions, and the "Proposal questioned" notification link opens the submission regardless of its current status (52feac7d)
