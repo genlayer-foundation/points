@@ -110,6 +110,39 @@ class CanceledSubmissionMetricsTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['totals']['accepted'], 1)
 
+    def test_daily_metrics_state_totals_reflect_state_not_submission_date(self):
+        old = timezone.now() - timedelta(days=10)
+
+        old_pending = self._create_submission(state='pending')
+        SubmittedContribution.objects.filter(pk=old_pending.pk).update(
+            created_at=old, reviewed_at=None, reviewed_by=None,
+        )
+        old_accepted = self._create_submission(state='accepted', staff_reply='Accepted')
+        SubmittedContribution.objects.filter(pk=old_accepted.pk).update(
+            created_at=old, reviewed_at=old,
+        )
+
+        today = timezone.now().date().isoformat()
+        response = self.client.get(
+            '/api/v1/steward-submissions/daily-metrics/',
+            {
+                'group_by': 'day',
+                'start_date': today,
+                'end_date': today,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Nothing was submitted or reviewed inside the range itself...
+        self.assertEqual(response.data['totals']['ingress'], 0)
+        self.assertEqual(response.data['totals']['accepted'], 0)
+        # ...but the state series reflects what was in each state during it.
+        self.assertEqual(response.data['totals']['pending_review'], 1)
+        point = response.data['data'][-1]
+        self.assertEqual(point['pending_total'], 1)
+        self.assertEqual(point['accepted_total'], 1)
+        self.assertEqual(point['more_info_total'], 0)
+
     def test_daily_metrics_rejects_inverted_date_range(self):
         self.client.force_authenticate(user=None)
 

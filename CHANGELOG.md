@@ -6,6 +6,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 - Contributors can link a Telegram account from their profile header (private, visible only to them) to receive portal notifications and announcements on Telegram and check their rank, points, and active missions with bot commands; the old public Telegram handle field was removed from profiles. Post-deploy: set TELEGRAM_BOT_USERNAME and TELEGRAM_WEBHOOK_SECRET, run `python manage.py set_telegram_webhook`, and add the telegram-deliver cron workflow (de6a8726)
 
+- The Metrics page contribution state trends now show how many submissions were really pending, accepted, or awaiting more info at each point in time (not just those submitted in the selected range), daily grouping no longer errors on wide date ranges (the start date adapts automatically while keeping the end date), and the contribution type filter includes non-submittable types (20860fe7)
+
 - Scrolling the Overview page on phones no longer gets stuck on the first swipe while the page is loading (f45bc38a)
 
 - Social task action icons stay right-aligned on narrow screens instead of crowding the Verify button (ed37966b)
