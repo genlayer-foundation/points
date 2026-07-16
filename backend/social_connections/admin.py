@@ -1,4 +1,9 @@
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.core.exceptions import PermissionDenied
+from django.shortcuts import redirect, render
+from django.urls import path, reverse
+
+from .discord_oauth import start_earned_role_assignment
 
 from .models import (
     DiscordConnection,
@@ -121,6 +126,8 @@ class DiscordRoleSyncLockAdmin(admin.ModelAdmin):
 
 @admin.register(DiscordEarnedRoleAssignment)
 class DiscordEarnedRoleAssignmentAdmin(admin.ModelAdmin):
+    run_assignment_permission = 'social_connections.run_discord_earned_role_assignment'
+    change_list_template = 'admin/social_connections/discordearnedroleassignment/change_list.html'
     list_select_related = ('connection__user',)
     list_display = ('created_at', 'role_name', 'discord_username', 'connection', 'total_points', 'poap_count')
     list_filter = ('role_name',)
@@ -137,8 +144,70 @@ class DiscordEarnedRoleAssignmentAdmin(admin.ModelAdmin):
         'created_at',
     )
 
+    def get_urls(self):
+        return [
+            path(
+                'run-assignment/',
+                self.admin_site.admin_view(self.run_assignment_view),
+                name='social_connections_discordearnedroleassignment_run_assignment',
+            ),
+        ] + super().get_urls()
+
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context['can_run_assignment'] = self.has_run_assignment_permission(request)
+        return super().changelist_view(request, extra_context=extra_context)
+
+    def has_run_assignment_permission(self, request):
+        return request.user.has_perm(self.run_assignment_permission)
+
+    def run_assignment_view(self, request):
+        if not self.has_run_assignment_permission(request):
+            raise PermissionDenied
+
+        changelist_url = reverse(
+            'admin:social_connections_discordearnedroleassignment_changelist'
+        )
+        if request.method == 'POST':
+            started, elapsed_seconds = start_earned_role_assignment()
+            if started:
+                self.message_user(
+                    request,
+                    'Earned Discord role assignment started. Successful grants will appear in this table.',
+                    level=messages.SUCCESS,
+                )
+            else:
+                elapsed = (
+                    f' Last heartbeat was {elapsed_seconds:.0f} seconds ago.'
+                    if elapsed_seconds is not None else ''
+                )
+                self.message_user(
+                    request,
+                    f'Earned Discord role assignment is already running.{elapsed}',
+                    level=messages.WARNING,
+                )
+            return redirect(changelist_url)
+
+        context = {
+            **self.admin_site.each_context(request),
+            'opts': self.model._meta,
+            'title': 'Run earned Discord role assignment',
+            'changelist_url': changelist_url,
+        }
+        return render(
+            request,
+            'admin/social_connections/discordearnedroleassignment/run_assignment.html',
+            context,
+        )
+
     def has_add_permission(self, request):
         return False
+
+    def has_view_permission(self, request, obj=None):
+        return (
+            super().has_view_permission(request, obj=obj)
+            or self.has_run_assignment_permission(request)
+        )
 
     def has_change_permission(self, request, obj=None):
         return False

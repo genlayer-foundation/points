@@ -10,10 +10,10 @@
  * - proposed-by:ai|me|none|steward-name
  * - exclude:text (multiple allowed)
  * - include:text (multiple allowed)
- * - has:url|evidence|proposal|appeal
- * - no:url|evidence|proposal|appeal
- * - is:interesting|appealed|ai-reviewed
- * - not:interesting|appealed|ai-reviewed
+ * - has:url|evidence|proposal|appeal|more-info-request
+ * - no:url|evidence|proposal|appeal|more-info-request
+ * - is:interesting|appealed|ai-reviewed|more-info-resubmitted
+ * - not:interesting|appealed|ai-reviewed|more-info-resubmitted
  * - min-contributions:number
  * - proposal-status:pending|questioned
  * - sort:created|-created|date|-date|reviewed|-reviewed|points|-points

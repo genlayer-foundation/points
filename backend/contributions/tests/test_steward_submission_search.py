@@ -4,7 +4,15 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from contributions.models import Category, Contribution, ContributionType, Evidence, SubmittedContribution
+from contributions.models import (
+    Category,
+    Contribution,
+    ContributionType,
+    Evidence,
+    SubmissionNote,
+    SubmissionStateTransition,
+    SubmittedContribution,
+)
 from leaderboard.models import GlobalLeaderboardMultiplier
 from stewards.models import Steward, StewardPermission
 
@@ -244,6 +252,105 @@ class StewardSubmissionSearchTest(TestCase):
         self.assertIn(str(unassigned.id), result_ids)
         self.assertIn(str(assigned_to_other.id), result_ids)
         self.assertNotIn(str(assigned_to_current.id), result_ids)
+
+    def test_can_filter_unassigned_more_info_resubmissions_from_transition_history(self):
+        resubmitted = SubmittedContribution.objects.create(
+            user=self.regular_user,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes='User supplied the requested follow-up.',
+            state='pending',
+        )
+        SubmissionStateTransition.record(
+            resubmitted,
+            SubmissionStateTransition.EVENT_EDITED,
+            from_state='more_info_needed',
+            actor=self.regular_user,
+        )
+        ordinary_pending = SubmittedContribution.objects.create(
+            user=self.regular_user,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes='Ordinary pending submission.',
+            state='pending',
+        )
+        assigned_resubmission = SubmittedContribution.objects.create(
+            user=self.regular_user,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes='Resubmitted but already assigned.',
+            state='pending',
+            assigned_to=self.other_steward_user,
+        )
+        SubmissionStateTransition.record(
+            assigned_resubmission,
+            SubmissionStateTransition.EVENT_EDITED,
+            from_state='more_info_needed',
+            actor=self.regular_user,
+        )
+
+        response = self.client.get('/api/v1/steward-submissions/', {
+            'state': 'pending',
+            'assigned_to': 'unassigned',
+            'is_more_info_resubmitted': 'true',
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        result_ids = {str(item['id']) for item in response.data['results']}
+        self.assertEqual(result_ids, {str(resubmitted.id)})
+
+        response = self.client.get('/api/v1/steward-submissions/', {
+            'state': 'pending',
+            'is_more_info_resubmitted': 'false',
+        })
+        result_ids = {str(item['id']) for item in response.data['results']}
+        self.assertIn(str(ordinary_pending.id), result_ids)
+        self.assertNotIn(str(resubmitted.id), result_ids)
+        self.assertNotIn(str(assigned_resubmission.id), result_ids)
+
+    def test_can_filter_pending_unassigned_submissions_with_more_info_request_blocks(self):
+        requested = SubmittedContribution.objects.create(
+            user=self.regular_user,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes='Currently pending after a request.',
+            state='pending',
+        )
+        SubmissionNote.objects.create(
+            submitted_contribution=requested,
+            user=self.steward_user,
+            message='Reviewed: more_info\n\n> Please provide a clearer link.',
+            is_proposal=False,
+            data={
+                'action': 'more_info',
+                'staff_reply': 'Please provide a clearer link.',
+            },
+        )
+        ordinary_pending = SubmittedContribution.objects.create(
+            user=self.regular_user,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes='No more-information request.',
+            state='pending',
+        )
+
+        response = self.client.get('/api/v1/steward-submissions/', {
+            'state': 'pending',
+            'assigned_to': 'unassigned',
+            'has_more_info_request': 'true',
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        result_ids = {str(item['id']) for item in response.data['results']}
+        self.assertEqual(result_ids, {str(requested.id)})
+
+        response = self.client.get('/api/v1/steward-submissions/', {
+            'state': 'pending',
+            'has_more_info_request': 'false',
+        })
+        result_ids = {str(item['id']) for item in response.data['results']}
+        self.assertIn(str(ordinary_pending.id), result_ids)
+        self.assertNotIn(str(requested.id), result_ids)
 
     def test_invalid_steward_id_filters_do_not_error(self):
         pending = SubmittedContribution.objects.create(

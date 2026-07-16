@@ -6,6 +6,10 @@ All notable user-facing changes to this project will be documented in this file.
 
 - Contributors can link a Telegram account from their profile header (private, visible only to them) to receive portal notifications and announcements on Telegram and check their rank, points, and active missions with bot commands; the old public Telegram handle field was removed from profiles. Post-deploy: set TELEGRAM_BOT_USERNAME and TELEGRAM_WEBHOOK_SECRET, run `python manage.py set_telegram_webhook`, and add the telegram-deliver cron workflow (de6a8726)
 
+- Scrolling the Overview page on phones no longer gets stuck on the first swipe while the page is loading (f45bc38a)
+
+- Social task action icons stay right-aligned on narrow screens instead of crowding the Verify button (ed37966b)
+
 - AI-assisted project reviews now expose the AI's criterion reasoning and fixed scores in a dedicated feedback panel. Stewards can mark an AI review accurate in one click or record score/decision corrections and anchored, typed flaws without interrupting the normal Accept, Reject, Request Info, or Propose flow; structured feedback is pinned to the exact AI proposal and exported through a scoped benchmark API.
 
 - Reviewers can now always find and open their own proposals, including questioned ones on submissions awaiting more information or outside their current permissions, and the "Proposal questioned" notification link opens the submission regardless of its current status (52feac7d)

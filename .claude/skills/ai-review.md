@@ -121,6 +121,7 @@ List responses from `/api/v1/ai-review/` and `/api/v1/ai-review/proposed/`
 include compact submission fields plus the active proposal summary:
 
 - `assigned_to`, `assigned_to_name`
+- `has_more_info_request`, `is_more_info_resubmitted`
 - `has_proposal`
 - `proposed_action`, `proposed_points`, `proposed_staff_reply`
 - `proposed_contribution_type`
@@ -176,11 +177,16 @@ already makes the filter meaningless. Send backend parameter names exactly.
 | `proposed_template` | template ID | Active proposal template |
 | `has_appeal` | `true`, `false` | Submitter appeal flag |
 | `is_interesting` | `true`, `false` | Internal interesting flag |
+| `has_more_info_request` | `true`, `false` | Whether a non-proposal structured note records a `more_info` request; this is the same history rendered as a more-information block on submission cards |
+| `is_more_info_resubmitted` | `true`, `false` | Whether the append-only transition log records an edited transition from `more_info_needed` to `pending` |
 | `min_accepted_contributions` | positive integer | Submitter has at least this many accepted submissions |
 
 The old `resubmitted_more_info` filter was removed (re-open paths clear
-`reviewed_at`, so it could never match current data). Do not send it; unknown
-params are silently ignored and you would get the ENTIRE unfiltered queue.
+`reviewed_at`, so it could never match current data). Use
+`is_more_info_resubmitted` for a confirmed reopen transition or
+`has_more_info_request` for recorded request history. Do not send the old name;
+unknown params are silently ignored and you would get the ENTIRE unfiltered
+queue.
 
 ## More-Info Filters
 
@@ -189,14 +195,15 @@ Use the exact filter for the question being asked:
 | Need | Endpoint | Filter |
 |---|---|---|
 | Submissions currently waiting on submitter info | `/api/v1/ai-review/reviewed/` or steward search | `state=more_info_needed` |
-| Pending submissions resubmitted after more info was requested | `/api/v1/ai-review/{id}/` | No query param exists; inspect `internal_notes` for a prior `more_info` decision note |
+| Pending submissions with a recorded more-info request block | `/api/v1/ai-review/` | `has_more_info_request=true` |
+| Pending submissions confirmed as resubmitted after a more-info request | `/api/v1/ai-review/` | `is_more_info_resubmitted=true` |
 | Active proposals recommending more info | `/api/v1/ai-review/proposed/` | `proposed_action=more_info` |
 | Reviewed submissions where final steward decision was more info | `/api/v1/ai-review/reviewed/` | `state=more_info_needed` |
 | Exclude current more-info submissions | Any list endpoint where state is not fixed | `exclude_state=more_info_needed` |
 
-There is no direct query parameter for "ever had a more-info request but later
-became accepted or rejected". For that, use `/api/v1/ai-review/reviewed/` and
-inspect `internal_notes`.
+To find reviewed submissions that have ever had a recorded more-info request,
+use `/api/v1/ai-review/reviewed/?has_more_info_request=true`; the reviewed
+endpoint's calibration-data scope still applies.
 
 ## Common Filter Examples
 
@@ -204,6 +211,14 @@ inspect `internal_notes`.
 # New unproposed builder submissions with URL evidence.
 curl -s -H "Authorization: Bearer $TOKEN" \
   "$BASE_URL/api/v1/ai-review/?category=builder&exclude_empty_evidence=true"
+
+# Unassigned pending submissions with a recorded more-info request block.
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "$BASE_URL/api/v1/ai-review/?assigned_to=unassigned&has_more_info_request=true"
+
+# Pending submissions with an audited more-info-needed to pending transition.
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "$BASE_URL/api/v1/ai-review/?is_more_info_resubmitted=true"
 
 # Active more-info proposals from AI or human stewards.
 curl -s -H "Authorization: Bearer $TOKEN" \

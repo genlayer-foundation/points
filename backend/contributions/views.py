@@ -53,6 +53,7 @@ from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          FeaturedContentSerializer, AlertSerializer,
                          ContributionDiscordXPStateSerializer)
 from .permissions import IsSteward, steward_has_permission, steward_permitted_type_ids
+from .lifecycle_filters import SubmissionLifecycleFilterMixin
 from .proposal_filters import ProposalReviewStatusFilterMixin
 from .project_milestones import (
     accepted_project_contributions_for_user,
@@ -1269,7 +1270,11 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         )
 
 
-class StewardSubmissionFilterSet(ProposalReviewStatusFilterMixin, FilterSet):
+class StewardSubmissionFilterSet(
+    SubmissionLifecycleFilterMixin,
+    ProposalReviewStatusFilterMixin,
+    FilterSet,
+):
     """Custom filterset for steward submission filtering."""
     username_search = CharFilter(method='filter_username')
     exclude_username = CharFilter(method='filter_exclude_username')
@@ -1299,6 +1304,8 @@ class StewardSubmissionFilterSet(ProposalReviewStatusFilterMixin, FilterSet):
     exclude_mission = CharFilter(method='filter_exclude_mission')
     has_appeal = BooleanFilter(field_name='has_appeal')
     has_ai_analysis = BooleanFilter(method='filter_has_ai_analysis')
+    has_more_info_request = BooleanFilter(method='filter_has_more_info_request')
+    is_more_info_resubmitted = BooleanFilter(method='filter_is_more_info_resubmitted')
 
     def _split_filter_values(self, value):
         return [
