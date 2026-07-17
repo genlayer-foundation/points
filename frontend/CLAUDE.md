@@ -294,7 +294,7 @@ frontend/src/
 - **Notifications**: `src/components/NotificationCenter.svelte`
   - Bell icon button in the navbar, left of the search bar on desktop, before the auth button on mobile; only when authenticated
   - Unread badge, dropdown with latest notifications, mark-all-read, "View all" linking to `/notifications`
-  - Polls unread count every 60s; clicking a notification marks it read (non-blocking) and follows its `link_url` (internal routes push in-app, http(s) opens a new tab)
+  - Polls unread count every 60s while the tab is visible; the desktop/mobile instances share one refcounted timer and visibility listener, and returning to the tab refreshes immediately. Clicking a notification marks it read (non-blocking) and follows its `link_url` (internal routes push in-app, http(s) opens a new tab)
   - Full feed page: `src/routes/Notifications.svelte` (All/Unread filter pills, load-more pagination). Bodies render as sanitized image-free markdown via `parseUserMarkdown()` (no `<img>`, so private campaign opens can't ping external tracking pixels); rows are `div[role=button]` so markdown links stay clickable, inline anchor clicks don't also trigger the row's `link_url` redirect, and rows without a `link_url` show a default cursor (pure announcements)
   - Shared utils: `src/lib/notificationUtils.js` (`asList` payload normalization, `followNotificationLink` link handling) and `src/lib/relativeTime.js` for compact timestamps
 - **Sidebar**: `src/components/Sidebar.svelte`
@@ -319,7 +319,7 @@ The portal uses **history-based routing** (clean `/testnets` URLs, not hash `/#/
 - **Links:** plain `<a href="/path">` is SPA-navigated automatically by a global click interceptor (`installLinkInterceptor`, installed once in `App.svelte`); it skips modified/new-tab/external/file links and any anchor whose own handler already called `preventDefault()`. Never write `href="#/..."`.
 - **Deep links / refresh:** AWS Amplify (`amplify.yml` customRules) and the Vite dev server already serve `index.html` for unmatched paths — no server change needed.
 - **Back-compat:** a tiny boot script in `index.html` rewrites any incoming legacy `#/path` to `/path` before the app mounts, so old shared hash links still resolve.
-- **Guard error semantics (degraded backend):** "couldn't verify" is never treated as "not a member". `performVerification` (auth.js) only sets unauthenticated on a definitive <500 response — network/5xx keeps the current state and leaves `hasVerified` unset so it retries. `userStore.loadUser()` only clears `user` on 401/403; other failures keep the previously loaded user. `requireRoleForRoute` (App.svelte) fails OPEN when `/users/me/` fails with a non-auth error (the backend enforces real permissions on every API call). Journey pages (`CommunityJourney`, `BuilderJourney`) only auto-call the journey-start endpoint when a user object is actually loaded, so an outage can't fire a journey-start mutation for an existing member.
+- **Guard error semantics (degraded backend):** "couldn't verify" is never treated as "not a member". `performVerification` (auth.js) only sets unauthenticated on a definitive <500 response — network/5xx keeps the current state and leaves `hasVerified` unset so it retries. `userStore.loadUser()` only clears `user` on 401/403; other failures keep the previously loaded user. `requireRoleForRoute` (App.svelte) fails OPEN when `/users/me/` fails with a non-auth error (the backend enforces real permissions on every API call). `CommunityJourneyGate.svelte` is stricter for `/community/journey`: it refreshes `/users/me/`, redirects confirmed Creators, and renders Retry without mounting journey code when verification fails. Journey pages only auto-call journey endpoints for a loaded, eligible user.
 - **Static OG:** `scripts/generate-og-pages.mjs` (post-build) writes `dist/<route>/index.html` per `STATIC_OG_ROUTES` with route-specific meta; with history routing a copied static-route URL hits that prerendered file directly. Dynamic detail pages (projects/POAPs/profiles) still serve the generic card to crawlers — a future backend-meta + edge-function task.
 
 ### Routes/Pages
@@ -341,6 +341,7 @@ const routes = {
   '/participants': Validators,
   '/referrals': Referrals,
   '/community': ReferralProgram,
+  '/community/journey': CommunityJourneyGate,            // Refreshes profile before mounting the Creator journey
   '/community/contributions': Contributions,
   '/community/all-contributions': AllContributions,
   '/community/contributions/highlights': AllContributions,
@@ -423,10 +424,11 @@ const routes = {
 #### Community POAPs
 
 - **`/community/poaps`** - POAP collection wall (`CommunityPoaps.svelte`)
-  - Calls `poapsAPI.list({ page, page_size: 100, ordering: '-event_start_at', search?, month? })`.
+  - Calls `poapsAPI.list({ page, page_size: 48, ordering: '-event_start_at', search?, month? })`.
   - `loadPoaps(nextPage = 1, append = false)` replaces the list on initial/filter loads and appends only when `append=true`.
   - Search and month filters are applied when a non-append load starts; appended loads reuse `appliedSearch` / `appliedMonthFilter` so typed-but-unsubmitted filter changes do not mix result sets.
   - `loading` controls the initial/filter skeleton, `loadingMore` controls the Load more button, and `hasMore` is driven by the paginated API `next` field.
+  - Initial/filter failures render a Retry state; append failures keep the loaded collection visible and retry the same next page.
   - Overlapping list requests must be guarded with `latestPoapsRequestId` before mutating list, error, or loading state.
 - **`/community/poaps/recover`** - POAP recovery flow for attaching legacy wallet claims.
 - **`/community/poaps/:slug`** - POAP detail page with lazy collector loading.

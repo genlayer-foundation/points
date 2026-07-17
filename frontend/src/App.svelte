@@ -120,7 +120,7 @@
   import SocialTasks from './routes/SocialTasks.svelte';
   import RoleFunnel from './components/funnel/RoleFunnel.svelte';
   import BuilderJourney from './routes/BuilderJourney.svelte';
-  import CommunityJourney from './routes/CommunityJourney.svelte';
+  import CommunityJourneyGate from './routes/CommunityJourneyGate.svelte';
 
   async function requireAuthForRoute({ location, querystring }) {
     const state = authState.get();
@@ -243,7 +243,7 @@
     '/participants': protectedRoute(Validators),
     '/referrals': protectedRoute(Referrals),
     '/community': RoleFunnel,
-    '/community/journey': protectedRoute(CommunityJourney),
+    '/community/journey': protectedRoute(CommunityJourneyGate),
     '/community/contributions': roleGatedRoute(Contributions, 'community'),
     '/community/all-contributions': roleGatedRoute(AllContributions, 'community'),
     '/community/referrals': LegacyReferralRedirect,
