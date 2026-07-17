@@ -2667,10 +2667,13 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
         - more_info_requested: Submissions requesting more info
         - points_awarded: Total points from accepted contributions, excluding
           onboarding and social-linking awards
+        - pending_total / accepted_total / more_info_total: how many
+          submissions were in that state as of the end of each period,
+          counted over ALL submissions (not just those created in the range)
 
-        The `totals` block also includes `pending_review`: submissions created
-        in the date range that are still in the pending state, respecting the
-        category and contribution_type filters.
+        The `totals` block also includes `pending_review`: the pending backlog
+        as of the end of the range (the last period's `pending_total`),
+        respecting the category and contribution_type filters.
         """
         from datetime import datetime, timedelta
         from django.db.models import Min, Max
@@ -2805,6 +2808,29 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             .order_by('period')
         )
 
+        # State-over-time series: to know how many submissions were IN a state
+        # during each period (not just submitted/reviewed in the range), count
+        # all creations and resolutions up to end_date and accumulate. Every
+        # non-pending state sets reviewed_at (cancel included), so current
+        # state + reviewed_at is the closest available approximation of when a
+        # submission entered its current state.
+        created_all = (
+            base_qs
+            .filter(created_at__lt=end_datetime)
+            .annotate(period=trunc_func('created_at'))
+            .values('period')
+            .annotate(count=Count('id'))
+        )
+
+        resolved_all = (
+            base_qs
+            .exclude(state='pending')
+            .filter(reviewed_at__isnull=False, reviewed_at__lt=end_datetime)
+            .annotate(period=trunc_func('reviewed_at'))
+            .values('period', 'state')
+            .annotate(count=Count('id'))
+        )
+
         # Get points awarded (from converted contributions)
         points_qs = Contribution.objects.filter(
             created_at__gte=start_datetime,
@@ -2843,6 +2869,11 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
         more_info_dict = {to_date(item['period']): item['count'] for item in more_info}
         canceled_dict = {to_date(item['period']): item['count'] for item in canceled}
         points_dict = {to_date(item['period']): item['total_points'] for item in points}
+        created_all_dict = {to_date(item['period']): item['count'] for item in created_all}
+        resolved_all_dict = {}
+        for item in resolved_all:
+            state_counts = resolved_all_dict.setdefault(to_date(item['period']), {})
+            state_counts[item['state']] = item['count']
 
         # Build response with all periods in range
         data = []
@@ -2856,7 +2887,27 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             # Align to first of month
             current_date = current_date.replace(day=1)
 
+        # Seed the running state totals with everything that happened before
+        # the first rendered period.
+        pending_total = sum(
+            count for period, count in created_all_dict.items() if period < current_date
+        )
+        accepted_total = 0
+        more_info_total = 0
+        for period, state_counts in resolved_all_dict.items():
+            if period >= current_date:
+                continue
+            pending_total -= sum(state_counts.values())
+            accepted_total += state_counts.get('accepted', 0)
+            more_info_total += state_counts.get('more_info_needed', 0)
+
         while current_date <= end_date:
+            pending_total += created_all_dict.get(current_date, 0)
+            period_resolved = resolved_all_dict.get(current_date, {})
+            pending_total -= sum(period_resolved.values())
+            accepted_total += period_resolved.get('accepted', 0)
+            more_info_total += period_resolved.get('more_info_needed', 0)
+
             data.append({
                 'period': current_date.isoformat(),
                 'ingress': ingress_dict.get(current_date, 0),
@@ -2864,7 +2915,10 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                 'rejected': rejected_dict.get(current_date, 0),
                 'more_info_requested': more_info_dict.get(current_date, 0),
                 'canceled': canceled_dict.get(current_date, 0),
-                'points_awarded': points_dict.get(current_date, 0) or 0
+                'points_awarded': points_dict.get(current_date, 0) or 0,
+                'pending_total': pending_total,
+                'accepted_total': accepted_total,
+                'more_info_total': more_info_total
             })
 
             # Advance to next period
@@ -2879,18 +2933,10 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                 else:
                     current_date = current_date.replace(month=current_date.month + 1)
 
-        # Pending review counts submissions created in the range that are still
-        # in pending state. We can't derive it from `ingress - reviewed` because
-        # ingress is bucketed by created_at while review outcomes are bucketed
-        # by reviewed_at, so the two measure disjoint cohorts and the
-        # subtraction produces nonsense (often clamped to 0) under filters.
-        pending_review = base_qs.filter(
-            state='pending',
-            created_at__gte=start_datetime,
-            created_at__lt=end_datetime
-        ).count()
-
-        # Calculate totals for the period
+        # Calculate totals for the period. `pending_review` is the pending
+        # backlog as of the end of the range — how many submissions were in
+        # pending state at end_date regardless of when they were created —
+        # matching the state trend series' last point.
         totals = {
             'ingress': sum(d['ingress'] for d in data),
             'accepted': sum(d['accepted'] for d in data),
@@ -2898,7 +2944,7 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             'more_info_requested': sum(d['more_info_requested'] for d in data),
             'canceled': sum(d['canceled'] for d in data),
             'points_awarded': sum(d['points_awarded'] for d in data),
-            'pending_review': pending_review
+            'pending_review': data[-1]['pending_total'] if data else 0
         }
 
         return Response({

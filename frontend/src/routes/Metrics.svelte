@@ -37,10 +37,12 @@
    *
    * @typedef {Object} SubmissionPoint
    * @property {number} accepted
+   * @property {number} accepted_total
    * @property {number} canceled
    * @property {number} ingress
    * @property {number} more_info_requested
-   * @property {number} pending_review
+   * @property {number} more_info_total
+   * @property {number} pending_total
    * @property {string} period
    * @property {number} points_awarded
    * @property {number} rejected
@@ -71,6 +73,8 @@
   const EXPORT_HEIGHT = 1080;
   const EXPORT_FORMAT = 'image/png';
   const COMMUNITY_CATEGORY_SLUGS = ['community', 'creator'];
+  // Mirrors the backend daily-metrics max date range per grouping.
+  const MAX_RANGE_DAYS = { day: 366, week: 366 * 5, month: 366 * 10 };
   const SUBMISSION_CATEGORY_ORDER = ['builder', 'validator', 'community'];
   const SUBMISSION_DEFAULT_CATEGORIES = ['builder', 'validator', 'community'];
 
@@ -208,12 +212,11 @@
   let availableCategories = $derived.by(() => getSubmissionCategories());
 
   let filteredContributionTypes = $derived.by(() => {
-    const baseTypes = contributionTypes.filter((type) => type.is_submittable);
     if (!selectedCategory) {
-      return baseTypes;
+      return contributionTypes;
     }
 
-    return baseTypes.filter(
+    return contributionTypes.filter(
       (type) => getCanonicalCategory(type.category) === getCanonicalCategory(selectedCategory)
     );
   });
@@ -389,10 +392,25 @@
     };
   }
 
+  // The backend rejects ranges wider than MAX_RANGE_DAYS for the chosen
+  // grouping, so adapt the start date to the widest range that fits while
+  // keeping the end date.
+  function clampStartDateToGroupRange() {
+    const endIso = submissionEndDate || new Date().toISOString().slice(0, 10);
+    const minStart = new Date(`${endIso}T00:00:00Z`);
+    minStart.setUTCDate(minStart.getUTCDate() - MAX_RANGE_DAYS[submissionGroupBy]);
+    const minStartIso = minStart.toISOString().slice(0, 10);
+
+    if (submissionStartDate ? submissionStartDate < minStartIso : submissionGroupBy === 'day') {
+      submissionStartDate = minStartIso;
+    }
+  }
+
   async function applySubmissionFilters() {
     try {
       submissionsLoading = true;
       submissionError = null;
+      clampStartDateToGroupRange();
 
       await fetchSubmissionsData();
       submissionsLoading = false;
@@ -467,7 +485,6 @@
    */
   function normalizeContributionTypes(types) {
     return [...types]
-      .filter((type) => type.is_submittable)
       .sort((left, right) => {
         const categoryCompare = getCategoryLabel(left.category).localeCompare(getCategoryLabel(right.category));
         if (categoryCompare !== 0) {
@@ -1184,26 +1201,17 @@
     };
   }
 
-  /** @returns {{ pending: number, accepted: number, moreInfo: number }[]} */
+  /**
+   * Point-in-time state counts computed by the backend over ALL submissions,
+   * not derived from in-range ingress/review arithmetic.
+   * @returns {{ pending: number, accepted: number, moreInfo: number }[]}
+   */
   function getSubmissionsCumulativeData() {
-    let cumIngress = 0;
-    let cumAccepted = 0;
-    let cumRejected = 0;
-    let cumMoreInfo = 0;
-    let cumCanceled = 0;
-
-    return submissionsData.data.map((point) => {
-      cumIngress += Number(point.ingress || 0);
-      cumAccepted += Number(point.accepted || 0);
-      cumRejected += Number(point.rejected || 0);
-      cumMoreInfo += Number(point.more_info_requested || 0);
-      cumCanceled += Number(point.canceled || 0);
-      const pending = Math.max(
-        0,
-        cumIngress - cumAccepted - cumRejected - cumMoreInfo - cumCanceled
-      );
-      return { pending, accepted: cumAccepted, moreInfo: cumMoreInfo };
-    });
+    return submissionsData.data.map((point) => ({
+      pending: Number(point.pending_total || 0),
+      accepted: Number(point.accepted_total || 0),
+      moreInfo: Number(point.more_info_total || 0)
+    }));
   }
 
   /**

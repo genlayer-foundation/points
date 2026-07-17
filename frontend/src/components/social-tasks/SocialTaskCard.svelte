@@ -345,7 +345,6 @@
     }
 
     .social-task-action-cluster {
-      margin-left: 0;
       min-width: 0;
     }
   }

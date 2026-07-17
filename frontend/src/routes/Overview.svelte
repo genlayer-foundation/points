@@ -7,7 +7,9 @@
 </script>
 
 <div class="overview-view">
-  <div class="space-y-8 max-w-full overflow-x-hidden md:overflow-x-visible">
+  <!-- overflow-x-clip (not -hidden): hidden computes overflow-y to auto, creating a nested
+       scroll container that traps the first touch scroll on mobile (see CLAUDE.md gotcha) -->
+  <div class="space-y-8 max-w-full overflow-x-clip md:overflow-x-visible">
     <HeroBanner showNewsLink={true} compact={true} />
     <NetworkActivity />
     <FeaturedBuilds
@@ -34,7 +36,9 @@
     background-size: 100% 34rem, 42rem 30rem, 40rem 28rem;
     margin: -12px;
     min-height: 100%;
-    overflow: hidden;
+    /* clip, not hidden: hidden leaves a programmatically-scrollable box that the
+       path-section coin bleed (132px) can scroll, cutting off content */
+    overflow: clip;
     padding: 12px 12px 0;
   }
 </style>
