@@ -848,6 +848,7 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             offset = int(request.query_params.get('offset', 0))
         except (ValueError, TypeError):
             offset = 0
+        offset = max(offset, 0)
 
         member_user_ids = get_community_member_user_ids(visible_only=True)
         ranking_snapshot = list(

@@ -34,6 +34,9 @@ function createNotificationStore() {
   // version. This lets an immediate visibility refresh supersede count data
   // already in flight through either loadUnreadCount() or loadLatest().
   let unreadWriteVersion = 0;
+  // Local read mutations supersede item lists that started loading before
+  // those mutations completed.
+  let itemWriteVersion = 0;
 
   function pollUnreadCountIfVisible() {
     if (document.hidden || !authState.get().isAuthenticated) return;
@@ -50,6 +53,7 @@ function createNotificationStore() {
 
     const requestEpoch = epoch;
     const requestUnreadVersion = ++unreadWriteVersion;
+    const requestItemVersion = itemWriteVersion;
     update((state) => ({ ...state, loading: true, error: null }));
 
     const request = Promise.all([
@@ -60,7 +64,9 @@ function createNotificationStore() {
         if (requestEpoch !== epoch) return;
         update((state) => ({
           ...state,
-          items: asList(listResponse.data),
+          ...(requestItemVersion === itemWriteVersion
+            ? { items: asList(listResponse.data) }
+            : {}),
           ...(requestUnreadVersion === unreadWriteVersion
             ? { unreadCount: countResponse.data?.count || 0 }
             : {}),
@@ -128,6 +134,7 @@ function createNotificationStore() {
     const updated = response.data;
     if (requestEpoch !== epoch) return updated;
 
+    itemWriteVersion += 1;
     update((state) => ({
       ...state,
       items: state.items.map((item) => (item.id === id ? updated : item))
@@ -138,8 +145,12 @@ function createNotificationStore() {
   }
 
   async function markAllRead() {
+    const requestEpoch = epoch;
     await notificationsAPI.markAllRead();
+    if (requestEpoch !== epoch) return;
+
     unreadWriteVersion += 1;
+    itemWriteVersion += 1;
     update((state) => ({
       ...state,
       items: state.items.map((item) => ({ ...item, is_read: true })),

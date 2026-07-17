@@ -219,4 +219,65 @@ describe('notification polling visibility lifecycle', () => {
     await markReadRequest;
     expect(get(notificationStore).unreadCount).toBe(3);
   });
+
+  it('keeps a mark-read item update when an older loadLatest resolves afterward', async () => {
+    const staleList = deferred();
+    mocks.list
+      .mockResolvedValueOnce({ data: { results: [{ id: 7, is_read: false }] } })
+      .mockImplementationOnce(() => staleList.promise);
+    mocks.unreadCount
+      .mockResolvedValueOnce({ data: { count: 1 } })
+      .mockResolvedValueOnce({ data: { count: 1 } })
+      .mockResolvedValueOnce({ data: { count: 0 } });
+    mocks.markRead.mockResolvedValueOnce({ data: { id: 7, is_read: true } });
+    const { notificationStore } = await import('../lib/notificationStore.js');
+
+    await notificationStore.loadLatest();
+    const staleRequest = notificationStore.loadLatest();
+    await notificationStore.markRead(7);
+    expect(get(notificationStore).items).toEqual([{ id: 7, is_read: true }]);
+
+    staleList.resolve({ data: { results: [{ id: 7, is_read: false }] } });
+    await staleRequest;
+    expect(get(notificationStore).items).toEqual([{ id: 7, is_read: true }]);
+  });
+
+  it('keeps mark-all-read item updates when an older loadLatest resolves afterward', async () => {
+    const staleList = deferred();
+    mocks.list
+      .mockResolvedValueOnce({ data: { results: [{ id: 7, is_read: false }] } })
+      .mockImplementationOnce(() => staleList.promise);
+    mocks.unreadCount
+      .mockResolvedValueOnce({ data: { count: 1 } })
+      .mockResolvedValueOnce({ data: { count: 1 } });
+    mocks.markAllRead.mockResolvedValueOnce({});
+    const { notificationStore } = await import('../lib/notificationStore.js');
+
+    await notificationStore.loadLatest();
+    const staleRequest = notificationStore.loadLatest();
+    await notificationStore.markAllRead();
+    expect(get(notificationStore).items).toEqual([{ id: 7, is_read: true }]);
+
+    staleList.resolve({ data: { results: [{ id: 7, is_read: false }] } });
+    await staleRequest;
+    expect(get(notificationStore).items).toEqual([{ id: 7, is_read: true }]);
+  });
+
+  it('discards mark-all-read completion after the notification session resets', async () => {
+    const oldSessionMutation = deferred();
+    mocks.markAllRead.mockImplementationOnce(() => oldSessionMutation.promise);
+    mocks.list.mockResolvedValueOnce({ data: { results: [{ id: 9, is_read: false }] } });
+    mocks.unreadCount.mockResolvedValueOnce({ data: { count: 1 } });
+    const { notificationStore } = await import('../lib/notificationStore.js');
+
+    const oldSessionRequest = notificationStore.markAllRead();
+    notificationStore.reset();
+    await notificationStore.loadLatest();
+
+    oldSessionMutation.resolve({});
+    await oldSessionRequest;
+
+    expect(get(notificationStore).items).toEqual([{ id: 9, is_read: false }]);
+    expect(get(notificationStore).unreadCount).toBe(1);
+  });
 });

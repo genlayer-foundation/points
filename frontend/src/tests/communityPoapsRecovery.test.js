@@ -77,6 +77,7 @@ describe('Community POAP recovery', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Search POAPs' }));
 
     expect(await screen.findByText("Couldn't load POAPs")).toBeTruthy();
+    await fireEvent.input(screen.getByRole('textbox', { name: 'Search POAPs' }), { target: { value: 'unsubmitted draft' } });
     await fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
     expect(await screen.findByRole('button', { name: 'Open Filtered POAP' })).toBeTruthy();

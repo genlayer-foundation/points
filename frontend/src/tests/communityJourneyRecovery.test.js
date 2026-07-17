@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte/svelte5';
+import { tick } from 'svelte';
 
 const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
@@ -121,6 +122,27 @@ describe('Community journey membership and recovery', () => {
 
     await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith('/community'));
     expectNoJourneyRequests();
+  });
+
+  it('ignores an in-flight journey response after the user becomes a Creator', async () => {
+    let resolveJourney;
+    const journeyRequest = new Promise((resolve) => {
+      resolveJourney = resolve;
+    });
+    userStore.setUser(nonCreator);
+    mocks.communityJourney.mockReturnValueOnce(journeyRequest);
+
+    render(CommunityJourney);
+
+    await waitFor(() => expect(mocks.communityJourney).toHaveBeenCalledTimes(1));
+    userStore.setUser({ ...nonCreator, creator: true });
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith('/community'));
+
+    resolveJourney({ data: completedJourney });
+    await journeyRequest;
+    await tick();
+
+    expect(screen.queryByText('Creator journey complete')).toBeNull();
   });
 
   it('replaces a failed initial journey load with an explicit retry state', async () => {

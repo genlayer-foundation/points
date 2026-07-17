@@ -25,8 +25,8 @@
   const PAGE_SIZE = 48;
   const poapGradientStyle = getCategoryGradientStyle('community', '#7f52e1');
 
-  /** @param {number} [nextPage] @param {boolean} [append] */
-  async function loadPoaps(nextPage = 1, append = false) {
+  /** @param {number} [nextPage] @param {boolean} [append] @param {boolean} [reuseAppliedFilters] */
+  async function loadPoaps(nextPage = 1, append = false, reuseAppliedFilters = false) {
     const requestId = ++latestPoapsRequestId;
     if (append) {
       loadingMore = true;
@@ -36,14 +36,16 @@
       loadingMore = false;
       loadError = '';
       loadMoreError = '';
-      appliedSearch = search.trim();
-      appliedMonthFilter = monthFilter;
+      if (!reuseAppliedFilters) {
+        appliedSearch = search.trim();
+        appliedMonthFilter = monthFilter;
+      }
       hasMore = false;
     }
 
     try {
-      const nextSearch = append ? appliedSearch : search.trim();
-      const nextMonthFilter = append ? appliedMonthFilter : monthFilter;
+      const nextSearch = append || reuseAppliedFilters ? appliedSearch : search.trim();
+      const nextMonthFilter = append || reuseAppliedFilters ? appliedMonthFilter : monthFilter;
       /** @type {Record<string, any>} */
       const params = {
         page: nextPage,
@@ -199,7 +201,7 @@
           <button
             type="button"
             class="mt-5 h-10 rounded-[8px] bg-[#8d81e1] px-5 text-[13px] font-semibold text-white transition-colors hover:bg-[#7669d4]"
-            onclick={() => loadPoaps(1)}
+            onclick={() => loadPoaps(1, false, true)}
           >
             Retry
           </button>

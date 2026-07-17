@@ -86,6 +86,22 @@ class CommunityLeaderboardSearchTest(TestCase):
         self.assertEqual([r['user_name'] for r in results], ['Alice', 'Bob', 'Carol'])
         self.assertEqual([r['rank'] for r in results], [1, 2, 3])
 
+    def test_negative_offset_is_clamped_to_first_page(self):
+        response = self.client.get(
+            '/api/v1/leaderboard/community/',
+            {'limit': 2, 'offset': -1},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [row['user_name'] for row in response.data['results']],
+            ['Alice', 'Bob'],
+        )
+        self.assertEqual(
+            [row['rank'] for row in response.data['results']],
+            [1, 2],
+        )
+
     def test_search_keeps_true_rank(self):
         response = self.client.get('/api/v1/leaderboard/community/', {'search': 'carol'})
         self.assertEqual(response.status_code, 200)
