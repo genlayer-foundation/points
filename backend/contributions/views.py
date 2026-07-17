@@ -52,7 +52,12 @@ from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          StartupRequestListSerializer, StartupRequestDetailSerializer,
                          FeaturedContentSerializer, AlertSerializer,
                          ContributionDiscordXPStateSerializer)
-from .permissions import IsSteward, steward_has_permission, steward_permitted_type_ids
+from .permissions import (
+    IsSteward,
+    steward_has_permission,
+    steward_permission_map,
+    steward_permitted_type_ids,
+)
 from .lifecycle_filters import SubmissionLifecycleFilterMixin
 from .proposal_filters import ProposalReviewStatusFilterMixin
 from .project_milestones import (
@@ -3314,19 +3319,7 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'], url_path='my-permissions')
     def my_permissions(self, request):
         """Get current steward's permissions map: { contribution_type_id: [actions] }."""
-        from stewards.models import StewardPermission
-        if not hasattr(request.user, 'steward'):
-            return Response({})
-
-        perms = StewardPermission.objects.filter(
-            steward=request.user.steward
-        ).values_list('contribution_type_id', 'action')
-
-        result = {}
-        for ct_id, action_name in perms:
-            result.setdefault(str(ct_id), []).append(action_name)
-
-        return Response(result)
+        return Response(steward_permission_map(request.user))
 
     @action(detail=False, methods=['get'], url_path='templates')
     def templates(self, request):
