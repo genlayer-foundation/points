@@ -162,6 +162,66 @@ class StewardPermissionTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['pending_count'], 1)
 
+    def test_steward_superuser_has_all_permissions_without_permission_rows(self):
+        """A steward marked as a superuser receives every effective permission."""
+        admin_steward = Steward.objects.create(user=self.admin_user)
+        self.assertFalse(
+            StewardPermission.objects.filter(steward=admin_steward).exists()
+        )
+
+        self.client.force_authenticate(user=self.admin_user)
+
+        list_response = self.client.get('/api/v1/steward-submissions/')
+        self.assertEqual(list_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(list_response.data['results']), 1)
+
+        permissions_response = self.client.get(
+            '/api/v1/steward-submissions/my-permissions/'
+        )
+        self.assertEqual(permissions_response.status_code, status.HTTP_200_OK)
+        expected_actions = {
+            'propose',
+            'accept',
+            'reject',
+            'request_more_info',
+        }
+        self.assertTrue(
+            {str(self.contribution_type.id), str(self.other_contribution_type.id)}
+            <= set(permissions_response.data)
+        )
+        for actions in permissions_response.data.values():
+            self.assertEqual(set(actions), expected_actions)
+
+        me_response = self.client.get('/api/v1/users/me/')
+        self.assertEqual(me_response.status_code, status.HTTP_200_OK)
+        self.assertIsNotNone(me_response.data['steward'])
+
+    def test_steward_superuser_can_review_without_permission_rows(self):
+        Steward.objects.create(user=self.admin_user)
+        self.client.force_authenticate(user=self.admin_user)
+
+        response = self.client.post(
+            f'/api/v1/steward-submissions/{self.submission.id}/review/',
+            {
+                'action': 'accept',
+                'points': 50,
+                'contribution_type': self.contribution_type.id,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.submission.refresh_from_db()
+        self.assertEqual(self.submission.state, 'accepted')
+        self.assertEqual(self.submission.reviewed_by, self.admin_user)
+
+    def test_non_steward_superuser_cannot_access_steward_endpoints(self):
+        self.client.force_authenticate(user=self.admin_user)
+
+        response = self.client.get('/api/v1/steward-submissions/')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_steward_can_change_pending_submission_type_without_reviewing(self):
         """Stewards can save a new type before making a review decision."""
         StewardPermission.objects.create(
