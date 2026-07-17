@@ -18,6 +18,8 @@
   let page = $state(1);
   let hasMore = $state(false);
   let loadingMore = $state(false);
+  let loadError = $state('');
+  let loadMoreError = $state('');
   let latestPoapsRequestId = 0;
 
   const PAGE_SIZE = 48;
@@ -28,9 +30,12 @@
     const requestId = ++latestPoapsRequestId;
     if (append) {
       loadingMore = true;
+      loadMoreError = '';
     } else {
       loading = true;
       loadingMore = false;
+      loadError = '';
+      loadMoreError = '';
       appliedSearch = search.trim();
       appliedMonthFilter = monthFilter;
       hasMore = false;
@@ -66,8 +71,12 @@
     } catch (err) {
       if (requestId !== latestPoapsRequestId) return;
       const error = /** @type {any} */ (err);
-      showError(error.response?.data?.error || 'Unable to load POAPs');
-      if (!append) {
+      const message = error.response?.data?.error || 'Unable to load POAPs';
+      showError(message);
+      if (append) {
+        loadMoreError = message;
+      } else {
+        loadError = message;
         poaps = [];
         count = 0;
         page = 1;
@@ -91,6 +100,9 @@
 
   onMount(() => {
     loadPoaps(1);
+    return () => {
+      latestPoapsRequestId += 1;
+    };
   });
 </script>
 
@@ -180,6 +192,18 @@
             {/each}
           </div>
         </div>
+      {:else if loadError}
+        <div class="rounded-[8px] border border-[#e6e6e6] bg-white p-10 text-center" role="alert">
+          <p class="text-[15px] font-medium text-black">Couldn't load POAPs</p>
+          <p class="mt-1 text-[14px] text-[#7a7a7a]">{loadError} Try again when the connection is available.</p>
+          <button
+            type="button"
+            class="mt-5 h-10 rounded-[8px] bg-[#8d81e1] px-5 text-[13px] font-semibold text-white transition-colors hover:bg-[#7669d4]"
+            onclick={() => loadPoaps(1)}
+          >
+            Retry
+          </button>
+        </div>
       {:else if poaps.length === 0}
         <div class="rounded-[8px] border border-[#f0f0f0] bg-white p-12 text-center">
           <p class="text-[15px] font-medium text-black">No POAPs found</p>
@@ -187,7 +211,18 @@
         </div>
       {:else}
         <PoapCollectionWall items={poaps} density="large" showCaptions={false} showOpenBadge={true} />
-        {#if hasMore}
+        {#if loadMoreError}
+          <div class="flex flex-col items-center gap-3 pt-2 text-center" role="alert">
+            <p class="text-[13px] text-[#666]">{loadMoreError} The POAPs already loaded are still available.</p>
+            <button
+              type="button"
+              class="h-10 rounded-[8px] border border-[#d9d2ff] bg-white px-4 text-[13px] font-semibold text-[#6b5bd6] transition-colors hover:bg-[#f7f4ff]"
+              onclick={() => loadPoaps(page + 1, true)}
+            >
+              Retry loading more
+            </button>
+          </div>
+        {:else if hasMore}
           <div class="flex justify-center pt-2">
             <button
               class="h-10 rounded-[8px] border border-[#d9d2ff] bg-white px-4 text-[13px] font-semibold text-[#6b5bd6] transition-colors hover:bg-[#f7f4ff] disabled:cursor-not-allowed disabled:opacity-60"
