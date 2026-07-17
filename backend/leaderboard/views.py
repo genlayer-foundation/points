@@ -830,8 +830,10 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         Returns users sorted by effective community points.
         Supports limit/offset pagination and user_address lookup.
         """
+        from users.models import User
         from users.serializers import LightUserSerializer
         from community_xp.utils import (
+            build_effective_community_ranking_queryset,
             build_effective_community_scores_queryset,
             get_community_member_user_ids,
         )
@@ -846,51 +848,55 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             offset = int(request.query_params.get('offset', 0))
         except (ValueError, TypeError):
             offset = 0
+        offset = max(offset, 0)
 
         member_user_ids = get_community_member_user_ids(visible_only=True)
-        entries = (
-            build_effective_community_scores_queryset(
+        ranking_snapshot = list(
+            build_effective_community_ranking_queryset(
                 user_ids=member_user_ids,
                 visible_only=True,
             )
             .filter(total_points__gte=COMMUNITY_RANKING_MIN_POINTS)
             .order_by('-total_points', 'community_sort_name', 'id')
+            .values_list('id', 'total_points')
         )
-        # Full public ranking, kept unfiltered by search so search results keep
-        # their true ranks within the eligible leaderboard surface.
-        ranking_entries = entries
+        ranked_user_ids = [user_id for user_id, _ in ranking_snapshot]
+        rank_by_user_id = {
+            user_id: rank
+            for rank, (user_id, _) in enumerate(ranking_snapshot, start=1)
+        }
+        position_by_user_id = {
+            user_id: position
+            for position, user_id in enumerate(ranked_user_ids)
+        }
+        total_points_by_user_id = dict(ranking_snapshot)
 
         search = request.query_params.get('search', '').strip().lower()
+        filtered_user_ids = ranked_user_ids
         if search:
             address_q = (
                 Q(address__iexact=search) if is_full_address(search) else Q()
             )
-            entries = entries.filter(Q(name__icontains=search) | address_q)
+            search_user_ids = set(
+                User.objects
+                .filter(id__in=ranked_user_ids, visible=True)
+                .filter(Q(name__icontains=search) | address_q)
+                .values_list('id', flat=True)
+            )
+            filtered_user_ids = [
+                user_id for user_id in ranked_user_ids
+                if user_id in search_user_ids
+            ]
 
-        count = entries.count()
+        count = len(filtered_user_ids)
         user_address = request.query_params.get('user_address')
+        user_id = None
         user_rank = None
         user_total_points = None
 
-        def community_rank(user):
-            total_points = user.total_points or 0
-            sort_name = user.community_sort_name or ''
-            return ranking_entries.filter(
-                Q(total_points__gt=total_points) |
-                Q(
-                    total_points=total_points,
-                    community_sort_name__lt=sort_name,
-                ) |
-                Q(
-                    total_points=total_points,
-                    community_sort_name=sort_name,
-                    id__lt=user.id,
-                )
-            ).count() + 1
-
-        def serialize_community_user(user, rank):
+        def serialize_community_user(user):
             user_data = LightUserSerializer(user).data
-            total_points = user.total_points or 0
+            total_points = total_points_by_user_id[user.id]
             return {
                 **user_data,
                 'user_details': user_data,
@@ -908,29 +914,54 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 'has_discord_xp_snapshot': user.has_discord_xp_snapshot,
                 'latest_applied_sync_completed_at': user.latest_applied_sync_completed_at,
                 'latest_applied_at': user.latest_applied_at,
-                'rank': rank,
+                'rank': rank_by_user_id[user.id],
+            }
+
+        def get_full_details(user_ids):
+            if not user_ids:
+                return {}
+            return {
+                user.id: user
+                for user in build_effective_community_scores_queryset(
+                    user_ids=user_ids,
+                    visible_only=True,
+                )
             }
 
         if user_address:
-            user_entry = ranking_entries.filter(
-                **user_lookup_kwargs(user_address)
-            ).first()
-            if user_entry:
-                user_total_points = user_entry.total_points or 0
-                user_rank = community_rank(user_entry)
+            user_id = (
+                User.objects
+                .filter(visible=True, **user_lookup_kwargs(user_address))
+                .values_list('id', flat=True)
+                .first()
+            )
+            if user_id in rank_by_user_id:
+                user_total_points = total_points_by_user_id[user_id]
+                user_rank = rank_by_user_id[user_id]
 
         if request.query_params.get('profile_context') in ('1', 'true', 'True', 'yes'):
-            top_user = ranking_entries.first()
-            top_entry = serialize_community_user(top_user, 1) if top_user else None
-            context_results = []
+            top_user_id = ranked_user_ids[0] if ranked_user_ids else None
+            context_user_ids = []
 
             if user_rank:
-                context_offset = max(user_rank - 2, 0)
-                context_page = ranking_entries[context_offset:context_offset + 3]
-                context_results = [
-                    serialize_community_user(user, rank)
-                    for rank, user in enumerate(context_page, start=context_offset + 1)
-                ]
+                user_position = position_by_user_id[user_id]
+                context_offset = max(user_position - 1, 0)
+                context_user_ids = ranked_user_ids[context_offset:context_offset + 3]
+
+            detail_user_ids = list(dict.fromkeys(
+                ([top_user_id] if top_user_id is not None else []) + context_user_ids
+            ))
+            details_by_user_id = get_full_details(detail_user_ids)
+            top_user = details_by_user_id.get(top_user_id)
+            top_entry = (
+                serialize_community_user(top_user)
+                if top_user is not None else None
+            )
+            context_results = [
+                serialize_community_user(details_by_user_id[context_user_id])
+                for context_user_id in context_user_ids
+                if context_user_id in details_by_user_id
+            ]
 
             return Response({
                 'total_community': count,
@@ -941,12 +972,13 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
                 'user_total_points': user_total_points,
             })
 
-        page = entries[offset:offset + limit]
-
-        results = []
-        for index, user in enumerate(page, start=offset + 1):
-            rank = community_rank(user) if search else index
-            results.append(serialize_community_user(user, rank))
+        page_user_ids = filtered_user_ids[offset:offset + limit]
+        details_by_user_id = get_full_details(page_user_ids)
+        results = [
+            serialize_community_user(details_by_user_id[page_user_id])
+            for page_user_id in page_user_ids
+            if page_user_id in details_by_user_id
+        ]
 
         response_data = {
             'total_community': count,

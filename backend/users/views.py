@@ -20,6 +20,7 @@ from contributions.models import Contribution
 from leaderboard.models import LeaderboardEntry
 from poaps.views import UserPoapMixin
 from web3 import Web3
+from utils.web3_provider import build_web3_http_provider
 import secrets
 import string
 
@@ -364,7 +365,7 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         Helper method to create a Web3 contract instance
         """
         # Connect to the blockchain using environment variables
-        w3 = Web3(Web3.HTTPProvider(settings.VALIDATOR_RPC_URL))
+        w3 = Web3(build_web3_http_provider(settings.VALIDATOR_RPC_URL))
         
         # Contract address from network config (Asimov - this endpoint is Asimov-only)
         contract_address = settings.TESTNET_NETWORKS['asimov']['staking_contract_address']

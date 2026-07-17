@@ -533,6 +533,8 @@ Example response:
 ## Environment Variables
 Located in `.env` file:
 - `VALIDATOR_RPC_URL` - Blockchain RPC endpoint
+- `WEB3_RPC_TIMEOUT_SECONDS` - Optional timeout in seconds for validator Web3 HTTP requests (default `10`)
+- `WEB3_RPC_MAX_RETRIES` - Optional number of retries after the initial validator Web3 HTTP request (default `1`)
 - `VALIDATOR_CONTRACT_ADDRESS` - Smart contract address
 - `SECRET_KEY` - Django secret key
 - `DEBUG` - Debug mode flag

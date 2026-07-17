@@ -432,6 +432,8 @@ AUTH_USER_MODEL = 'users.User'
 # Blockchain settings
 # Shared RPC URL for all networks
 VALIDATOR_RPC_URL = get_required_env('VALIDATOR_RPC_URL')
+WEB3_RPC_TIMEOUT_SECONDS = int(os.environ.get('WEB3_RPC_TIMEOUT_SECONDS', '10') or '10')
+WEB3_RPC_MAX_RETRIES = int(os.environ.get('WEB3_RPC_MAX_RETRIES', '1') or '1')
 
 # Legacy settings (backward compatibility - deprecated, use TESTNET_NETWORKS instead)
 VALIDATOR_CONTRACT_ADDRESS = os.environ.get(

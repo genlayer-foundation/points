@@ -57,6 +57,8 @@
   let lastJourneyViewKey = $state('');
   let lastStepViewKey = $state('');
   let lastJourneyExitKey = $state('');
+  let mounted = $state(false);
+  let latestJourneyRequestId = 0;
 
   let user = $derived($userStore.user);
   let twitterConnection = $derived(user?.twitter_connection || null);
@@ -124,11 +126,28 @@
     const handlePageHide = () => trackJourneyExit('pagehide');
     window.addEventListener('pagehide', handlePageHide);
 
-    loadJourney({ showLoading: true });
+    mounted = true;
     return () => {
+      mounted = false;
+      latestJourneyRequestId += 1;
       window.removeEventListener('pagehide', handlePageHide);
       trackJourneyExit('route_leave');
     };
+  });
+
+  // The route gate verifies membership before this component mounts. Keep the
+  // same check here as a final boundary for direct component mounts and stale
+  // profile transitions so Creator accounts never read journey/task state.
+  let initialLoadStarted = false;
+  $effect(() => {
+    if (!mounted || !user) return;
+    if (user.creator) {
+      replace('/community');
+      return;
+    }
+    if (initialLoadStarted) return;
+    initialLoadStarted = true;
+    loadJourney({ showLoading: true });
   });
 
   // Start the journey only once the user profile has actually loaded. The
@@ -137,7 +156,7 @@
   // and a null user (backend down) must never trigger the mutation.
   let journeyStartChecked = false;
   $effect(() => {
-    if (journeyStartChecked || !user) return;
+    if (journeyStartChecked || !user || user.creator) return;
     journeyStartChecked = true;
     if (user.has_community_welcome) return;
     journeyAPI
@@ -265,6 +284,12 @@
   }
 
   async function loadJourney({ showLoading = false } = {}) {
+    if (user?.creator) {
+      replace('/community');
+      return;
+    }
+
+    const requestId = ++latestJourneyRequestId;
     if (showLoading) loading = true;
     loadError = '';
     try {
@@ -272,18 +297,20 @@
         journeyAPI.communityJourney(),
         socialTasksAPI.list({ category: 'community' }),
       ]);
+      if (requestId !== latestJourneyRequestId || user?.creator) return;
       journey = journeyRes.data;
       tasks = Array.isArray(tasksRes.data) ? tasksRes.data : [];
       const existingPostUrl = journeyRes.data?.steps?.x_post?.post_url || '';
       if (existingPostUrl && !postUrl) postUrl = existingPostUrl;
     } catch (err) {
+      if (requestId !== latestJourneyRequestId || user?.creator) return;
       loadError = err.response?.data?.message || err.response?.data?.error || 'Could not load your creator journey.';
       if (showLoading) {
         journey = null;
         tasks = [];
       }
     } finally {
-      if (showLoading) loading = false;
+      if (requestId === latestJourneyRequestId && showLoading) loading = false;
     }
   }
 
@@ -507,33 +534,46 @@
     role="community"
     title={welcomeTitle}
     message={welcomeMessage}
-    chips={welcomeChips}
-    alert={welcomeAlert}
+    chips={!loading && loadError && !journey ? [] : welcomeChips}
+    alert={!loading && loadError && !journey ? '' : welcomeAlert}
   />
 
-  <JourneyHeroCard
-    role="community"
-    iconHex="/assets/icons/hexagon-community-light.svg"
-    iconGlyph="/assets/icons/group-3-line-purple.svg"
-    eyebrow="Your creator journey"
-    accentValue={TOTAL_STEPS}
-    titleRest=" steps to become a creator"
-    description="Link your social accounts, verify the GenLayer creator actions, and share your unique X post before claiming the Creator role."
-    completed={loading ? 0 : completedSteps}
-    total={TOTAL_STEPS}
-    primaryLabel={completing ? 'Completing...' : 'Become a Creator'}
-    primaryDisabled={loading || completing || !complete}
-    primaryBusy={completing}
-    helper={heroHelper}
-    onPrimary={completeJourney}
-  />
+  {#if !loading && loadError && !journey}
+    <section class="journey-load-error" aria-labelledby="journey-load-error-title" role="alert">
+      <h1 id="journey-load-error-title">Your journey couldn't be loaded</h1>
+      <p>{loadError} Your progress is unchanged.</p>
+      <button
+        type="button"
+        class="landing-button landing-button-primary"
+        onclick={() => loadJourney({ showLoading: true })}
+      >
+        Retry
+      </button>
+    </section>
+  {:else}
+    <JourneyHeroCard
+      role="community"
+      iconHex="/assets/icons/hexagon-community-light.svg"
+      iconGlyph="/assets/icons/group-3-line-purple.svg"
+      eyebrow="Your creator journey"
+      accentValue={TOTAL_STEPS}
+      titleRest=" steps to become a creator"
+      description="Link your social accounts, verify the GenLayer creator actions, and share your unique X post before claiming the Creator role."
+      completed={loading ? 0 : completedSteps}
+      total={TOTAL_STEPS}
+      primaryLabel={completing ? 'Completing...' : 'Become a Creator'}
+      primaryDisabled={loading || completing || !complete}
+      primaryBusy={completing}
+      helper={heroHelper}
+      onPrimary={completeJourney}
+    />
 
-  <section class="steps-card" aria-label="Creator journey steps">
-    {#if loading}
-      {#each Array(TOTAL_STEPS) as _, i}
-        <JourneyStepRow number={i + 1} loading={true} />
-      {/each}
-    {:else}
+    <section class="steps-card" aria-label="Creator journey steps">
+      {#if loading}
+        {#each Array(TOTAL_STEPS) as _, i}
+          <JourneyStepRow number={i + 1} loading={true} />
+        {/each}
+      {:else}
       <div class="step-block" data-step-active={isActive('link_x')}>
         <JourneyStepRow
           number={1}
@@ -759,16 +799,17 @@
         {/if}
       </div>
 
-      {#if complete}
-        <div class="completion-panel">
-          <div>
-            <p>Creator journey complete</p>
-            <span>Click to finish.</span>
+        {#if complete}
+          <div class="completion-panel">
+            <div>
+              <p>Creator journey complete</p>
+              <span>Click to finish.</span>
+            </div>
           </div>
-        </div>
+        {/if}
       {/if}
-    {/if}
-  </section>
+    </section>
+  {/if}
 
   <section class="unlock-section" aria-labelledby="community-unlocks-title">
     <div class="section-label">
@@ -823,6 +864,37 @@
     border-radius: 14px;
     overflow: hidden;
     width: 100%;
+  }
+
+  .journey-load-error {
+    align-items: flex-start;
+    background: #fff;
+    border: 1px solid var(--journey-border);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 220px;
+    justify-content: center;
+    padding: 28px;
+  }
+
+  .journey-load-error h1 {
+    color: var(--journey-black);
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 500;
+    letter-spacing: 0;
+    line-height: 30px;
+    margin: 0;
+  }
+
+  .journey-load-error p {
+    color: #666;
+    font-size: 14px;
+    line-height: 22px;
+    margin: 0 0 4px;
+    max-width: 620px;
   }
 
   .step-block {
