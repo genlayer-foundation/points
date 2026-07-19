@@ -1542,7 +1542,12 @@
 
       {#if submission.has_appeal && submission.appeal_reason}
         <div class="rounded-lg bg-orange-50 p-3 shadow-[0_0_0_1px_rgba(234,88,12,0.20)]">
-          <p class="text-xs font-semibold uppercase text-orange-800">Appeal reason</p>
+          <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <p class="text-xs font-semibold uppercase text-orange-800">Appeal reason</p>
+            {#if submission.appealed_at}
+              <p class="text-xs text-orange-700">Appealed on {formatDate(submission.appealed_at)}</p>
+            {/if}
+          </div>
           <p class="mt-1 whitespace-pre-wrap text-sm text-orange-950">{submission.appeal_reason}</p>
         </div>
       {/if}

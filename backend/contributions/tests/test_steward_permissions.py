@@ -162,6 +162,29 @@ class StewardPermissionTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['pending_count'], 1)
 
+    def test_steward_submission_includes_appeal_timestamp(self):
+        appealed_at = timezone.now()
+        self.submission.has_appeal = True
+        self.submission.appeal_reason = 'Please reconsider the evidence.'
+        self.submission.appealed_at = appealed_at
+        self.submission.save(update_fields=[
+            'has_appeal',
+            'appeal_reason',
+            'appealed_at',
+            'updated_at',
+        ])
+        self.client.force_authenticate(user=self.steward_user)
+
+        response = self.client.get('/api/v1/steward-submissions/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        submission = response.data['results'][0]
+        self.assertEqual(submission['appeal_reason'], 'Please reconsider the evidence.')
+        self.assertEqual(
+            submission['appealed_at'],
+            appealed_at.isoformat().replace('+00:00', 'Z'),
+        )
+
     def test_steward_superuser_has_all_permissions_without_permission_rows(self):
         """A steward marked as a superuser receives every effective permission."""
         admin_steward = Steward.objects.create(user=self.admin_user)

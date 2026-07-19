@@ -581,13 +581,13 @@ class SubmittedContributionSerializer(MoreInfoRequestsMixin, serializers.ModelSe
                   'staff_reply', 'reviewed_by', 'reviewed_at', 'evidence_items', 'can_edit',
                   'proposed_points', 'converted_contribution', 'contribution', 'mission',
                   'project_contribution', 'milestone_version',
-                  'has_appeal', 'appeal_reason', 'more_info_requests',
+                  'has_appeal', 'appeal_reason', 'appealed_at', 'more_info_requests',
                   'created_at', 'updated_at', 'last_edited_at', 'recaptcha']
         read_only_fields = ['id', 'user', 'state', 'staff_reply', 'reviewed_by',
                           'reviewed_at', 'created_at', 'updated_at', 'last_edited_at',
                           'proposed_points', 'converted_contribution',
                           'milestone_version',
-                          'has_appeal', 'appeal_reason']
+                          'has_appeal', 'appeal_reason', 'appealed_at']
 
     def get_user_details(self, obj):
         """
@@ -1494,7 +1494,7 @@ class StewardSubmissionSerializer(MoreInfoRequestsMixin, serializers.ModelSerial
                   'proposal_questioned_at',
                   'rubric_review', 'ai_analysis',
                   'notes_count', 'is_interesting', 'gate_reviewed',
-                  'has_appeal', 'appeal_reason', 'more_info_requests',
+                  'has_appeal', 'appeal_reason', 'appealed_at', 'more_info_requests',
                   'created_at', 'updated_at', 'last_edited_at', 'converted_contribution', 'contribution',
                   'mission', 'project_contribution', 'milestone_version']
         # Every model-backed field is read-only: this serializer only renders
@@ -1510,7 +1510,7 @@ class StewardSubmissionSerializer(MoreInfoRequestsMixin, serializers.ModelSerial
                             'proposal_review_status', 'proposal_review_feedback',
                             'proposal_questioned_by', 'proposal_questioned_at',
                             'created_at', 'updated_at', 'last_edited_at', 'proposed_points',
-                            'is_interesting', 'gate_reviewed', 'has_appeal', 'appeal_reason',
+                            'is_interesting', 'gate_reviewed', 'has_appeal', 'appeal_reason', 'appealed_at',
                             'converted_contribution', 'mission', 'milestone_version']
 
     def get_user_details(self, obj):

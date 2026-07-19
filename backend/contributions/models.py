@@ -902,6 +902,11 @@ class SubmittedContribution(BaseModel):
         blank=True,
         help_text="Reason provided by the submitter when appealing a rejection."
     )
+    appealed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the submitter appealed the rejection."
+    )
 
     # Edit tracking
     last_edited_at = models.DateTimeField(null=True, blank=True)

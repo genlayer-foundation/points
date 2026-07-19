@@ -72,6 +72,11 @@ class AppealEndpointTest(TestCase):
         submission.refresh_from_db()
         self.assertTrue(submission.has_appeal)
         self.assertEqual(submission.appeal_reason, 'I think this was unfair')
+        self.assertIsNotNone(submission.appealed_at)
+        self.assertEqual(
+            response.data['appealed_at'],
+            submission.appealed_at.isoformat().replace('+00:00', 'Z'),
+        )
         self.assertEqual(submission.state, 'pending')
         # Original rejection reason is preserved as audit context
         self.assertEqual(submission.staff_reply, 'Original rejection reason')

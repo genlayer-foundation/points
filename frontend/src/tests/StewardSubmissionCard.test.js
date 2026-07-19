@@ -72,6 +72,7 @@ function makeSubmission(overrides = {}) {
     is_interesting: false,
     has_appeal: false,
     appeal_reason: '',
+    appealed_at: null,
     more_info_requests: [],
     mission: null,
     contribution: null,
@@ -178,6 +179,20 @@ describe('StewardSubmissionCard', () => {
     expect(screen.getByRole('button', { name: 'Hide internal notes' }).getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByText('Private stewardship note')).toBeTruthy();
     expect(screen.getByPlaceholderText('Add a note...')).toBeTruthy();
+  });
+
+  it('shows the appeal date with the appeal reason', () => {
+    renderCard({
+      submission: makeSubmission({
+        has_appeal: true,
+        appeal_reason: 'The rejection overlooked the attached evidence.',
+        appealed_at: '2026-06-03T12:00:00Z'
+      })
+    });
+
+    expect(screen.getByText('Appeal reason')).toBeTruthy();
+    expect(screen.getByText(/Appealed on Jun 3, 2026/)).toBeTruthy();
+    expect(screen.getByText('The rejection overlooked the attached evidence.')).toBeTruthy();
   });
 
   it('shows the compact AI proposal context without a competing human proposal', () => {
