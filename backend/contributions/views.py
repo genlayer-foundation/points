@@ -1182,12 +1182,13 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         with transaction.atomic():
             submission.has_appeal = True
             submission.appeal_reason = reason
+            submission.appealed_at = timezone.now()
             submission.state = 'pending'
             submission.reviewed_by = None
             submission.reviewed_at = None
             submission.gate_reviewed = False
             submission.save(update_fields=[
-                'has_appeal', 'appeal_reason', 'state',
+                'has_appeal', 'appeal_reason', 'appealed_at', 'state',
                 'reviewed_by', 'reviewed_at', 'gate_reviewed', 'updated_at',
             ])
 
