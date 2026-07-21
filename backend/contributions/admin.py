@@ -153,7 +153,8 @@ class ContributionTypeAdmin(BroadcastNotificationAdminMixin, admin.ModelAdmin):
     broadcast_ineligible_reason = 'the contribution type is not submittable'
     list_display = (
         'name', 'category', 'review_flow', 'is_default', 'is_submittable',
-        'get_submission_usage', 'show_in_contributions',
+        'get_submission_usage', 'max_submissions_per_user_per_week',
+        'show_in_contributions',
         'get_current_multiplier', 'min_points', 'max_points', 'rubric_extra_points',
         'description', 'created_at',
     )
