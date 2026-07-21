@@ -517,6 +517,8 @@ const routes = {
 #### Generic UI Components (`src/components/ui/`)
 Reusable, data-driven display components that accept data via props. Used on Dashboard and can be reused on any page.
 
+- **Community Dashboard rankings**: `routes/Dashboard.svelte` intentionally uses two sources. “Top Community Contributors” reads the existing all-time Community leaderboard (effective Discord/MEE6 XP plus Community portal points), while its podium reads `/leaderboard/community-podium/` and shows only the top three users by points from accepted Community submissions. Builder and Validator dashboard ranking behavior is unchanged.
+
 - **`SectionHeader.svelte`** - Reusable section header with title, subtitle, and "View all" link
   - Props: `title`, `subtitle`, `linkText="View all"`, `linkPath=""`, `showLink=true`, `showArrow=true`
 - **`StatCardRow.svelte`** - Row of stat cards with hexagon icons, large numbers, and delta indicators
@@ -628,6 +630,8 @@ Investor-oriented home page (`routes/Overview.svelte`), top to bottom: hero → 
   - Includes Google reCAPTCHA v2 verification for spam prevention
   - reCAPTCHA token validated on backend before submission
   - Uses VITE_RECAPTCHA_SITE_KEY from environment (falls back to test key)
+  - Honors optional per-user Monday-Sunday UTC contribution-type limits from `user_weekly_*` API fields and shows the user's remaining weekly capacity.
+  - New Milestones links can select only highlighted Projects contributions. `EditSubmission.svelte` passes the current submission ID so a pre-policy pending milestone keeps its existing unhighlighted link.
 - `EditSubmission.svelte` - Edit submitted contributions (supports URL and description evidence only - no file uploads)
 - `ProfileEdit.svelte` - User profile editing (name and profile fields; node version shown read-only, Grafana-sourced)
 - `Profile.svelte` - Public participant profile view

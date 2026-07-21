@@ -65,7 +65,7 @@
       : submission?.contribution_type_details?.slug === 'milestones'
   );
 
-  // Accepted projects for the milestone project picker
+  // Highlighted projects for the milestone project picker
   let acceptedProjects = $state([]);
   let loadingProjects = $state(false);
   let projectsError = $state(false);
@@ -76,10 +76,10 @@
     loadingProjects = true;
     projectsError = false;
     try {
-      const response = await submissionsAPI.getAcceptedProjects();
+      const response = await submissionsAPI.getAcceptedProjects(submission?.id);
       acceptedProjects = response.data || [];
     } catch (err) {
-      // Keep failures distinct from "no accepted projects" so a transient
+      // Keep failures distinct from "no highlighted projects" so a transient
       // error never tells a builder they are not eligible for milestones.
       projectsError = true;
     } finally {
@@ -477,7 +477,7 @@
     }
 
     if (isMilestoneSubmission && !selectedProject) {
-      error = 'Please select the accepted project this milestone belongs to.';
+      error = 'Please select the highlighted project this milestone belongs to.';
       return;
     }
 
@@ -741,10 +741,10 @@
               Linked Project <span class="text-red-500">*</span>
             </label>
             {#if loadingProjects}
-              <p class="text-sm text-gray-500">Loading accepted projects...</p>
+              <p class="text-sm text-gray-500">Loading highlighted projects...</p>
             {:else if projectsError}
               <p class="text-sm text-red-700">
-                We couldn't load your accepted projects.
+                We couldn't load your highlighted projects.
                 <button
                   type="button"
                   onclick={loadAcceptedProjects}
@@ -755,8 +755,8 @@
               </p>
             {:else if acceptedProjects.length === 0}
               <p class="text-sm text-orange-700">
-                You need an accepted project before submitting milestones.
-                Submit a Projects contribution first; once it is accepted,
+                You need a highlighted project before submitting milestones.
+                Submit a Projects contribution first; once it is accepted and highlighted,
                 milestones can be linked to it.
               </p>
             {:else}
@@ -766,7 +766,7 @@
                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                 required
               >
-                <option value="">Select accepted project...</option>
+                <option value="">Select highlighted project...</option>
                 {#each acceptedProjects as project}
                   <option value={project.id}>
                     {project.title}

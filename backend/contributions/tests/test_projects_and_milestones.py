@@ -7,7 +7,14 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from builders.models import Builder
-from contributions.models import Category, Contribution, ContributionType, Evidence, SubmittedContribution
+from contributions.models import (
+    Category,
+    Contribution,
+    ContributionHighlight,
+    ContributionType,
+    Evidence,
+    SubmittedContribution,
+)
 from leaderboard.models import GlobalLeaderboardMultiplier
 from projects.models import Project
 from stewards.models import Steward, StewardPermission
@@ -84,7 +91,12 @@ class ProjectsAndMilestonesTest(TestCase):
         self.recaptcha_patcher.start()
         self.addCleanup(self.recaptcha_patcher.stop)
 
-    def _accepted_project_contribution(self, title='Cognocracy', user=None):
+    def _accepted_project_contribution(
+        self,
+        title='Cognocracy',
+        user=None,
+        highlighted=True,
+    ):
         contribution = Contribution.objects.create(
             user=user or self.user,
             contribution_type=self.project_type,
@@ -97,6 +109,12 @@ class ProjectsAndMilestonesTest(TestCase):
             description='Repo',
             url=f'https://github.com/example/{title.lower().replace(" ", "-")}',
         )
+        if highlighted:
+            ContributionHighlight.objects.create(
+                contribution=contribution,
+                title=title,
+                description='Highlighted project',
+            )
         return contribution
 
     def _post_submission(self, contribution_type, **extra):
@@ -159,7 +177,7 @@ class ProjectsAndMilestonesTest(TestCase):
         response = self._post_submission(self.milestone_type, project_contribution='abc')
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertIn('accepted projects', response.data['error'])
+        self.assertIn('highlighted projects', response.data['error'])
 
     def test_editing_milestone_to_other_project_assigns_next_version(self):
         project_a = self._accepted_project_contribution()
@@ -275,6 +293,9 @@ class ProjectsAndMilestonesTest(TestCase):
                 'contribution_type': self.project_type.id,
                 'user': self.user.id,
                 'points': 25,
+                'create_highlight': True,
+                'highlight_title': 'New Project',
+                'highlight_description': 'Highlighted project',
             },
             format='json',
         )
@@ -286,7 +307,7 @@ class ProjectsAndMilestonesTest(TestCase):
         # The curated projects.Project showcase table is a separate feature
         # and must never gain rows from contribution acceptance.
         self.assertEqual(Project.objects.count(), projects_before)
-        # The accepted contribution becomes a milestone anchor immediately.
+        # The accepted and highlighted contribution becomes a milestone anchor.
         self.client.force_authenticate(user=self.user)
         eligible = self.client.get('/api/v1/submissions/accepted-projects/')
         self.assertIn(contribution.id, [item['id'] for item in eligible.data])
@@ -331,7 +352,7 @@ class ProjectsAndMilestonesTest(TestCase):
         self.assertIn('owned by the selected user', response.data['detail'])
 
     def test_steward_accepted_projects_endpoint_lists_selected_users_projects(self):
-        """Return only the selected user's accepted Projects for steward review."""
+        """Return only the selected user's highlighted Projects for steward review."""
         project_contribution = self._accepted_project_contribution()
         other_user = User.objects.create_user(
             email='other-project-owner@test.com',
@@ -447,3 +468,66 @@ class ProjectsAndMilestonesTest(TestCase):
         self.assertTrue(
             project_contribution.milestones.filter(id=contribution.id).exists()
         )
+
+    def test_unhighlighted_project_cannot_receive_new_milestone(self):
+        project_contribution = self._accepted_project_contribution(
+            highlighted=False,
+        )
+
+        self.client.force_authenticate(user=self.user)
+        picker_response = self.client.get('/api/v1/submissions/accepted-projects/')
+        response = self._post_submission(
+            self.milestone_type,
+            project_contribution=project_contribution.id,
+        )
+
+        self.assertEqual(picker_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(picker_response.data, [])
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn('highlighted projects', response.data['error'])
+
+    def test_existing_pending_milestone_keeps_unhighlighted_project(self):
+        project_contribution = self._accepted_project_contribution(
+            highlighted=False,
+        )
+        submission = SubmittedContribution.objects.create(
+            user=self.user,
+            contribution_type=self.milestone_type,
+            project_contribution=project_contribution,
+            milestone_version=1,
+            contribution_date=timezone.now(),
+            title='Existing milestone',
+            notes='Existing milestone details',
+        )
+
+        self.client.force_authenticate(user=self.user)
+        picker_response = self.client.get(
+            '/api/v1/submissions/accepted-projects/',
+            {'submission': submission.id},
+        )
+        edit_response = self.client.patch(
+            f'/api/v1/submissions/{submission.id}/',
+            {'notes': 'Updated existing milestone details'},
+            format='json',
+        )
+
+        self.assertEqual(picker_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [item['id'] for item in picker_response.data],
+            [project_contribution.id],
+        )
+        self.assertEqual(edit_response.status_code, status.HTTP_200_OK)
+
+        self.client.force_authenticate(user=self.steward_user)
+        review_response = self.client.post(
+            f'/api/v1/steward-submissions/{submission.id}/review/',
+            {
+                'action': 'accept',
+                'contribution_type': self.milestone_type.id,
+                'user': self.user.id,
+                'points': 10,
+            },
+            format='json',
+        )
+
+        self.assertEqual(review_response.status_code, status.HTTP_200_OK)

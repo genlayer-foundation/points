@@ -812,7 +812,7 @@
       }
     } catch (err) {
       if (requestId !== acceptedProjectsRequestId) return;
-      acceptedProjectsError = err.response?.data?.detail || err.message || 'Failed to load accepted projects';
+      acceptedProjectsError = err.response?.data?.detail || err.message || 'Failed to load highlighted projects';
       acceptedProjectsUser = null;
       acceptedProjectsLoaded = false;
       selectedProject = '';
@@ -830,7 +830,7 @@
         return;
       }
       if (reviewAction === 'accept' && isSelectedMilestoneType && !selectedProject) {
-        showError('Select the accepted project this milestone belongs to.');
+        showError('Select the highlighted project this milestone belongs to.');
         return;
       }
 
@@ -1542,7 +1542,12 @@
 
       {#if submission.has_appeal && submission.appeal_reason}
         <div class="rounded-lg bg-orange-50 p-3 shadow-[0_0_0_1px_rgba(234,88,12,0.20)]">
-          <p class="text-xs font-semibold uppercase text-orange-800">Appeal reason</p>
+          <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <p class="text-xs font-semibold uppercase text-orange-800">Appeal reason</p>
+            {#if submission.appealed_at}
+              <p class="text-xs text-orange-700">Appealed on {formatDate(submission.appealed_at)}</p>
+            {/if}
+          </div>
           <p class="mt-1 whitespace-pre-wrap text-sm text-orange-950">{submission.appeal_reason}</p>
         </div>
       {/if}
@@ -1826,18 +1831,18 @@
                         Related project <span class="text-red-600">*</span>
                       </label>
                       {#if acceptedProjectsLoading}
-                        <p class="text-sm text-indigo-700">Loading accepted projects...</p>
+                        <p class="text-sm text-indigo-700">Loading highlighted projects...</p>
                       {:else if acceptedProjectsError}
                         <p class="text-sm text-red-700">{acceptedProjectsError}</p>
                       {:else if acceptedProjects.length === 0}
-                        <p class="text-sm text-amber-800">This user has no accepted project contributions.</p>
+                        <p class="text-sm text-amber-800">This user has no highlighted project contributions.</p>
                       {:else}
                         <select
                           id="project-contribution-{submission.id}"
                           bind:value={selectedProject}
                           class="h-10 w-full rounded-md bg-white px-3 text-sm text-slate-900 shadow-[0_0_0_1px_rgba(79,70,229,0.20)]"
                         >
-                          <option value="">Select accepted project...</option>
+                          <option value="">Select highlighted project...</option>
                           {#each acceptedProjects as project}
                             <option value={project.id}>{project.title} (next v{project.next_milestone_version || 1})</option>
                           {/each}

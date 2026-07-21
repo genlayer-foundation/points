@@ -154,6 +154,23 @@ class LeaderboardStatsTest(TestCase):
         )
         return contribution
 
+    def _accept_community_submission(self, user, points):
+        contribution = Contribution.objects.create(
+            user=user,
+            contribution_type=self.community_type,
+            points=points,
+            frozen_global_points=points,
+            contribution_date=timezone.now(),
+        )
+        SubmittedContribution.objects.create(
+            user=user,
+            contribution_type=self.community_type,
+            contribution_date=timezone.now(),
+            state='accepted',
+            converted_contribution=contribution,
+        )
+        return contribution
+
     def _assert_builder_lookup_empty(self, user):
         response = self.client.get(
             '/api/v1/leaderboard/',
@@ -924,6 +941,78 @@ class LeaderboardStatsTest(TestCase):
         self.assertEqual(response.data['results'][0]['total_points'], 5000)
         self.assertEqual(response.data['results'][1]['user_address'], truncate_address(portal_user.address))
         self.assertEqual(response.data['results'][1]['total_points'], 3000)
+
+    def test_community_podium_uses_only_accepted_submission_points(self):
+        accepted_leader = self._create_user(
+            'accepted-leader@example.com',
+            '0x0000000000000000000000000000000000000040',
+        )
+        xp_leader = self._create_user(
+            'xp-leader@example.com',
+            '0x0000000000000000000000000000000000000041',
+        )
+        third = self._create_user(
+            'accepted-third@example.com',
+            '0x0000000000000000000000000000000000000042',
+        )
+        fourth = self._create_user(
+            'accepted-fourth@example.com',
+            '0x0000000000000000000000000000000000000043',
+        )
+        direct_only = self._create_user(
+            'direct-only@example.com',
+            '0x0000000000000000000000000000000000000044',
+        )
+
+        self._accept_community_submission(accepted_leader, 100)
+        self._accept_community_submission(xp_leader, 80)
+        self._accept_community_submission(third, 70)
+        self._accept_community_submission(fourth, 60)
+
+        # These awards affect the normal Community leaderboard but must not
+        # affect the accepted-submission-only podium.
+        self._create_current_mee6_xp(xp_leader, 'discord-podium-xp', 10000)
+        Contribution.objects.create(
+            user=xp_leader,
+            contribution_type=self.community_type,
+            points=2000,
+            frozen_global_points=2000,
+            contribution_date=timezone.now(),
+        )
+        Contribution.objects.create(
+            user=direct_only,
+            contribution_type=self.community_type,
+            points=9000,
+            frozen_global_points=9000,
+            contribution_date=timezone.now(),
+        )
+        task = SocialTask.objects.create(
+            slug='community-podium-social-task',
+            name='Community podium social task',
+            category=self.community_category,
+            points=5000,
+            verification_type='click_through',
+            action_url='https://example.com',
+        )
+        SocialTaskCompletion.objects.create(
+            user=xp_leader,
+            task=task,
+            points_awarded=5000,
+            verification_type='click_through',
+        )
+
+        response = self.client.get('/api/v1/leaderboard/community-podium/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [row['user'] for row in response.data],
+            [accepted_leader.id, xp_leader.id, third.id],
+        )
+        self.assertEqual(
+            [row['total_points'] for row in response.data],
+            [100, 80, 70],
+        )
+        self.assertEqual([row['rank'] for row in response.data], [1, 2, 3])
 
     def test_community_profile_and_ranking_use_same_total_with_social_tasks(self):
         user = self._create_user(

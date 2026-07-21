@@ -2,11 +2,11 @@
 
 "Projects" here means the Projects contribution type (formerly "Projects &
 Milestones"), not the projects app's curated Project profiles. A Milestones
-submission must be linked to one of the submitter's accepted Projects
+submission must be linked to one of the submitter's highlighted Projects
 contributions and receives a sequential version number within that project
 contribution.
 """
-from django.db.models import Max
+from django.db.models import Max, Q
 
 
 PROJECT_TYPE_SLUG = 'projects'
@@ -17,14 +17,23 @@ def is_milestone_contribution_type(contribution_type):
     return getattr(contribution_type, 'slug', None) == MILESTONE_TYPE_SLUG
 
 
-def accepted_project_contributions_for_user(user):
-    """Accepted Projects contributions the user can attach milestones to."""
+def highlighted_project_contributions_for_user(user, include_project_id=None):
+    """Highlighted Projects contributions the user can attach milestones to.
+
+    ``include_project_id`` grandfathers an existing milestone link so a pending
+    submission remains editable/reviewable if its project's highlight is later
+    removed. It never bypasses project type or ownership checks.
+    """
     from .models import Contribution
+
+    eligibility = Q(highlights__isnull=False)
+    if include_project_id:
+        eligibility |= Q(id=include_project_id)
 
     return Contribution.objects.filter(
         user=user,
         contribution_type__slug=PROJECT_TYPE_SLUG,
-    )
+    ).filter(eligibility).distinct()
 
 
 def project_contribution_display_title(contribution):

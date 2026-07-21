@@ -20,12 +20,14 @@
   // State
   let statsData = $state([]);
   let leaderboardEntries = $state([]);
+  let communityPodiumEntries = $state([]);
   let newestMembers = $state([]);
   let trendingEntries = $state([]);
   let recentContributions = $state([]);
 
   let statsLoading = $state(true);
   let leaderboardLoading = $state(true);
+  let communityPodiumLoading = $state(true);
   let membersLoading = $state(true);
   let trendingLoading = $state(true);
   let recentLoading = $state(true);
@@ -49,19 +51,27 @@
   let leaderboardTitle = $derived(isCommunity ? 'Top Community Contributors' : 'Top Contributors');
   let leaderboardSubtitle = $derived(
     isCommunity
-      ? 'Community contributions from the last 30 days'
+      ? 'All-time XP and Community points'
       : isValidator
         ? 'All-time validator contributors'
         : 'Curated builds from the last 30 days'
   );
   let leaderboardPath = $derived(isBuilder ? '/builders/leaderboard' : isCommunity ? '/community/leaderboard' : '/validators/leaderboard');
-  let podiumTitle = $derived(isValidator ? 'All-time Podium' : 'Last 30 Days Podium');
+  let podiumTitle = $derived(
+    isCommunity ? 'Accepted Submissions Podium' : isValidator ? 'All-time Podium' : 'Last 30 Days Podium'
+  );
   let podiumSubtitle = $derived(
     isCommunity
-      ? "Who's contributing most to the community over the last 30 days?"
+      ? 'Top Community contributors by points from accepted submissions'
       : isValidator
         ? "Who's contributed most to GenLayer?"
         : "Who's contributing more to GenLayer over the last 30 days?"
+  );
+  let podiumEntries = $derived(
+    isCommunity ? communityPodiumEntries : leaderboardEntries.slice(0, 3)
+  );
+  let podiumLoading = $derived(
+    isCommunity ? communityPodiumLoading : leaderboardLoading
   );
   let newestTitle = $derived(isBuilder ? 'Newest Builders' : isCommunity ? 'Newest Community Contributors' : 'Newest Validators');
   let newestPath = $derived(isBuilder ? '/builders/leaderboard' : isCommunity ? '/community/all-contributions' : '/validators/participants');
@@ -142,11 +152,13 @@
   function resetDashboardState() {
     statsData = [];
     leaderboardEntries = [];
+    communityPodiumEntries = [];
     newestMembers = [];
     trendingEntries = [];
     recentContributions = [];
     statsLoading = true;
     leaderboardLoading = true;
+    communityPodiumLoading = true;
     membersLoading = true;
     trendingLoading = true;
     recentLoading = true;
@@ -169,11 +181,11 @@
         if (requestId === dashboardRequestSequence) statsLoading = false;
       }),
 
-      // Top contributors. Validator dashboard is intentionally all-time;
-      // builder and community dashboards use rolling 30-day contribution totals.
-      (cat === 'validator'
-          ? leaderboardAPI.getLeaderboard({ type: 'validator', order: 'asc', limit: 5 })
-          : leaderboardAPI.getMonthlyLeaderboardByType(cat, 5, getLast30DaysParams())
+      // Top contributors. Community and Validator use their all-time
+      // leaderboards; Builder keeps its rolling 30-day view.
+      (cat === 'builder'
+          ? leaderboardAPI.getMonthlyLeaderboardByType(cat, 5, getLast30DaysParams())
+          : leaderboardAPI.getLeaderboard({ type: cat, order: 'asc', limit: 5 })
       ).then(res => {
         if (requestId !== dashboardRequestSequence) return;
         leaderboardEntries = Array.isArray(res.data) ? res.data : (res.data?.results ?? []);
@@ -183,6 +195,20 @@
       }),
 
     ];
+
+    if (cat === 'community') {
+      promises.push(
+        leaderboardAPI.getCommunityPodium().then(res => {
+          if (requestId !== dashboardRequestSequence) return;
+          communityPodiumEntries = Array.isArray(res.data) ? res.data : (res.data?.results ?? []);
+          communityPodiumLoading = false;
+        }).catch(() => {
+          if (requestId === dashboardRequestSequence) communityPodiumLoading = false;
+        })
+      );
+    } else {
+      communityPodiumLoading = false;
+    }
 
     if (cat === 'community') {
       promises.push(
@@ -305,8 +331,8 @@
         showLink={false}
       />
       <Podium
-        entries={leaderboardEntries.slice(0, 3)}
-        loading={leaderboardLoading}
+        entries={podiumEntries}
+        loading={podiumLoading}
         accentColor={accentColor}
         valueLabel={valueLabel}
         category={category}

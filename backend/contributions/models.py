@@ -7,6 +7,7 @@ from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 from django.utils import timezone
 from utils.models import BaseModel
+from utils.dates import utc_week_bounds
 import decimal
 import os
 import uuid
@@ -117,6 +118,15 @@ class ContributionType(BaseModel):
             "for this contribution type. Leave blank for unlimited."
         ),
     )
+    max_submissions_per_user_per_week = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Maximum submissions each user may create for this contribution "
+            "type per Monday-Sunday UTC week. Every submission state counts. "
+            "Leave blank for unlimited."
+        ),
+    )
     show_in_contributions = models.BooleanField(
         default=False,
         help_text=(
@@ -197,6 +207,40 @@ class ContributionType(BaseModel):
             self.max_submissions is not None
             and self.get_submission_count() >= self.max_submissions
         )
+
+    def get_user_weekly_submission_count(self, user, now=None):
+        """Count a user's submissions in the current Monday-Sunday UTC week.
+
+        State is deliberately not filtered: pending, accepted, rejected,
+        canceled, and more-info submissions all consume the same weekly quota.
+        """
+        if not user or not getattr(user, 'is_authenticated', False):
+            return None
+        annotated_count = getattr(self, 'user_weekly_submission_count', None)
+        if annotated_count is not None and now is None:
+            return annotated_count
+        week_start, week_end = utc_week_bounds(now)
+        return self.submitted_contributions.filter(
+            user=user,
+            created_at__gte=week_start,
+            created_at__lt=week_end,
+        ).count()
+
+    def user_weekly_submissions_remaining(self, user, now=None):
+        if self.max_submissions_per_user_per_week is None:
+            return None
+        submission_count = self.get_user_weekly_submission_count(user, now=now)
+        if submission_count is None:
+            return None
+        return max(self.max_submissions_per_user_per_week - submission_count, 0)
+
+    def is_weekly_full_for_user(self, user, now=None):
+        if self.max_submissions_per_user_per_week is None:
+            return False
+        submission_count = self.get_user_weekly_submission_count(user, now=now)
+        if submission_count is None:
+            return False
+        return submission_count >= self.max_submissions_per_user_per_week
         
     def clean(self):
         """Validate the contribution type data."""
@@ -902,6 +946,11 @@ class SubmittedContribution(BaseModel):
         blank=True,
         help_text="Reason provided by the submitter when appealing a rejection."
     )
+    appealed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the submitter appealed the rejection."
+    )
 
     # Edit tracking
     last_edited_at = models.DateTimeField(null=True, blank=True)
@@ -917,6 +966,10 @@ class SubmittedContribution(BaseModel):
             models.Index(fields=['created_at'], name='sub_created_idx'),
             models.Index(fields=['state', 'created_at'], name='sub_state_created_idx'),
             models.Index(fields=['state', 'reviewed_at'], name='sub_state_reviewed_idx'),
+            models.Index(
+                fields=['user', 'contribution_type', 'created_at'],
+                name='sub_user_type_week_idx',
+            ),
         ]
 
 

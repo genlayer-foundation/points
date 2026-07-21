@@ -68,7 +68,8 @@
         Number(mission.submissions_remaining) <= 0)
   );
   let contributionTypeIsFull = $derived(
-    contributionType?.is_full === true ||
+    contributionType?.user_weekly_is_full === true ||
+      contributionType?.is_full === true ||
       (contributionType?.max_submissions != null &&
         contributionType?.submissions_remaining != null &&
         Number(contributionType.submissions_remaining) <= 0)
@@ -87,6 +88,8 @@
         ? 'Mission not started'
         : mission?.user_is_full === true
           ? 'Limit reached'
+          : contributionType?.user_weekly_is_full === true
+            ? 'Weekly limit reached'
           : submissionClosed
             ? 'Submissions closed'
             : 'Submit to mission'
@@ -95,6 +98,7 @@
     if (missionEnded) return 'Ended';
     if (missionUnavailable) return 'Not started';
     if (mission?.user_is_full === true) return 'Your limit reached';
+    if (contributionType?.user_weekly_is_full === true) return 'Your weekly limit reached';
     if (mission?.max_submissions == null) {
       return contributionTypeIsFull ? 'Submissions closed' : 'Unlimited';
     }
