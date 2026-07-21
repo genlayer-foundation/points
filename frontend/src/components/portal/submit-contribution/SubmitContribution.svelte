@@ -152,7 +152,7 @@
                 formData.contribution_type = "";
                 searchQuery = "";
                 showTypeDropdown = true;
-                error = "This contribution type has reached its submission limit.";
+                error = typeLimitError(parentType);
               } else if (isMissionSubmittable(mission)) {
                 selectedType = parentType;
                 selectedMission = mission.id;
@@ -189,7 +189,7 @@
             formData.contribution_type = "";
             searchQuery = "";
             showTypeDropdown = true;
-            error = "This contribution type has reached its submission limit.";
+            error = typeLimitError(type);
           } else {
             showTypeDropdown = true;
           }
@@ -209,7 +209,7 @@
                 formData.contribution_type = "";
                 searchQuery = "";
                 showTypeDropdown = true;
-                error = "This contribution type has reached its submission limit.";
+                error = typeLimitError(type);
               } else {
                 showTypeDropdown = true;
               }
@@ -374,6 +374,7 @@
 
   function isTypeFull(type) {
     if (!type) return false;
+    if (type.user_weekly_is_full === true) return true;
     if (type.is_full === true) return true;
     return (
       type.max_submissions !== null &&
@@ -382,6 +383,13 @@
       type.submissions_remaining !== undefined &&
       Number(type.submissions_remaining) <= 0
     );
+  }
+
+  function typeLimitError(type) {
+    if (type?.user_weekly_is_full === true) {
+      return "You have reached your weekly submission limit for this contribution type.";
+    }
+    return "This contribution type has reached its submission limit.";
   }
 
   function canSubmitTypeDirectly(type) {
@@ -404,7 +412,7 @@
       const response = await submissionsAPI.getAcceptedProjects();
       acceptedProjects = response.data || [];
     } catch (err) {
-      // Keep failures distinct from "no accepted projects" so a transient
+      // Keep failures distinct from "no highlighted projects" so a transient
       // error never tells a builder they are not eligible for milestones.
       projectsError = true;
     } finally {
@@ -418,7 +426,7 @@
   let selectedProjectLabel = $derived(
     selectedProjectData
       ? `${selectedProjectData.title} (next v${selectedProjectData.next_milestone_version || 1})`
-      : "Select accepted project..."
+      : "Select highlighted project..."
   );
   let selectedProjectIndex = $derived(
     acceptedProjects.findIndex((project) => String(project.id) === String(selectedProject))
@@ -552,7 +560,7 @@
 
   function selectType(t) {
     if (isTypeFull(t)) {
-      error = "This contribution type has reached its submission limit.";
+      error = typeLimitError(t);
       return;
     }
 
@@ -578,7 +586,7 @@
       selectType(item.data);
     } else if (item.itemType === "mission") {
       if (isTypeFull(item.parentType)) {
-        error = "This contribution type has reached its submission limit.";
+        error = typeLimitError(item.parentType);
         return;
       }
       if (!isMissionSubmittable(item.data)) {
@@ -675,7 +683,7 @@
   function selectProject(project, options = {}) {
     selectedProject = String(project.id);
     closeProjectDropdown({ focusTrigger: options.focusTrigger ?? true });
-    if (error === "Please select the accepted project this milestone belongs to.") {
+    if (error === "Please select the highlighted project this milestone belongs to.") {
       error = "";
     }
   }
@@ -1015,7 +1023,7 @@
     }
 
     if (isMilestoneType(selectedType) && !selectedProject) {
-      error = "Please select the accepted project this milestone belongs to.";
+      error = "Please select the highlighted project this milestone belongs to.";
       return;
     }
 
@@ -1124,7 +1132,7 @@
 
     try {
       if (isTypeFull(selectedType)) {
-        error = "This contribution type has reached its submission limit.";
+        error = typeLimitError(selectedType);
         submitting = false;
         return;
       }
@@ -1523,6 +1531,12 @@
                             >{spotsLeftLabel(item.data.submissions_remaining)}</span
                           >
                         {/if}
+                        {#if item.data.max_submissions_per_user_per_week != null && item.data.user_weekly_submissions_remaining != null}
+                          <span
+                            class="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded font-medium"
+                            >{spotsLeftLabel(item.data.user_weekly_submissions_remaining)} this week</span
+                          >
+                        {/if}
                       </div>
                     {/if}
                   </button>
@@ -1582,6 +1596,11 @@
                 Capacity: {spotsLeftLabel(selectedType.submissions_remaining)}
               </p>
             {/if}
+            {#if selectedType.max_submissions_per_user_per_week != null && selectedType.user_weekly_submissions_remaining != null}
+              <p class="font-['Switzer'] text-[12px] text-gray-500 mt-0.5">
+                Your weekly capacity: {spotsLeftLabel(selectedType.user_weekly_submissions_remaining)}
+              </p>
+            {/if}
             {#if selectedType.description}
               <p class="font-['Switzer'] text-[12px] text-gray-500 mt-1">
                 {selectedType.description}
@@ -1614,7 +1633,7 @@
               Linked Project
             </h2>
             <p class="font-['Switzer'] text-[13px] text-[#6b6b6b] leading-[19px] tracking-[0.26px] mt-1">
-              Milestones must belong to an accepted project. Stewards review
+              Milestones must belong to a highlighted project. Stewards review
               your project's GitHub repository for the changes you describe.
             </p>
           </div>
@@ -1627,12 +1646,12 @@
 
         {#if loadingProjects}
           <div class="w-full rounded-[8px] border border-[#f5f5f5] bg-[#fafafa] p-[12px] text-[14px] text-[#6b6b6b] font-['Switzer']">
-            Loading accepted projects...
+            Loading highlighted projects...
           </div>
         {:else if projectsError}
           <div class="w-full rounded-[8px] border border-red-200 bg-red-50 p-[12px]">
             <p class="font-['Switzer'] text-[14px] text-red-900 font-medium">
-              We couldn't load your accepted projects.
+              We couldn't load your highlighted projects.
             </p>
             <button
               type="button"
@@ -1645,10 +1664,10 @@
         {:else if acceptedProjects.length === 0}
           <div class="w-full rounded-[8px] border border-orange-200 bg-orange-50 p-[12px]">
             <p class="font-['Switzer'] text-[14px] text-orange-900 font-medium">
-              You need an accepted project before submitting milestones.
+              You need a highlighted project before submitting milestones.
             </p>
             <p class="font-['Switzer'] text-[13px] text-orange-800 mt-1">
-              Submit a Projects contribution first. Once it is accepted, milestones can be linked to it.
+              Submit a Projects contribution first. Once it is accepted and highlighted, milestones can be linked to it.
             </p>
           </div>
         {:else}

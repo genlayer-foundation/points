@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 from django.utils.dateparse import parse_date
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Exists, OuterRef, Q, Sum
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import (
     GlobalLeaderboardMultiplier,
@@ -12,7 +12,7 @@ from .models import (
     recalculate_all_leaderboards,
 )
 from .serializers import GlobalLeaderboardMultiplierSerializer, LeaderboardEntrySerializer
-from contributions.models import Contribution
+from contributions.models import Contribution, SubmittedContribution
 from users.utils import is_full_address, truncate_address, user_lookup_kwargs
 
 ONBOARDING_CONTRIBUTION_TYPE_SLUGS = [
@@ -991,6 +991,49 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             response_data['user_total_points'] = user_total_points
 
         return Response(response_data)
+
+    @action(detail=False, methods=['get'], url_path='community-podium')
+    def community_podium(self, request):
+        """Top three Community users by points from accepted submissions only."""
+        from users.models import User
+        from users.serializers import LightUserSerializer
+
+        accepted_submission = SubmittedContribution.objects.filter(
+            state='accepted',
+            converted_contribution_id=OuterRef('pk'),
+        )
+        podium_rows = list(
+            Contribution.objects
+            .filter(
+                user__visible=True,
+                contribution_type__category__slug='community',
+            )
+            .annotate(has_accepted_submission=Exists(accepted_submission))
+            .filter(has_accepted_submission=True)
+            .values('user_id')
+            .annotate(total_points=Sum('frozen_global_points'))
+            .filter(total_points__gt=0)
+            .order_by('-total_points', 'user__name', 'user_id')[:3]
+        )
+
+        users_by_id = {
+            user.id: user
+            for user in User.objects.filter(
+                id__in=[row['user_id'] for row in podium_rows],
+            )
+        }
+        return Response([
+            {
+                'id': f'community-podium-{row["user_id"]}',
+                'user': row['user_id'],
+                'user_details': LightUserSerializer(users_by_id[row['user_id']]).data,
+                'type': 'community',
+                'total_points': row['total_points'],
+                'rank': rank,
+            }
+            for rank, row in enumerate(podium_rows, start=1)
+            if row['user_id'] in users_by_id
+        ])
 
     @action(detail=False, methods=['get'])
     def referrals(self, request):

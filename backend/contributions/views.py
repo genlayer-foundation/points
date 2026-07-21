@@ -61,7 +61,7 @@ from .permissions import (
 from .lifecycle_filters import SubmissionLifecycleFilterMixin
 from .proposal_filters import ProposalReviewStatusFilterMixin
 from .project_milestones import (
-    accepted_project_contributions_for_user,
+    highlighted_project_contributions_for_user,
     is_milestone_contribution_type,
     next_milestone_version,
     project_contribution_display_title,
@@ -73,7 +73,7 @@ from leaderboard.models import GlobalLeaderboardMultiplier
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from ethereum_auth.authentication import EthereumAuthentication
 from community_xp.services import acquire_sync_lock, release_sync_lock
-from utils.dates import day_start
+from utils.dates import day_start, utc_week_bounds
 import requests
 
 COMMUNITY_CATEGORY_SLUGS = ('community', 'creator')
@@ -104,17 +104,37 @@ class ContributionTypeViewSet(viewsets.ReadOnlyModelViewSet):
             contribution_type_id=OuterRef('pk')
         ).order_by('-valid_from').values('multiplier_value')[:1]
 
-        queryset = ContributionType.objects.select_related('category').annotate(
-            submission_count=Coalesce(
+        annotations = {
+            'submission_count': Coalesce(
                 Subquery(submission_count, output_field=IntegerField()),
                 Value(0),
                 output_field=IntegerField(),
             ),
-            current_multiplier_value=Coalesce(
+            'current_multiplier_value': Coalesce(
                 Subquery(current_multiplier, output_field=multiplier_field),
                 Value(1.0, output_field=multiplier_field),
                 output_field=multiplier_field,
             ),
+        }
+        user = getattr(self.request, 'user', None)
+        if user and getattr(user, 'is_authenticated', False):
+            week_start, week_end = utc_week_bounds()
+            user_weekly_submission_count = SubmittedContribution.objects.filter(
+                contribution_type_id=OuterRef('pk'),
+                user_id=user.id,
+                created_at__gte=week_start,
+                created_at__lt=week_end,
+            ).values('contribution_type_id').annotate(
+                count=Count('pk')
+            ).values('count')
+            annotations['user_weekly_submission_count'] = Coalesce(
+                Subquery(user_weekly_submission_count, output_field=IntegerField()),
+                Value(0),
+                output_field=IntegerField(),
+            )
+
+        queryset = ContributionType.objects.select_related('category').annotate(
+            **annotations
         )
 
         # Filter by category if provided
@@ -662,6 +682,8 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         contribution_type,
         mission=None,
         skip_capacity_check=False,
+        skip_weekly_capacity_check=False,
+        weekly_capacity_at=None,
         allow_existing_community_submission=False,
         skip_submittable_check=False,
     ):
@@ -680,6 +702,17 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         if not skip_capacity_check and contribution_type.is_full():
             return Response(
                 {'error': 'This contribution type has reached its submission limit.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if (
+            not skip_weekly_capacity_check
+            and contribution_type.is_weekly_full_for_user(
+                user,
+                now=weekly_capacity_at,
+            )
+        ):
+            return Response(
+                {'error': 'You have reached your weekly submission limit for this contribution type.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         if contribution_type.category:
@@ -726,25 +759,32 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
 
         return None
 
-    def _project_link_error(self, user, contribution_type, project_contribution_id):
+    def _project_link_error(
+        self,
+        user,
+        contribution_type,
+        project_contribution_id,
+        existing_project_contribution_id=None,
+    ):
         """Validate project-contribution linking rules for Milestones submissions."""
         if is_milestone_contribution_type(contribution_type):
             if not project_contribution_id:
                 return None, Response(
-                    {'error': 'Milestones must be linked to one of your accepted projects.'},
+                    {'error': 'Milestones must be linked to one of your highlighted projects.'},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
             try:
-                project_contribution = accepted_project_contributions_for_user(user).get(
-                    id=project_contribution_id,
-                )
+                project_contribution = highlighted_project_contributions_for_user(
+                    user,
+                    include_project_id=existing_project_contribution_id,
+                ).get(id=project_contribution_id)
             except (Contribution.DoesNotExist, ValueError, TypeError):
                 # ValueError/TypeError cover malformed ids (e.g. 'abc') that
                 # would otherwise raise during pk conversion before DRF's
                 # PrimaryKeyRelatedField validation runs.
                 return None, Response(
-                    {'error': 'Select one of your accepted projects before submitting a milestone.'},
+                    {'error': 'Select one of your highlighted projects before submitting a milestone.'},
                     status=status.HTTP_403_FORBIDDEN,
                 )
             return project_contribution, None
@@ -865,6 +905,11 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                         {'error': 'This contribution type has reached its submission limit.'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
+                if locked_type.is_weekly_full_for_user(request.user):
+                    return Response(
+                        {'error': 'You have reached your weekly submission limit for this contribution type.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
                 serializer.validated_data['contribution_type'] = locked_type
 
                 if mission_id:
@@ -887,11 +932,11 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                     locked_project_contribution = Contribution.objects.select_for_update().get(
                         id=milestone_project_contribution.id
                     )
-                    if not accepted_project_contributions_for_user(request.user).filter(
+                    if not highlighted_project_contributions_for_user(request.user).filter(
                         id=locked_project_contribution.id,
                     ).exists():
                         return Response(
-                            {'error': 'Select one of your accepted projects before submitting a milestone.'},
+                            {'error': 'Select one of your highlighted projects before submitting a milestone.'},
                             status=status.HTTP_403_FORBIDDEN,
                         )
                     serializer.validated_data['project_contribution'] = locked_project_contribution
@@ -966,6 +1011,8 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             contribution_type,
             mission,
             skip_capacity_check=keeps_same_contribution_type,
+            skip_weekly_capacity_check=keeps_same_contribution_type,
+            weekly_capacity_at=instance.created_at,
             allow_existing_community_submission=keeps_same_contribution_type,
             # A type made non-submittable after the fact must not lock users
             # out of editing their existing pending/more-info submissions.
@@ -983,6 +1030,7 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             request.user,
             contribution_type,
             project_contribution_id,
+            existing_project_contribution_id=instance.project_contribution_id,
         )
         if project_error is not None:
             return project_error
@@ -995,6 +1043,28 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             return notes_error
 
         with transaction.atomic():
+            locked_type = (
+                ContributionType.objects
+                .select_for_update()
+                .get(id=contribution_type.id)
+            )
+            if not keeps_same_contribution_type:
+                if locked_type.is_full():
+                    return Response(
+                        {'error': 'This contribution type has reached its submission limit.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                if locked_type.is_weekly_full_for_user(
+                    request.user,
+                    now=instance.created_at,
+                ):
+                    return Response(
+                        {'error': 'You have reached your weekly submission limit for this contribution type.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            contribution_type = locked_type
+            serializer.validated_data['contribution_type'] = locked_type
+
             if is_milestone_contribution_type(contribution_type):
                 # Lock the project contribution row (as create does) so
                 # concurrent edits pointing at the same project cannot be
@@ -1002,11 +1072,14 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                 locked_project_contribution = Contribution.objects.select_for_update().get(
                     id=milestone_project_contribution.id
                 )
-                if not accepted_project_contributions_for_user(request.user).filter(
+                if not highlighted_project_contributions_for_user(
+                    request.user,
+                    include_project_id=instance.project_contribution_id,
+                ).filter(
                     id=locked_project_contribution.id,
                 ).exists():
                     return Response(
-                        {'error': 'Select one of your accepted projects before submitting a milestone.'},
+                        {'error': 'Select one of your highlighted projects before submitting a milestone.'},
                         status=status.HTTP_403_FORBIDDEN,
                     )
                 serializer.validated_data['project_contribution'] = locked_project_contribution
@@ -1123,9 +1196,23 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='accepted-projects')
     def accepted_projects(self, request):
-        """Return the user's accepted Projects contributions milestones can link to."""
+        """Return highlighted Projects contributions milestones can link to."""
+        submission = None
+        submission_id = request.query_params.get('submission')
+        if submission_id:
+            submission = get_object_or_404(self.get_queryset(), pk=submission_id)
+        existing_project_id = (
+            submission.project_contribution_id
+            if submission
+            and submission.state in ['pending', 'more_info_needed']
+            and is_milestone_contribution_type(submission.contribution_type)
+            else None
+        )
         project_contributions = (
-            accepted_project_contributions_for_user(request.user)
+            highlighted_project_contributions_for_user(
+                request.user,
+                include_project_id=existing_project_id,
+            )
             .prefetch_related('evidence_items')
             .order_by('-contribution_date', '-id')
         )
@@ -2275,7 +2362,7 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             if is_milestone_contribution_type(contribution_type):
                 if not project_contribution:
                     return Response(
-                        {'detail': 'Milestones must be linked to an accepted project before acceptance.'},
+                        {'detail': 'Milestones must be linked to a project before acceptance.'},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
                 project_contribution = Contribution.objects.select_for_update().get(
@@ -2283,11 +2370,19 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                 )
                 # Validate against the user the contribution will belong to
                 # (stewards can reassign it), not the original submitter.
-                if not accepted_project_contributions_for_user(contribution_user).filter(
+                existing_project_id = (
+                    submission.project_contribution_id
+                    if is_milestone_contribution_type(submission.contribution_type)
+                    else None
+                )
+                if not highlighted_project_contributions_for_user(
+                    contribution_user,
+                    include_project_id=existing_project_id,
+                ).filter(
                     id=project_contribution.id,
                 ).exists():
                     return Response(
-                        {'detail': 'Milestones can only be accepted for a project contribution owned by the selected user.'},
+                        {'detail': 'Milestones can only be accepted for a highlighted project contribution owned by the selected user.'},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
                 if project_contribution != submission.project_contribution:
@@ -2983,7 +3078,7 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='accepted-projects')
     def accepted_projects(self, request):
-        """Get accepted Projects contributions for a user during steward review."""
+        """Get highlighted Projects contributions for a user during steward review."""
         from users.models import User
 
         user_id = request.query_params.get('user')
@@ -3009,8 +3104,18 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        existing_project_id = (
+            submission.project_contribution_id
+            if submission
+            and submission.state in ['pending', 'more_info_needed']
+            and is_milestone_contribution_type(submission.contribution_type)
+            else None
+        )
         project_contributions = (
-            accepted_project_contributions_for_user(user)
+            highlighted_project_contributions_for_user(
+                user,
+                include_project_id=existing_project_id,
+            )
             .prefetch_related('evidence_items')
             .order_by('-created_at')
         )
@@ -3942,6 +4047,25 @@ class MissionViewSet(viewsets.ReadOnlyModelViewSet):
                 ).values('count')
                 annotations['user_submission_count'] = Coalesce(
                     Subquery(user_submission_count, output_field=IntegerField()),
+                    Value(0),
+                    output_field=IntegerField(),
+                )
+                week_start, week_end = utc_week_bounds()
+                contribution_type_user_weekly_submission_count = (
+                    SubmittedContribution.objects.filter(
+                        contribution_type_id=OuterRef('contribution_type_id'),
+                        user_id=user.id,
+                        created_at__gte=week_start,
+                        created_at__lt=week_end,
+                    ).values('contribution_type_id').annotate(
+                        count=Count('pk')
+                    ).values('count')
+                )
+                annotations['contribution_type_user_weekly_submission_count'] = Coalesce(
+                    Subquery(
+                        contribution_type_user_weekly_submission_count,
+                        output_field=IntegerField(),
+                    ),
                     Value(0),
                     output_field=IntegerField(),
                 )

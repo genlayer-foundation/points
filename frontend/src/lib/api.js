@@ -179,7 +179,11 @@ export const contributionsAPI = {
 // API endpoints for the submitter-side submission flows
 export const submissionsAPI = {
   appeal: (id, reason) => api.post(`/submissions/${id}/appeal/`, { reason }),
-  getAcceptedProjects: () => api.get('/submissions/accepted-projects/')
+  /** @param {string | null} submissionId */
+  getAcceptedProjects: (submissionId = null) =>
+    api.get('/submissions/accepted-projects/', {
+      params: submissionId ? { submission: submissionId } : {}
+    })
 };
 
 // Portal notifications API
@@ -231,6 +235,7 @@ export const leaderboardAPI = {
     api.get('/leaderboard/monthly/', { params: { type, limit, ...additionalParams } }),
   getCommunity: (params = {}) => leaderboardAPI.getLeaderboard({ type: 'community', ...params }),
   getCommunityContributors: (params = {}) => leaderboardAPI.getLeaderboard({ type: 'community', ...params }),
+  getCommunityPodium: () => api.get('/leaderboard/community-podium/'),
   getReferrals: (params = {}) => api.get('/leaderboard/referrals/', { params }),
   getTrending: (limit = 10, params = {}) => api.get('/leaderboard/trending/', { params: { limit, ...params } }),
   getTypes: () => api.get('/leaderboard/types/'),
@@ -349,7 +354,7 @@ export const stewardAPI = {
   // Get all users for reassignment dropdown
   getUsers: () => api.get('/steward-submissions/users/'),
 
-  // Get accepted Projects contributions for a selected award user
+  // Get highlighted Projects contributions for a selected award user
   getAcceptedProjectsForUser: (userId, submissionId = null) =>
     api.get('/steward-submissions/accepted-projects/', {
       params: {

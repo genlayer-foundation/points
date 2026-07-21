@@ -812,7 +812,7 @@
       }
     } catch (err) {
       if (requestId !== acceptedProjectsRequestId) return;
-      acceptedProjectsError = err.response?.data?.detail || err.message || 'Failed to load accepted projects';
+      acceptedProjectsError = err.response?.data?.detail || err.message || 'Failed to load highlighted projects';
       acceptedProjectsUser = null;
       acceptedProjectsLoaded = false;
       selectedProject = '';
@@ -830,7 +830,7 @@
         return;
       }
       if (reviewAction === 'accept' && isSelectedMilestoneType && !selectedProject) {
-        showError('Select the accepted project this milestone belongs to.');
+        showError('Select the highlighted project this milestone belongs to.');
         return;
       }
 
@@ -1831,18 +1831,18 @@
                         Related project <span class="text-red-600">*</span>
                       </label>
                       {#if acceptedProjectsLoading}
-                        <p class="text-sm text-indigo-700">Loading accepted projects...</p>
+                        <p class="text-sm text-indigo-700">Loading highlighted projects...</p>
                       {:else if acceptedProjectsError}
                         <p class="text-sm text-red-700">{acceptedProjectsError}</p>
                       {:else if acceptedProjects.length === 0}
-                        <p class="text-sm text-amber-800">This user has no accepted project contributions.</p>
+                        <p class="text-sm text-amber-800">This user has no highlighted project contributions.</p>
                       {:else}
                         <select
                           id="project-contribution-{submission.id}"
                           bind:value={selectedProject}
                           class="h-10 w-full rounded-md bg-white px-3 text-sm text-slate-900 shadow-[0_0_0_1px_rgba(79,70,229,0.20)]"
                         >
-                          <option value="">Select accepted project...</option>
+                          <option value="">Select highlighted project...</option>
                           {#each acceptedProjects as project}
                             <option value={project.id}>{project.title} (next v{project.next_milestone_version || 1})</option>
                           {/each}

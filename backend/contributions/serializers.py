@@ -67,6 +67,10 @@ class LightContributionTypeSerializer(serializers.Serializer):
     rubric_extra_points = serializers.IntegerField(read_only=True)
     current_multiplier = serializers.SerializerMethodField()
     max_submissions = serializers.IntegerField(read_only=True)
+    max_submissions_per_user_per_week = serializers.IntegerField(read_only=True)
+    user_weekly_submission_count = serializers.SerializerMethodField()
+    user_weekly_submissions_remaining = serializers.SerializerMethodField()
+    user_weekly_is_full = serializers.SerializerMethodField()
     review_flow = serializers.CharField(read_only=True)
     # Include category slug only, not the full category object
     category = serializers.SerializerMethodField()
@@ -86,6 +90,21 @@ class LightContributionTypeSerializer(serializers.Serializer):
             return float(GlobalLeaderboardMultiplier.get_current_multiplier_value(obj))
         except Exception:
             return 1.0
+
+    def get_user_weekly_submission_count(self, obj):
+        return getattr(obj, 'user_weekly_submission_count', None)
+
+    def get_user_weekly_submissions_remaining(self, obj):
+        limit = obj.max_submissions_per_user_per_week
+        count = self.get_user_weekly_submission_count(obj)
+        if limit is None or count is None:
+            return None
+        return max(limit - count, 0)
+
+    def get_user_weekly_is_full(self, obj):
+        limit = obj.max_submissions_per_user_per_week
+        count = self.get_user_weekly_submission_count(obj)
+        return limit is not None and count is not None and count >= limit
 
 
 class LightMissionSerializer(serializers.Serializer):
@@ -203,6 +222,9 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
     submission_count = serializers.SerializerMethodField()
     submissions_remaining = serializers.SerializerMethodField()
     is_full = serializers.SerializerMethodField()
+    user_weekly_submission_count = serializers.SerializerMethodField()
+    user_weekly_submissions_remaining = serializers.SerializerMethodField()
+    user_weekly_is_full = serializers.SerializerMethodField()
 
     class Meta:
         model = ContributionType
@@ -210,6 +232,8 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
             'id', 'name', 'slug', 'description', 'category', 'min_points', 'max_points',
             'rubric_extra_points', 'current_multiplier', 'is_submittable', 'review_flow', 'max_submissions',
             'submission_count', 'submissions_remaining', 'is_full',
+            'max_submissions_per_user_per_week', 'user_weekly_submission_count',
+            'user_weekly_submissions_remaining', 'user_weekly_is_full',
             'show_in_contributions', 'examples',
             'required_social_accounts', 'required_discord_roles',
             'accepted_evidence_url_types', 'required_evidence_url_types',
@@ -287,6 +311,19 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
 
     def get_is_full(self, obj):
         return obj.is_full()
+
+    def _request_user(self):
+        request = self.context.get('request')
+        return getattr(request, 'user', None)
+
+    def get_user_weekly_submission_count(self, obj):
+        return obj.get_user_weekly_submission_count(self._request_user())
+
+    def get_user_weekly_submissions_remaining(self, obj):
+        return obj.user_weekly_submissions_remaining(self._request_user())
+
+    def get_user_weekly_is_full(self, obj):
+        return obj.is_weekly_full_for_user(self._request_user())
 
 
 
@@ -1756,6 +1793,14 @@ class MissionSerializer(serializers.ModelSerializer):
         )
         if annotated_multiplier is not None:
             contribution_type.current_multiplier_value = annotated_multiplier
+
+        weekly_user_count = getattr(
+            obj,
+            'contribution_type_user_weekly_submission_count',
+            None,
+        )
+        if weekly_user_count is not None:
+            contribution_type.user_weekly_submission_count = weekly_user_count
 
         data = LightContributionTypeSerializer(contribution_type).data
         submission_count = getattr(obj, 'contribution_type_submission_count', None)

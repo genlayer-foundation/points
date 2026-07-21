@@ -88,6 +88,7 @@
 
   function isFull(entity) {
     if (!entity) return false;
+    if (entity.user_weekly_is_full === true) return true;
     if (entity.is_full === true) return true;
     return (
       entity.max_submissions !== null &&
@@ -101,6 +102,7 @@
   function missionCapacityLabel(mission, parentType) {
     if (mission?.user_is_full === true) return 'Your limit reached';
     if (isFull(mission)) return 'Full';
+    if (parentType?.user_weekly_is_full === true) return 'Your weekly limit reached';
     if (isFull(parentType)) return 'Submissions closed';
     if (mission?.max_submissions != null && mission?.submissions_remaining != null) {
       return spotsLeftLabel(mission.submissions_remaining);
