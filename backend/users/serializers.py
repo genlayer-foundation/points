@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework import serializers
 from .models import BanAppeal, User
 from validators.models import Validator, ValidatorWallet, get_validator_profile
@@ -530,6 +531,7 @@ class UserSerializer(serializers.ModelSerializer):
     email_verified_at = serializers.SerializerMethodField()
     is_banned = serializers.SerializerMethodField()
     ban_reason = serializers.SerializerMethodField()
+    can_view_validator_sections = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -545,6 +547,8 @@ class UserSerializer(serializers.ModelSerializer):
                   'email', 'is_email_verified', 'email_verified_at',
                   # Ban status
                   'is_banned', 'ban_reason',
+                  # Singular read-only validator portal exception
+                  'can_view_validator_sections',
                   # Social connections
                   'github_connection', 'twitter_connection', 'discord_connection',
                   # Referral fields
@@ -706,6 +710,22 @@ class UserSerializer(serializers.ModelSerializer):
         if self._can_view_private_user_data(obj):
             return obj.ban_reason
         return ''
+
+    def get_can_view_validator_sections(self, obj):
+        """Expose the singular validator viewer exception to its owner only.
+
+        The configured account remains a normal user: this flag is navigation
+        access, not role membership, and never creates a Validator profile.
+        """
+        configured_user_id = getattr(settings, 'VALIDATOR_SECTION_VIEWER_USER_ID', None)
+        request = self.context.get('request')
+        request_user = getattr(request, 'user', None)
+        return bool(
+            configured_user_id
+            and request_user
+            and request_user.is_authenticated
+            and request_user.pk == obj.pk == configured_user_id
+        )
 
     def get_referral_code(self, obj):
         """Expose referral code only to the account owner or staff."""

@@ -538,6 +538,7 @@ Located in `.env` file:
 - `WEB3_RPC_TIMEOUT_SECONDS` - Optional timeout in seconds for validator Web3 HTTP requests (default `10`)
 - `WEB3_RPC_MAX_RETRIES` - Optional number of retries after the initial validator Web3 HTTP request (default `1`)
 - `VALIDATOR_CONTRACT_ADDRESS` - Smart contract address
+- `VALIDATOR_SECTION_VIEWER_USER_ID` - Optional singular user ID that receives read-only access to validator portal sections without a Validator profile, validator metrics membership, or validator task eligibility. Empty disables the exception; malformed/non-positive values fail startup.
 - `SECRET_KEY` - Django secret key
 - `DEBUG` - Debug mode flag
 - `ALLOWED_HOSTS` - Allowed host headers

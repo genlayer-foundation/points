@@ -29,6 +29,22 @@ def get_required_env(key):
     return value
 
 
+def get_optional_positive_int_env(key):
+    """Return an optional positive integer setting, failing fast if malformed."""
+    raw_value = os.environ.get(key, '').strip()
+    if not raw_value:
+        return None
+
+    try:
+        value = int(raw_value)
+    except ValueError as exc:
+        raise ValueError(f"Optional environment variable '{key}' must be a positive integer") from exc
+
+    if value <= 0:
+        raise ValueError(f"Optional environment variable '{key}' must be a positive integer")
+    return value
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
@@ -428,6 +444,12 @@ ETHEREUM_AUTH = {
 
 # Custom user model
 AUTH_USER_MODEL = 'users.User'
+
+# Singular, read-only portal exception. This does not grant the Validator role;
+# it only lets the configured account open validator read surfaces in the SPA.
+VALIDATOR_SECTION_VIEWER_USER_ID = get_optional_positive_int_env(
+    'VALIDATOR_SECTION_VIEWER_USER_ID'
+)
 
 # Blockchain settings
 # Shared RPC URL for all networks

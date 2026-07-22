@@ -33,6 +33,24 @@ def validate_eligibility_requirements(value):
 
 
 def evaluate_task_eligibility(task, user):
+    # Validator tasks can award validator leaderboard points. Portal viewing
+    # exceptions must never become an alternate path to earning those points.
+    if getattr(getattr(task, 'category', None), 'slug', None) == 'validator':
+        if user is None or not getattr(user, 'is_authenticated', False):
+            return EligibilityResult(
+                False,
+                'Sign in with a validator account to complete this task.',
+                details={'requirements': [], 'required_role': 'validator'},
+            )
+
+        from validators.models import user_has_validator_profile
+        if not user_has_validator_profile(user):
+            return EligibilityResult(
+                False,
+                'Only validators can complete validator tasks.',
+                details={'requirements': [], 'required_role': 'validator'},
+            )
+
     requirements = task.eligibility_requirements or {}
     normalized = _normalize_requirements(requirements)
     rules = normalized['all'] + normalized['any']

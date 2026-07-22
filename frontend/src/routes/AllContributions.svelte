@@ -12,6 +12,8 @@
   import Pagination from '../components/Pagination.svelte';
   import CategoryIcon from '../components/portal/CategoryIcon.svelte';
   import { visibleContributions } from '../lib/hiddenContributions.js';
+  import { userStore } from '../lib/userStore.js';
+  import { hasEarnedRole, hasRoleSectionAccess } from '../lib/roleState.js';
 
   const HIGHLIGHTS_PREVIEW_COUNT = 15;
   const PAGE_SIZE = 20;
@@ -86,6 +88,11 @@
 
   let baseRoutePath = $derived(buildBasePath($location));
   let routeCategory = $derived(detectRouteCategory($location));
+  let isValidatorReadOnlyViewer = $derived(
+    routeCategory === 'validator'
+    && hasRoleSectionAccess($userStore.user, 'validator')
+    && !hasEarnedRole($userStore.user, 'validator')
+  );
 
   let typesForCategory = $derived(
     category === 'all' ? allTypes : allTypes.filter(t => t.category === category)
@@ -703,8 +710,10 @@
     hasActiveFilters ? 'No highlights match these filters' : 'No highlighted contributions yet',
     hasActiveFilters
       ? 'Try clearing some filters to see highlighted contributions from other categories or types.'
-      : 'Submit impactful or pioneering work and a steward may highlight it.',
-    hasActiveFilters ? clearFiltersAction : submitContributionAction
+      : (isValidatorReadOnlyViewer
+          ? 'Highlighted validator contributions will appear here when available.'
+          : 'Submit impactful or pioneering work and a steward may highlight it.'),
+    hasActiveFilters ? clearFiltersAction : (isValidatorReadOnlyViewer ? null : submitContributionAction)
   )}
 {/snippet}
 
@@ -720,7 +729,9 @@
     <p class="text-[13px] text-[#6b6b6b] leading-snug flex-1">
       {hasActiveFilters
         ? 'No highlights match these filters.'
-        : 'No highlighted contributions yet. Submit impactful work and a steward may highlight it.'}
+        : (isValidatorReadOnlyViewer
+            ? 'No highlighted validator contributions yet.'
+            : 'No highlighted contributions yet. Submit impactful work and a steward may highlight it.')}
     </p>
   </div>
 {/snippet}
@@ -731,15 +742,24 @@
     hasActiveFilters ? 'No contributions match these filters' : 'No contributions yet',
     hasActiveFilters
       ? 'Try clearing some filters or searching by a different name or address.'
-      : 'Be the first — submit a contribution to get started.',
-    hasActiveFilters ? clearFiltersAction : submitContributionAction
+      : (isValidatorReadOnlyViewer
+          ? 'Accepted validator contributions will appear here when available.'
+          : 'Be the first — submit a contribution to get started.'),
+    hasActiveFilters ? clearFiltersAction : (isValidatorReadOnlyViewer ? null : submitContributionAction)
   )}
 {/snippet}
 
 <div class="space-y-8">
   <!-- Header -->
   <div class="flex flex-col gap-1">
-    <h1 class="text-[28px] md:text-[32px] font-semibold text-black" style="letter-spacing: -0.4px;">{pageTitle}</h1>
+    <div class="flex flex-wrap items-center gap-3">
+      <h1 class="text-[28px] md:text-[32px] font-semibold text-black" style="letter-spacing: -0.4px;">{pageTitle}</h1>
+      {#if isValidatorReadOnlyViewer}
+        <span class="inline-flex min-h-7 items-center rounded-full border border-[#cdddf8] bg-[#edf4ff] px-3 text-[11px] font-semibold text-[#245ca8]">
+          View-only access
+        </span>
+      {/if}
+    </div>
     <p class="text-[14px] text-[#6b6b6b]" style="letter-spacing: 0.28px;">{pageSubtitle}</p>
   </div>
 
@@ -998,21 +1018,25 @@
           class="text-[17px] text-black leading-[28px]"
           style="letter-spacing: 0.34px;"
         >
-          Submit a contribution and help shape the future of GenLayer. Every action counts toward the network's progress.
+          {isValidatorReadOnlyViewer
+            ? 'Explore the work supporting validator operations, testing, and network reliability.'
+            : "Submit a contribution and help shape the future of GenLayer. Every action counts toward the network's progress."}
         </p>
-        <button
-          onclick={() => push('/submit-contribution')}
-          class="flex gap-[8px] items-center justify-center h-[44px] px-[20px] rounded-[22px] transition-colors hover:opacity-90"
-          style="background-color: #9e4bf6;"
-        >
-          <span
-            class="text-[14px] font-medium text-white leading-[21px]"
-            style="letter-spacing: 0.28px;"
+        {#if !isValidatorReadOnlyViewer}
+          <button
+            onclick={() => push('/submit-contribution')}
+            class="flex gap-[8px] items-center justify-center h-[44px] px-[20px] rounded-[22px] transition-colors hover:opacity-90"
+            style="background-color: #9e4bf6;"
           >
-            Submit a contribution
-          </span>
-          <img src="/assets/icons/arrow-right-line-white.svg" alt="" class="w-4 h-4" />
-        </button>
+            <span
+              class="text-[14px] font-medium text-white leading-[21px]"
+              style="letter-spacing: 0.28px;"
+            >
+              Submit a contribution
+            </span>
+            <img src="/assets/icons/arrow-right-line-white.svg" alt="" class="w-4 h-4" />
+          </button>
+        {/if}
       </div>
     </div>
   </div>
