@@ -2,6 +2,8 @@
   // @ts-nocheck
   import { socialTasksAPI } from '../lib/api.js';
   import { authState } from '../lib/auth.js';
+  import { userStore } from '../lib/userStore.js';
+  import { hasReadOnlyRoleSectionAccess } from '../lib/roleState.js';
   import { currentCategory } from '../stores/category.js';
   import { getCategoryGradientStyle } from '../lib/categoryPresentation.js';
   import { getCategoryAccent } from '../lib/categoryColors.js';
@@ -19,6 +21,9 @@
   let labels = $derived(getTaskLabels($currentCategory));
   let pageCategory = $derived(
     $currentCategory && $currentCategory !== 'global' ? $currentCategory : 'community'
+  );
+  let isRoleSectionReadOnly = $derived(
+    hasReadOnlyRoleSectionAccess($userStore.user, pageCategory)
   );
   let accentColor = $derived(getCategoryAccent(pageCategory));
   let pageGradientStyle = $derived(getCategoryGradientStyle(pageCategory, accentColor));
@@ -108,6 +113,11 @@
           >
             {labels.title}
           </h1>
+          {#if isRoleSectionReadOnly}
+            <span class="mt-3 inline-flex min-h-7 items-center rounded-full border border-[#cdddf8] bg-[#edf4ff] px-3 text-[11px] font-semibold text-[#245ca8]">
+              View-only access
+            </span>
+          {/if}
           <p class="mt-2 text-[14px] text-[#3f4b5f] sm:text-[15px]">{labels.subtitle}</p>
         </div>
       </div>
@@ -195,7 +205,7 @@
     {:else}
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {#each filteredTasks as task (task.slug)}
-          <SocialTaskCard {task} {onCompleted} />
+          <SocialTaskCard {task} {onCompleted} readOnly={isRoleSectionReadOnly} />
         {/each}
       </div>
     {/if}

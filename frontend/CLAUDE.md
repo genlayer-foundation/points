@@ -299,7 +299,7 @@ frontend/src/
   - Shared utils: `src/lib/notificationUtils.js` (`asList` payload normalization, `followNotificationLink` link handling) and `src/lib/relativeTime.js` for compact timestamps
 - **Sidebar**: `src/components/Sidebar.svelte`
   - Side navigation with collapsible sections
-  - Validator read-only exception: `/users/me/` may return `can_view_validator_sections=true` for the single backend-configured account. This unlocks validator Contributions and Wall of Shame navigation without changing `hasEarnedRole`; Tasks and point-bearing actions remain Validator-role-only.
+  - Admin-managed role viewer: `/users/me/` may return `can_view_role_sections=true`. This unlocks gated Builder, Validator, and Community views without changing `hasEarnedRole`; Steward tools are excluded and point-bearing actions remain real-role-only.
   - Navigation structure:
     - **Overview** (links to `/`) - Contains Testnet Asimov and Metrics sub-items
     - **Builders** - Category-specific dashboard and pages

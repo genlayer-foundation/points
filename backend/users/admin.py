@@ -59,8 +59,8 @@ class UserAdmin(CloudinaryUploadMixin, BaseUserAdmin):
         },
     }
 
-    list_display = ('email', 'name', 'is_staff', 'is_active', 'visible', 'is_banned', 'address', 'is_email_verified', 'email_verified_at')
-    list_filter = ('is_staff', 'is_active', 'visible', 'is_banned', 'is_email_verified')
+    list_display = ('email', 'name', 'is_staff', 'is_active', 'visible', 'can_view_role_sections', 'is_banned', 'address', 'is_email_verified', 'email_verified_at')
+    list_filter = ('is_staff', 'is_active', 'visible', 'can_view_role_sections', 'is_banned', 'is_email_verified')
     search_fields = ('email', 'name', 'address', 'referral_code', 'twitter_handle', 'discord_handle', 'telegram_handle')
     ordering = ('email',)
     
@@ -71,6 +71,13 @@ class UserAdmin(CloudinaryUploadMixin, BaseUserAdmin):
         (_('Contact & Social'), {'fields': ('website', 'twitter_handle', 'discord_handle', 'telegram_handle', 'linkedin_handle')}),
         (_('Referral System'), {'fields': ('referral_code', 'referred_by')}),
         (_('Visibility'), {'fields': ('visible',)}),
+        (_('Read-only role access'), {
+            'fields': ('can_view_role_sections',),
+            'description': (
+                'Allows this account to view gated Builder, Validator, and Community '
+                'sections without granting those roles or any Steward access.'
+            ),
+        }),
         (_('Ban Status'), {'fields': ('is_banned', 'ban_reason', 'banned_at', 'banned_by')}),
         (_('Permissions'), {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         (_('Important dates'), {'fields': ('last_login', 'date_joined', 'created_at', 'updated_at')}),

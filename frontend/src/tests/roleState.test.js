@@ -6,6 +6,7 @@ import {
   roleForCategory,
   hasAnyRoleOrJourney,
   hasRoleSectionAccess,
+  hasReadOnlyRoleSectionAccess,
 } from '../lib/roleState.js';
 
 describe('roleState.roleFunnelState', () => {
@@ -71,18 +72,31 @@ describe('roleState.hasRoleSectionAccess', () => {
     expect(hasRoleSectionAccess({ builder: {} }, 'builder')).toBe(true);
   });
 
-  it('allows the configured view-only exception for validators only', () => {
-    const viewer = { can_view_validator_sections: true };
+  it('allows the admin-managed viewer across non-steward roles only', () => {
+    const viewer = { can_view_role_sections: true };
 
     expect(hasRoleSectionAccess(viewer, 'validator')).toBe(true);
-    expect(hasRoleSectionAccess(viewer, 'builder')).toBe(false);
-    expect(hasRoleSectionAccess(viewer, 'community')).toBe(false);
+    expect(hasRoleSectionAccess(viewer, 'builder')).toBe(true);
+    expect(hasRoleSectionAccess(viewer, 'community')).toBe(true);
+    expect(hasRoleSectionAccess(viewer, 'steward')).toBe(false);
+    expect(hasRoleSectionAccess(viewer, 'global')).toBe(false);
   });
 
-  it('does not turn validator viewing access into an earned role', () => {
-    const viewer = { can_view_validator_sections: true };
+  it('identifies categories where the viewer lacks the real role', () => {
+    const viewer = { can_view_role_sections: true, builder: {} };
+
+    expect(hasReadOnlyRoleSectionAccess(viewer, 'validator')).toBe(true);
+    expect(hasReadOnlyRoleSectionAccess(viewer, 'community')).toBe(true);
+    expect(hasReadOnlyRoleSectionAccess(viewer, 'builder')).toBe(false);
+    expect(hasReadOnlyRoleSectionAccess(viewer, 'steward')).toBe(false);
+  });
+
+  it('does not turn viewing access into an earned role', () => {
+    const viewer = { can_view_role_sections: true };
 
     expect(roleFunnelState(true, viewer, 'validator')).toBe('none');
+    expect(roleFunnelState(true, viewer, 'builder')).toBe('none');
+    expect(roleFunnelState(true, viewer, 'community')).toBe('none');
     expect(hasAnyRoleOrJourney(viewer)).toBe(false);
   });
 });

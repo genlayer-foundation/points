@@ -2,6 +2,12 @@ from dataclasses import dataclass
 
 from django.core.exceptions import ValidationError
 
+from users.role_access import (
+    VIEWABLE_ROLE_CATEGORIES,
+    is_role_section_read_only,
+    user_has_role_profile,
+)
+
 
 SUPPORTED_RULE_TYPES = {
     'accepted_submittable_contribution',
@@ -33,9 +39,31 @@ def validate_eligibility_requirements(value):
 
 
 def evaluate_task_eligibility(task, user):
-    # Validator tasks can award validator leaderboard points. Portal viewing
-    # exceptions must never become an alternate path to earning those points.
-    if getattr(getattr(task, 'category', None), 'slug', None) == 'validator':
+    """Evaluate task rules without allowing read-only access to award points."""
+    category_slug = getattr(getattr(task, 'category', None), 'slug', None)
+
+    # Journey tasks remain available to ordinary pre-role users. The explicit
+    # admin viewer flag is different: while enabled, it must never become an
+    # alternate path to completing tasks in a role the user does not hold.
+    if (
+        category_slug in VIEWABLE_ROLE_CATEGORIES
+        and user is not None
+        and getattr(user, 'is_authenticated', False)
+        and is_role_section_read_only(user, category_slug)
+    ):
+        return EligibilityResult(
+            False,
+            'View-only access does not allow task completion.',
+            details={
+                'requirements': [],
+                'required_role': category_slug,
+                'read_only': True,
+            },
+        )
+
+    # Validator tasks are never part of a pre-role journey and can award
+    # validator leaderboard points, so every non-validator remains ineligible.
+    if category_slug == 'validator':
         if user is None or not getattr(user, 'is_authenticated', False):
             return EligibilityResult(
                 False,
@@ -43,8 +71,7 @@ def evaluate_task_eligibility(task, user):
                 details={'requirements': [], 'required_role': 'validator'},
             )
 
-        from validators.models import user_has_validator_profile
-        if not user_has_validator_profile(user):
+        if not user_has_role_profile(user, 'validator'):
             return EligibilityResult(
                 False,
                 'Only validators can complete validator tasks.',

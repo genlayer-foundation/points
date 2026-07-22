@@ -18,6 +18,7 @@ from eth_account.messages import encode_defunct
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from creators.models import Creator
 from ethereum_auth.models import Nonce
 from poaps.admin import PoapDistributionAdminForm, PoapDropAdmin, PoapDropAdminForm
 from poaps.models import PoapClaim, PoapDistribution, PoapDrop, PoapImportBatch
@@ -144,6 +145,39 @@ class PoapAPITest(TestCase):
         self.assertTrue(PoapClaim.objects.filter(drop=self.drop, user=self.user).exists())
         distribution.refresh_from_db()
         self.assertEqual(distribution.claimed_count, 1)
+
+    def test_read_only_community_viewer_cannot_claim_secret(self):
+        distribution = self._secret_distribution()
+        self.user.can_view_role_sections = True
+        self.user.save(update_fields=['can_view_role_sections', 'updated_at'])
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            '/api/v1/poaps/ama-session/claim-secret/',
+            {'secret': 'friend-scientist-natural'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data['code'], 'role_view_only')
+        self.assertFalse(PoapClaim.objects.filter(drop=self.drop, user=self.user).exists())
+        distribution.refresh_from_db()
+        self.assertEqual(distribution.claimed_count, 0)
+
+    def test_real_creator_with_view_flag_can_still_claim_secret(self):
+        self._secret_distribution()
+        self.user.can_view_role_sections = True
+        self.user.save(update_fields=['can_view_role_sections', 'updated_at'])
+        Creator.objects.create(user=self.user)
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            '/api/v1/poaps/ama-session/claim-secret/',
+            {'secret': 'friend-scientist-natural'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_secret_claim_requires_discord_connection(self):
         distribution = self._secret_distribution()
@@ -275,6 +309,59 @@ class PoapAPITest(TestCase):
         distribution.refresh_from_db()
         self.assertEqual(link.used_count, 1)
         self.assertEqual(distribution.claimed_count, 1)
+
+    def test_read_only_community_viewer_cannot_claim_mint_links(self):
+        distribution = PoapDistribution.objects.create(
+            drop=self.drop,
+            method=PoapDistribution.METHOD_MINT_LINK,
+            active=True,
+        )
+        generated_links = generate_mint_links(distribution=distribution, count=2)
+        self.user.can_view_role_sections = True
+        self.user.save(update_fields=['can_view_role_sections', 'updated_at'])
+        self.client.force_authenticate(user=self.user)
+
+        modern_link, modern_token = generated_links[0]
+        legacy_link, legacy_token = generated_links[1]
+        responses = (
+            self.client.post(
+                '/api/v1/poaps/claim-link/',
+                {'token': modern_token},
+                format='json',
+            ),
+            self.client.post(f'/api/v1/poaps/claim-link/{legacy_token}/'),
+        )
+
+        for response in responses:
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+            self.assertEqual(response.data['code'], 'role_view_only')
+        self.assertFalse(PoapClaim.objects.filter(drop=self.drop, user=self.user).exists())
+        modern_link.refresh_from_db()
+        legacy_link.refresh_from_db()
+        distribution.refresh_from_db()
+        self.assertEqual(modern_link.used_count, 0)
+        self.assertEqual(legacy_link.used_count, 0)
+        self.assertEqual(distribution.claimed_count, 0)
+
+    def test_real_creator_with_view_flag_can_claim_mint_link(self):
+        distribution = PoapDistribution.objects.create(
+            drop=self.drop,
+            method=PoapDistribution.METHOD_MINT_LINK,
+            active=True,
+        )
+        [(_link, token)] = generate_mint_links(distribution=distribution, count=1)
+        self.user.can_view_role_sections = True
+        self.user.save(update_fields=['can_view_role_sections', 'updated_at'])
+        Creator.objects.create(user=self.user)
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            '/api/v1/poaps/claim-link/',
+            {'token': token},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_mint_link_claim_reports_missing_token(self):
         self.client.force_authenticate(user=self.user)
@@ -584,6 +671,20 @@ class PoapAPITest(TestCase):
         claim.refresh_from_db()
         self.assertEqual(claim.user, self.user)
         self.assertEqual(self.client.session['ethereum_address'], self.user.address)
+
+    def test_read_only_community_viewer_cannot_recover_poaps(self):
+        self.user.can_view_role_sections = True
+        self.user.save(update_fields=['can_view_role_sections', 'updated_at'])
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            '/api/v1/poaps/verify-wallet/',
+            {},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data['code'], 'role_view_only')
 
     def test_verify_wallet_rejects_invalid_signature(self):
         account = Account.create()

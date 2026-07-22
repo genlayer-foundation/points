@@ -411,22 +411,71 @@ class SocialTaskViewSetTest(TestCase):
             action_url='https://example.com/validator',
         )
 
-        with override_settings(VALIDATOR_SECTION_VIEWER_USER_ID=self.user.id):
-            list_response = self.client.get('/api/v1/social-tasks/?category=validator')
-            complete_response = self.client.post(
-                f'/api/v1/social-tasks/{task.slug}/complete/'
-            )
+        self.user.can_view_role_sections = True
+        self.user.save(update_fields=['can_view_role_sections', 'updated_at'])
+
+        list_response = self.client.get('/api/v1/social-tasks/?category=validator')
+        complete_response = self.client.post(
+            f'/api/v1/social-tasks/{task.slug}/complete/'
+        )
 
         self.assertEqual(list_response.status_code, 200)
         listed_task = list_response.json()[0]
         self.assertEqual(listed_task['status'], 'locked')
         self.assertFalse(listed_task['can_complete'])
         self.assertEqual(listed_task['eligibility']['required_role'], 'validator')
+        self.assertTrue(listed_task['eligibility']['read_only'])
         self.assertEqual(complete_response.status_code, 403)
         self.assertEqual(complete_response.json()['error'], 'eligibility_failed')
         self.assertFalse(
             SocialTaskCompletion.objects.filter(user=self.user, task=task).exists()
         )
+
+    def test_view_only_user_cannot_complete_builder_or_community_tasks(self):
+        self.user.can_view_role_sections = True
+        self.user.save(update_fields=['can_view_role_sections', 'updated_at'])
+
+        for category_slug in ('builder', 'community'):
+            with self.subTest(category=category_slug):
+                category, _ = Category.objects.get_or_create(
+                    slug=category_slug,
+                    defaults={'name': category_slug.title()},
+                )
+                task = SocialTask.objects.create(
+                    slug=f'view-only-{category_slug}-task',
+                    name=f'View-only {category_slug} task',
+                    category=category,
+                    points=25,
+                    verification_type='click_through',
+                    action_url=f'https://example.com/{category_slug}',
+                )
+
+                list_response = self.client.get(
+                    f'/api/v1/social-tasks/?category={category_slug}'
+                )
+                complete_response = self.client.post(
+                    f'/api/v1/social-tasks/{task.slug}/complete/'
+                )
+
+                listed_task = next(
+                    item for item in list_response.json() if item['slug'] == task.slug
+                )
+                self.assertEqual(listed_task['status'], 'locked')
+                self.assertFalse(listed_task['can_complete'])
+                self.assertEqual(
+                    listed_task['eligibility']['required_role'], category_slug
+                )
+                self.assertTrue(listed_task['eligibility']['read_only'])
+                self.assertEqual(complete_response.status_code, 403)
+                self.assertEqual(
+                    complete_response.json()['error'], 'eligibility_failed'
+                )
+                self.assertFalse(
+                    SocialTaskCompletion.objects.filter(
+                        user=self.user,
+                        task=task,
+                    ).exists()
+                )
 
     def test_validator_task_is_locked_for_anonymous_user(self):
         validator_category, _ = Category.objects.get_or_create(
@@ -477,6 +526,8 @@ class SocialTaskViewSetTest(TestCase):
             verification_type='click_through',
             action_url='https://example.com/validator-role',
         )
+        self.user.can_view_role_sections = True
+        self.user.save(update_fields=['can_view_role_sections', 'updated_at'])
         Validator.objects.create(user=self.user)
 
         response = self.client.post(f'/api/v1/social-tasks/{task.slug}/complete/')

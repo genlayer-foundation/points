@@ -14,7 +14,7 @@
   import { authState, verifyAuth } from './lib/auth.js';
   import { userStore } from './lib/userStore.js';
   import { normalizeReferralCode } from './lib/referrals.js';
-  import { hasEarnedRole, hasRoleSectionAccess, journeyPath, rolePath } from './lib/roleState.js';
+  import { hasRoleSectionAccess, journeyPath, rolePath } from './lib/roleState.js';
   import { installLinkInterceptor } from './lib/router.js';
   import { getAnalyticsContext, initializeAnalytics, setConnectWalletIntent, templateRoute, trackEvent, trackPageView } from './lib/analytics.js';
 
@@ -175,48 +175,29 @@
     conditions: [requireAuthForRoute],
   });
 
-  // Role-gated subsection: must be authenticated AND hold the role, else bounce
-  // to the role's main route (the funnel) so the user can start there. Selected
-  // read-only validator routes may also admit the singular backend-configured
-  // viewer; point-bearing routes still require actual role membership.
-  /**
-   * @param {Record<string, any> | null | undefined} user
-   * @param {string} category
-   * @param {boolean} allowViewOnly
-   */
-  function hasSubsectionAccess(user, category, allowViewOnly) {
-    return allowViewOnly
-      ? hasRoleSectionAccess(user, category)
-      : hasEarnedRole(user, category);
-  }
-
+  // Role-gated subsection: actual members and admin-enabled read-only viewers
+  // may enter Builder, Validator, and Community views. Steward routes use their
+  // existing, separate authorization and are never included here.
   /**
    * @param {string} category
-   * @param {{ allowViewOnly?: boolean }} options
    */
-  function requireRoleForRoute(category, { allowViewOnly = false } = {}) {
+  function requireRoleForRoute(category) {
     return async (detail) => {
       const authed = await requireAuthForRoute(detail);
       if (!authed) return false;
 
-      let user = userStore.getUser();
-      if (!user) {
-        try {
-          user = await userStore.loadUser();
-        } catch (err) {
-          const status = err.response?.status;
-          if (!(status === 401 || status === 403)) {
-            // Membership couldn't be verified (backend down/overloaded), which
-            // is not the same as "no role". Fail open: the backend enforces
-            // real permissions on every API call, so the worst case is an
-            // error state inside the page — far better than bouncing a member
-            // back to the start of their journey.
-            return true;
-          }
-          user = null;
-        }
+      // Re-read /users/me/ on every gated navigation so an admin toggle or
+      // revocation takes effect without trusting stale client state. loadUser
+      // coalesces overlapping calls, so rapid navigation shares one request.
+      let user = null;
+      try {
+        user = await userStore.loadUser();
+      } catch {
+        // Permission could not be verified. Fail closed rather than rendering
+        // a gated route from stale or missing client state.
+        user = null;
       }
-      if (hasSubsectionAccess(user, category, allowViewOnly)) return true;
+      if (hasRoleSectionAccess(user, category)) return true;
 
       // Stale-navigation guard: only redirect if still on the guarded route.
       const normalizePath = (value) => (value || '/').replace(/\/+$/, '') || '/';
@@ -239,11 +220,10 @@
   /**
    * @param {any} component
    * @param {string} category
-   * @param {{ allowViewOnly?: boolean }} options
    */
-  const roleGatedRoute = (component, category, options = {}) => wrap({
+  const roleGatedRoute = (component, category) => wrap({
     component,
-    conditions: [requireRoleForRoute(category, options)],
+    conditions: [requireRoleForRoute(category)],
   });
 
   // Define routes
@@ -290,12 +270,12 @@
     // Validators routes
     '/validators': RoleFunnel,
     '/validators/journey': ValidatorWaitlist,
-    '/validators/contributions': roleGatedRoute(Contributions, 'validator', { allowViewOnly: true }),
-    '/validators/all-contributions': roleGatedRoute(AllContributions, 'validator', { allowViewOnly: true }),
+    '/validators/contributions': roleGatedRoute(Contributions, 'validator'),
+    '/validators/all-contributions': roleGatedRoute(AllContributions, 'validator'),
     '/validators/leaderboard': protectedRoute(Leaderboard),
     '/validators/tasks': roleGatedRoute(SocialTasks, 'validator'),
     '/validators/participants': protectedRoute(Validators),
-    '/validators/wall-of-shame': roleGatedRoute(WallOfShame, 'validator', { allowViewOnly: true }),
+    '/validators/wall-of-shame': roleGatedRoute(WallOfShame, 'validator'),
     '/validators/waitlist': protectedRoute(Waitlist),
     '/validators/waitlist/participants': protectedRoute(WaitlistParticipants),
     '/validators/waitlist/join': ValidatorWaitlist,
