@@ -31,6 +31,19 @@ export function hasEarnedRole(user, category) {
   return false;
 }
 
+// Read access is deliberately separate from role membership. The backend only
+// returns this flag to the one configured account on /users/me/; keeping it out
+// of hasEarnedRole prevents validator identity, funnels, submissions, and stats
+// from treating that account as a validator.
+/**
+ * @param {Record<string, any> | null | undefined} user
+ * @param {string} category
+ */
+export function hasRoleSectionAccess(user, category) {
+  if (hasEarnedRole(user, category)) return true;
+  return category === 'validator' && user?.can_view_validator_sections === true;
+}
+
 // "Started but not earned", from durable point-free `<role>-welcome` markers set
 // when the user clicks "Start the journey" (plus the role's deeper signals for
 // back-compat: validator waitlist, community social links).

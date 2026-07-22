@@ -11,6 +11,7 @@ from social_connections.encryption import encrypt_token
 from social_connections.models import DiscordConnection, TwitterConnection
 from social_tasks.models import SocialTask, SocialTaskCompletion
 from users.models import User
+from validators.models import Validator
 
 
 TEST_ENCRYPTION_KEY = Fernet.generate_key().decode()
@@ -395,6 +396,58 @@ class SocialTaskViewSetTest(TestCase):
         self.assertEqual(response.json()['error'], 'eligibility_failed')
         self.assertFalse(
             SocialTaskCompletion.objects.filter(user=self.user, task=self.click_task).exists()
+        )
+
+    def test_validator_task_is_locked_for_view_only_non_validator(self):
+        validator_category, _ = Category.objects.get_or_create(
+            slug='validator', defaults={'name': 'Validator'}
+        )
+        task = SocialTask.objects.create(
+            slug='validator-click-task',
+            name='Validator Click Task',
+            category=validator_category,
+            points=25,
+            verification_type='click_through',
+            action_url='https://example.com/validator',
+        )
+
+        with override_settings(VALIDATOR_SECTION_VIEWER_USER_ID=self.user.id):
+            list_response = self.client.get('/api/v1/social-tasks/?category=validator')
+            complete_response = self.client.post(
+                f'/api/v1/social-tasks/{task.slug}/complete/'
+            )
+
+        self.assertEqual(list_response.status_code, 200)
+        listed_task = list_response.json()[0]
+        self.assertEqual(listed_task['status'], 'locked')
+        self.assertFalse(listed_task['can_complete'])
+        self.assertEqual(listed_task['eligibility']['required_role'], 'validator')
+        self.assertEqual(complete_response.status_code, 403)
+        self.assertEqual(complete_response.json()['error'], 'eligibility_failed')
+        self.assertFalse(
+            SocialTaskCompletion.objects.filter(user=self.user, task=task).exists()
+        )
+
+    def test_validator_can_complete_validator_task(self):
+        validator_category, _ = Category.objects.get_or_create(
+            slug='validator', defaults={'name': 'Validator'}
+        )
+        task = SocialTask.objects.create(
+            slug='validator-role-task',
+            name='Validator Role Task',
+            category=validator_category,
+            points=25,
+            verification_type='click_through',
+            action_url='https://example.com/validator-role',
+        )
+        Validator.objects.create(user=self.user)
+
+        response = self.client.post(f'/api/v1/social-tasks/{task.slug}/complete/')
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()['points_awarded'], 25)
+        self.assertTrue(
+            SocialTaskCompletion.objects.filter(user=self.user, task=task).exists()
         )
 
     def test_any_requirement_allows_community_points_or_accepted_contribution(self):

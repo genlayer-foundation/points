@@ -5,6 +5,7 @@ import {
   journeyPath,
   roleForCategory,
   hasAnyRoleOrJourney,
+  hasRoleSectionAccess,
 } from '../lib/roleState.js';
 
 describe('roleState.roleFunnelState', () => {
@@ -61,6 +62,28 @@ describe('roleState path helpers', () => {
     expect(roleForCategory('community')).toBe('community');
     expect(roleForCategory('global')).toBe('community');
     expect(roleForCategory('steward')).toBe('community');
+  });
+});
+
+describe('roleState.hasRoleSectionAccess', () => {
+  it('allows users who actually hold the requested role', () => {
+    expect(hasRoleSectionAccess({ validator: {} }, 'validator')).toBe(true);
+    expect(hasRoleSectionAccess({ builder: {} }, 'builder')).toBe(true);
+  });
+
+  it('allows the configured view-only exception for validators only', () => {
+    const viewer = { can_view_validator_sections: true };
+
+    expect(hasRoleSectionAccess(viewer, 'validator')).toBe(true);
+    expect(hasRoleSectionAccess(viewer, 'builder')).toBe(false);
+    expect(hasRoleSectionAccess(viewer, 'community')).toBe(false);
+  });
+
+  it('does not turn validator viewing access into an earned role', () => {
+    const viewer = { can_view_validator_sections: true };
+
+    expect(roleFunnelState(true, viewer, 'validator')).toBe('none');
+    expect(hasAnyRoleOrJourney(viewer)).toBe(false);
   });
 });
 

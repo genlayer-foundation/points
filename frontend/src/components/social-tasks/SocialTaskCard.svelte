@@ -9,7 +9,7 @@
   import { getAnalyticsContext, setConnectWalletIntent, trackEvent } from '../../lib/analytics.js';
   import SocialLink from '../SocialLink.svelte';
 
-  let { task, onCompleted = () => {}, pointsLabel = 'pts' } = $props();
+  let { task, onCompleted = () => {}, pointsLabel = 'pts', readOnly = false } = $props();
 
   // ~5 seconds after a click-through user opens the link, we credit them.
   const CLICK_THROUGH_DELAY_MS = 5000 + Math.floor(Math.random() * 500);
@@ -27,11 +27,15 @@
   let clickThroughTimer = null;
 
   let isCompleted = $derived(task.status === 'completed');
-  let isLocked = $derived(!isCompleted && (task.status === 'locked' || task.can_complete === false));
+  let isLocked = $derived(
+    !isCompleted && (readOnly || task.status === 'locked' || task.can_complete === false)
+  );
   let requiresVerification = $derived(task.requires_verification === true);
   let category = $derived(task.category_slug || 'community');
   let colors = $derived(getCategoryPillColors(category));
-  let lockedMessage = $derived(task.eligibility?.message || 'Meet this task requirement first.');
+  let lockedMessage = $derived(
+    readOnly ? 'View-only access' : (task.eligibility?.message || 'Meet this task requirement first.')
+  );
 
   let isAuthenticated = $derived($authState.isAuthenticated);
   let user = $derived($userStore?.user || null);

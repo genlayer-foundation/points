@@ -9,7 +9,7 @@
   import { getTaskLabels } from '../../lib/socialTaskLabels.js';
   import SocialTaskCard from './SocialTaskCard.svelte';
 
-  let { limit = 8 } = $props();
+  let { limit = 8, readOnly = false } = $props();
 
   let tasks = $state([]);
   let totalCount = $state(0);
@@ -128,14 +128,16 @@
           </button>
         {/if}
 
-        <button
-          type="button"
-          onclick={() => push(labels.listPath)}
-          class="inline-flex h-11 items-center justify-center gap-1.5 rounded-[8px] border border-[#dfe4ee] bg-white px-3 text-[13px] font-semibold text-[#111827] shadow-[0_8px_18px_rgba(31,42,68,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.12)]"
-        >
-          View all
-          <img src="/assets/icons/arrow-right-line.svg" alt="" class="h-4 w-4" />
-        </button>
+        {#if !readOnly}
+          <button
+            type="button"
+            onclick={() => push(labels.listPath)}
+            class="inline-flex h-11 items-center justify-center gap-1.5 rounded-[8px] border border-[#dfe4ee] bg-white px-3 text-[13px] font-semibold text-[#111827] shadow-[0_8px_18px_rgba(31,42,68,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.12)]"
+          >
+            View all
+            <img src="/assets/icons/arrow-right-line.svg" alt="" class="h-4 w-4" />
+          </button>
+        {/if}
       </div>
     </div>
 
@@ -145,7 +147,7 @@
     >
       {#each tasks as task (task.slug)}
         <div class="w-[280px] max-w-[82vw] flex-shrink-0 snap-start">
-          <SocialTaskCard {task} {onCompleted} />
+          <SocialTaskCard {task} {onCompleted} {readOnly} />
         </div>
       {/each}
     </div>
