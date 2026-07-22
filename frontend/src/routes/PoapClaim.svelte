@@ -14,6 +14,7 @@
   /** @type {any} */
   let drop = $state(null);
   let attempted = $state(false);
+  let roleViewOnly = $state(false);
 
   let routeToken = $derived($params?.token || '');
   let token = $derived(routeToken || tokenFromUrl());
@@ -42,7 +43,8 @@
   /** @param {any} err */
   function isAuthError(err) {
     const statusCode = err?.response?.status;
-    if (isDiscordLinkError(err)) return false;
+    const errorCode = err?.response?.data?.code;
+    if (isDiscordLinkError(err) || errorCode === 'role_view_only') return false;
     return statusCode === 401 || statusCode === 403;
   }
 
@@ -88,6 +90,7 @@
       }
     } catch (err) {
       const requestError = /** @type {any} */ (err);
+      roleViewOnly = requestError.response?.data?.code === 'role_view_only';
       if (isAuthError(requestError)) {
         attempted = false;
         status = 'auth';
@@ -147,6 +150,7 @@
   function heading() {
     if (status === 'claimed') return 'POAP claimed';
     if (requiresDiscordLink) return 'Link Discord';
+    if (roleViewOnly) return 'View-only access';
     if (status === 'error') return 'Mint link not available';
     if (status === 'auth') return 'Connect wallet';
     return 'Claim POAP';
@@ -155,6 +159,7 @@
   function statusText() {
     if (status === 'claimed') return 'Claimed';
     if (requiresDiscordLink) return 'Discord required';
+    if (roleViewOnly) return 'View only';
     if (status === 'error') return 'Unavailable';
     if (status === 'claiming') return 'Claiming';
     if (status === 'auth') return 'Wallet required';

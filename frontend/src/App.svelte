@@ -187,7 +187,8 @@
       if (!authed) return false;
 
       // Re-read /users/me/ on every gated navigation so an admin toggle or
-      // revocation takes effect without trusting stale client state.
+      // revocation takes effect without trusting stale client state. loadUser
+      // coalesces overlapping calls, so rapid navigation shares one request.
       let user = null;
       try {
         user = await userStore.loadUser();

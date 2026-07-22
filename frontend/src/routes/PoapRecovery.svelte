@@ -123,7 +123,9 @@ Issued At: ${new Date().toISOString()}`;
   /** @param {any} err */
   function isAuthError(err) {
     const statusCode = err?.response?.status;
-    return statusCode === 401 || statusCode === 403;
+    const errorCode = err?.response?.data?.code;
+    return errorCode !== 'role_view_only'
+      && (statusCode === 401 || statusCode === 403);
   }
 
   async function verifyPoapWallet() {

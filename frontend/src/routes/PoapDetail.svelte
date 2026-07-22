@@ -112,7 +112,8 @@
   /** @param {any} err */
   function isAuthError(err) {
     const statusCode = err?.response?.status;
-    if (isDiscordLinkError(err)) return false;
+    const errorCode = err?.response?.data?.code;
+    if (isDiscordLinkError(err) || errorCode === 'role_view_only') return false;
     return statusCode === 401 || statusCode === 403;
   }
 

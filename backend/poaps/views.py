@@ -228,6 +228,10 @@ class PoapDropViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(PoapClaimSerializer(claim).data, status=status.HTTP_201_CREATED)
 
     def _claim_link_with_token(self, request, token):
+        read_only_response = self._read_only_community_response(request)
+        if read_only_response is not None:
+            return read_only_response
+
         try:
             claim = claim_with_mint_link(token=token, user=request.user)
         except PoapDrop.DoesNotExist:

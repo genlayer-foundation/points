@@ -20,7 +20,7 @@ def user_has_role_profile(user, category):
     cache = getattr(user, '_role_profile_access_cache', None)
     if cache is None:
         cache = {}
-        setattr(user, '_role_profile_access_cache', cache)
+        user._role_profile_access_cache = cache
     if category not in cache:
         app_label, model_name = _ROLE_PROFILE_MODELS[category]
         model = apps.get_model(app_label, model_name)
