@@ -4,6 +4,7 @@
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
   import { poapsAPI } from '../lib/api.js';
+  import { hasReadOnlyRoleSectionAccess } from '../lib/roleState.js';
   import { clearPoapClaimRedirect } from '../lib/poapRedirect.js';
   import { showError, showSuccess } from '../lib/toastStore.js';
   import SocialLink from '../components/SocialLink.svelte';
@@ -15,6 +16,7 @@
   let drop = $state(null);
   let attempted = $state(false);
   let roleViewOnly = $state(false);
+  let preparing = false;
 
   let routeToken = $derived($params?.token || '');
   let token = $derived(routeToken || tokenFromUrl());
@@ -109,15 +111,64 @@
     }
   }
 
+  async function prepareClaim() {
+    if (preparing || attempted || !$authState.isAuthenticated) return;
+    const claimToken = token;
+    if (!claimToken) {
+      status = 'error';
+      message = 'This mint link is missing its claim token.';
+      showError(message);
+      return;
+    }
+
+    preparing = true;
+    status = 'checking';
+    message = 'Checking claim access...';
+    try {
+      const user = await userStore.loadUser();
+      if (destroyed) return;
+      if (!$authState.isAuthenticated) {
+        status = 'auth';
+        message = 'Connect your wallet to claim this POAP.';
+        return;
+      }
+      roleViewOnly = hasReadOnlyRoleSectionAccess(user, 'community');
+      if (roleViewOnly) {
+        attempted = true;
+        status = 'error';
+        message = 'View-only access does not include claiming POAPs.';
+        clearPoapClaimRedirect(claimToken);
+        return;
+      }
+      await claim();
+    } catch (err) {
+      if (destroyed) return;
+      const requestError = /** @type {any} */ (err);
+      if (isAuthError(requestError)) {
+        status = 'auth';
+        message = 'Connect your wallet to claim this POAP.';
+        authState.setAuthenticated(false, null);
+        authState.resetVerification();
+        requestLogin();
+        return;
+      }
+      status = 'error';
+      message = 'Unable to verify claim access. Try again later.';
+      showError(message);
+    } finally {
+      preparing = false;
+    }
+  }
+
   /** @param {any} updatedUser */
   function handleDiscordLinked(updatedUser) {
     if (updatedUser) userStore.setUser(updatedUser);
     if (!token) return;
     attempted = false;
-    status = 'claiming';
-    message = 'Claiming your POAP...';
+    status = 'checking';
+    message = 'Checking claim access...';
     window.setTimeout(() => {
-      claim();
+      prepareClaim();
     }, 0);
   }
 
@@ -131,19 +182,13 @@
       message = 'Connect your wallet to claim this POAP.';
       requestLogin();
     } else {
-      claim();
+      prepareClaim();
     }
   });
 
   $effect(() => {
     if ($authState.isAuthenticated && status === 'auth') {
-      claim();
-    }
-  });
-
-  $effect(() => {
-    if ($authState.isAuthenticated && !$userStore.user && !$userStore.loading) {
-      userStore.loadUser().catch(() => {});
+      prepareClaim();
     }
   });
 
@@ -153,6 +198,7 @@
     if (roleViewOnly) return 'View-only access';
     if (status === 'error') return 'Mint link not available';
     if (status === 'auth') return 'Connect wallet';
+    if (status === 'checking') return 'Checking access';
     return 'Claim POAP';
   }
 
@@ -162,6 +208,7 @@
     if (roleViewOnly) return 'View only';
     if (status === 'error') return 'Unavailable';
     if (status === 'claiming') return 'Claiming';
+    if (status === 'checking') return 'Checking';
     if (status === 'auth') return 'Wallet required';
     return 'Mint link';
   }
