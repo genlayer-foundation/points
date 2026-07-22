@@ -1,4 +1,3 @@
-from django.conf import settings
 from rest_framework import serializers
 from .models import BanAppeal, User
 from validators.models import Validator, ValidatorWallet, get_validator_profile
@@ -331,6 +330,10 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     def to_internal_value(self, data):
         if 'email' in data:
             raise serializers.ValidationError({'email': 'Use email verification to change email.'})
+        if 'can_view_role_sections' in data:
+            raise serializers.ValidationError({
+                'can_view_role_sections': 'Only an administrator can change role view access.'
+            })
         return super().to_internal_value(data)
 
     def validate_description(self, value):
@@ -531,7 +534,7 @@ class UserSerializer(serializers.ModelSerializer):
     email_verified_at = serializers.SerializerMethodField()
     is_banned = serializers.SerializerMethodField()
     ban_reason = serializers.SerializerMethodField()
-    can_view_validator_sections = serializers.SerializerMethodField()
+    can_view_role_sections = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -547,8 +550,8 @@ class UserSerializer(serializers.ModelSerializer):
                   'email', 'is_email_verified', 'email_verified_at',
                   # Ban status
                   'is_banned', 'ban_reason',
-                  # Singular read-only validator portal exception
-                  'can_view_validator_sections',
+                  # Admin-managed read-only access to non-steward role sections
+                  'can_view_role_sections',
                   # Social connections
                   'github_connection', 'twitter_connection', 'discord_connection',
                   # Referral fields
@@ -711,20 +714,15 @@ class UserSerializer(serializers.ModelSerializer):
             return obj.ban_reason
         return ''
 
-    def get_can_view_validator_sections(self, obj):
-        """Expose the singular validator viewer exception to its owner only.
-
-        The configured account remains a normal user: this flag is navigation
-        access, not role membership, and never creates a Validator profile.
-        """
-        configured_user_id = getattr(settings, 'VALIDATOR_SECTION_VIEWER_USER_ID', None)
+    def get_can_view_role_sections(self, obj):
+        """Expose the admin-managed viewer flag to its owner only."""
         request = self.context.get('request')
         request_user = getattr(request, 'user', None)
         return bool(
-            configured_user_id
-            and request_user
+            request_user
             and request_user.is_authenticated
-            and request_user.pk == obj.pk == configured_user_id
+            and request_user.pk == obj.pk
+            and obj.can_view_role_sections
         )
 
     def get_referral_code(self, obj):

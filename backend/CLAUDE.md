@@ -538,7 +538,6 @@ Located in `.env` file:
 - `WEB3_RPC_TIMEOUT_SECONDS` - Optional timeout in seconds for validator Web3 HTTP requests (default `10`)
 - `WEB3_RPC_MAX_RETRIES` - Optional number of retries after the initial validator Web3 HTTP request (default `1`)
 - `VALIDATOR_CONTRACT_ADDRESS` - Smart contract address
-- `VALIDATOR_SECTION_VIEWER_USER_ID` - Optional singular user ID that receives read-only access to validator portal sections without a Validator profile, validator metrics membership, or validator task eligibility. Empty disables the exception; malformed/non-positive values fail startup.
 - `SECRET_KEY` - Django secret key
 - `DEBUG` - Debug mode flag
 - `ALLOWED_HOSTS` - Allowed host headers
@@ -656,3 +655,4 @@ The project uses **context-aware serialization** to optimize API performance:
 - URL: `/admin/`
 - Requires superuser account
 - Models registered in `{app}/admin.py`
+- User records include a `can_view_role_sections` checkbox for read-only access to gated Builder, Validator, and Community portal views. It does not create role profiles, enable role actions, affect role metrics, or grant Steward access.

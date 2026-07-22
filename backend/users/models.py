@@ -52,6 +52,14 @@ class User(AbstractUser, BaseModel):
     address = models.CharField(max_length=42, blank=True, null=True,
                               help_text="Ethereum wallet address associated with this user")
     visible = models.BooleanField(default=True, help_text="Whether this user should be visible in API responses.")
+    can_view_role_sections = models.BooleanField(
+        default=False,
+        help_text=(
+            "Allow read-only access to gated Builder, Validator, and Community "
+            "portal sections. This does not grant a role, interaction permissions, "
+            "or access to Steward tools."
+        ),
+    )
     
     # Profile fields
     description = models.TextField(max_length=500, blank=True, 

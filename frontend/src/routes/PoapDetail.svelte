@@ -3,6 +3,7 @@
   import { format } from '../lib/dates.js';
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
+  import { hasReadOnlyRoleSectionAccess } from '../lib/roleState.js';
   import { poapsAPI } from '../lib/api.js';
   import { setPageMeta } from '../lib/meta.js';
   import { truncateMetaDescription } from '../lib/metaHelpers.js';
@@ -36,6 +37,9 @@
   let hasMintLinkClaim = $derived(canClaim && activeClaimDistributions.some((distribution) => distribution.method === 'mint_link'));
   let discordConnection = $derived($userStore.user?.discord_connection || null);
   let hasDiscordConnection = $derived(Boolean(discordConnection));
+  let isRoleSectionReadOnly = $derived(
+    hasReadOnlyRoleSectionAccess($userStore.user, 'community')
+  );
   let collectorCount = $derived(poap?.claimed_count ?? claimsCount ?? 0);
   let statusLabel = $derived(getPoapStatusLabel(poap));
   let statusClass = $derived(
@@ -185,6 +189,7 @@
   }
 
   async function claimSecret() {
+    if (isRoleSectionReadOnly) return;
     if (!$authState.isAuthenticated) {
       signInForClaim();
       return;
@@ -299,7 +304,11 @@
               </div>
             {/if}
 
-            {#if hasSecretClaim && !hasDiscordConnection}
+            {#if isRoleSectionReadOnly}
+              <div class="poap-claim-tool border border-[#cdddf8] bg-[#edf4ff] text-[12px] font-semibold text-[#245ca8]">
+                View-only access does not include claiming POAPs.
+              </div>
+            {:else if hasSecretClaim && !hasDiscordConnection}
               <div class="poap-claim-tool poap-discord-tool">
                 <SocialLink
                   platform="discord"

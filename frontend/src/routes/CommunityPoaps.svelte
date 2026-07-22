@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import { poapsAPI } from '../lib/api.js';
+  import { userStore } from '../lib/userStore.js';
+  import { hasReadOnlyRoleSectionAccess } from '../lib/roleState.js';
   import { showError } from '../lib/toastStore.js';
   import PoapCollectionWall from '../components/poaps/PoapCollectionWall.svelte';
   import CategoryIcon from '../components/portal/CategoryIcon.svelte';
@@ -24,6 +26,9 @@
 
   const PAGE_SIZE = 48;
   const poapGradientStyle = getCategoryGradientStyle('community', '#7f52e1');
+  let isRoleSectionReadOnly = $derived(
+    hasReadOnlyRoleSectionAccess($userStore.user, 'community')
+  );
 
   /** @param {number} [nextPage] @param {boolean} [append] @param {boolean} [reuseAppliedFilters] */
   async function loadPoaps(nextPage = 1, append = false, reuseAppliedFilters = false) {
@@ -130,17 +135,23 @@
       </div>
 
       <div class="flex w-full flex-col gap-3 xl:w-auto xl:items-end">
-        <button
-          class="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9d2ff] bg-white px-4 text-[13px] font-semibold text-[#6b5bd6] transition-colors hover:bg-[#f7f4ff] xl:self-end"
-          onclick={() => push('/community/poaps/recover')}
-        >
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M20 12v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5" />
-            <path d="m8 10 4-4 4 4" />
-            <path d="M12 6v10" />
-          </svg>
-          Recover POAPs
-        </button>
+        {#if isRoleSectionReadOnly}
+          <span class="inline-flex min-h-10 items-center rounded-full border border-[#cdddf8] bg-[#edf4ff] px-4 text-[12px] font-semibold text-[#245ca8] xl:self-end">
+            View-only access
+          </span>
+        {:else}
+          <button
+            class="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9d2ff] bg-white px-4 text-[13px] font-semibold text-[#6b5bd6] transition-colors hover:bg-[#f7f4ff] xl:self-end"
+            onclick={() => push('/community/poaps/recover')}
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M20 12v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5" />
+              <path d="m8 10 4-4 4 4" />
+              <path d="M12 6v10" />
+            </svg>
+            Recover POAPs
+          </button>
+        {/if}
         <div class="flex w-full flex-col gap-2 md:flex-row xl:justify-end">
           <label class="relative md:w-[300px]">
             <span class="sr-only">Search POAPs</span>

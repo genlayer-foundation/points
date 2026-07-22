@@ -13,6 +13,7 @@ from rest_framework.response import Response
 
 from ethereum_auth.models import Nonce
 from ethereum_auth.siwe_utils import get_expected_siwe_domain, get_expected_siwe_uri, normalize_origin
+from users.role_access import is_role_section_read_only
 
 from .models import PoapClaim, PoapDistribution, PoapDrop
 from .serializers import (
@@ -92,6 +93,18 @@ class PoapDropViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ['title', 'description', 'legacy_poap_id']
     ordering_fields = ['event_start_at', 'created_at', 'title']
     ordering = ['-event_start_at']
+
+    def _read_only_community_response(self, request):
+        """Reject mutations exposed by gated Community views for viewers."""
+        if not is_role_section_read_only(request.user, 'community'):
+            return None
+        return Response(
+            {
+                'error': 'View-only access does not allow POAP claims or recovery.',
+                'code': 'role_view_only',
+            },
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
     def get_throttles(self):
         self.throttle_scope = (
@@ -197,6 +210,10 @@ class PoapDropViewSet(viewsets.ReadOnlyModelViewSet):
         permission_classes=[permissions.IsAuthenticated],
     )
     def claim_secret(self, request, slug=None):
+        read_only_response = self._read_only_community_response(request)
+        if read_only_response is not None:
+            return read_only_response
+
         try:
             claim = claim_with_secret(
                 drop_slug=slug,
@@ -239,6 +256,10 @@ class PoapDropViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='verify-wallet', permission_classes=[permissions.IsAuthenticated])
     def verify_wallet(self, request):
+        read_only_response = self._read_only_community_response(request)
+        if read_only_response is not None:
+            return read_only_response
+
         if not request.user.address:
             return Response(
                 {'error': 'Your portal account does not have a wallet address.'},

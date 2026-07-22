@@ -8,7 +8,7 @@
   import { visibleContributions } from '../lib/hiddenContributions.js';
   import { currentCategory } from '../stores/category.js';
   import { userStore } from '../lib/userStore.js';
-  import { hasEarnedRole, hasRoleSectionAccess } from '../lib/roleState.js';
+  import { hasReadOnlyRoleSectionAccess } from '../lib/roleState.js';
   import { push } from 'svelte-spa-router';
   import { getCategoryButtonStyle, getCategoryGradientStyle } from '../lib/categoryPresentation.js';
 
@@ -66,10 +66,8 @@
   let recentSlider = $state(/** @type {HTMLElement | null} */ (null));
 
   let activeCategory = $derived($currentCategory || 'global');
-  let isValidatorReadOnlyViewer = $derived(
-    activeCategory === 'validator'
-    && hasRoleSectionAccess($userStore.user, 'validator')
-    && !hasEarnedRole($userStore.user, 'validator')
+  let isRoleSectionReadOnly = $derived(
+    hasReadOnlyRoleSectionAccess($userStore.user, activeCategory)
   );
   let pageConfig = $derived(categoryConfig[activeCategory] || categoryConfig.global);
   let gradientStyle = $derived(getCategoryGradientStyle(activeCategory, pageConfig.accentColor));
@@ -195,7 +193,7 @@
         </p>
       </div>
 
-      {#if isValidatorReadOnlyViewer}
+      {#if isRoleSectionReadOnly}
         <span class="inline-flex min-h-10 items-center justify-center rounded-full border border-[#cdddf8] bg-[#edf4ff] px-4 text-[12px] font-semibold text-[#245ca8]">
           View-only access
         </span>
@@ -216,9 +214,9 @@
       <StartupRequests />
     {/if}
 
-    <SocialTasksSection readOnly={isValidatorReadOnlyViewer} />
+    <SocialTasksSection readOnly={isRoleSectionReadOnly} />
 
-    <Missions />
+    <Missions readOnly={isRoleSectionReadOnly} />
 
     <ContributionTypeStats />
 
