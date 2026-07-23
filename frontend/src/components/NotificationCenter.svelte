@@ -3,9 +3,11 @@
   import { push, location } from 'svelte-spa-router';
   import { authState } from '../lib/auth.js';
   import { notificationStore } from '../lib/notificationStore.js';
-  import { followNotificationLink } from '../lib/notificationUtils.js';
+  import {
+    followNotificationLink,
+    notificationBodyPreview
+  } from '../lib/notificationUtils.js';
   import { relativeTime } from '../lib/relativeTime.js';
-  import { parseUserMarkdown } from '../lib/markdownLoader.js';
 
   let open = $state(false);
   let container = $state(null);
@@ -142,7 +144,7 @@
                 <span class="min-w-0 flex-1">
                   <span class="block text-sm font-medium text-gray-900 leading-snug">{notification.title}</span>
                   {#if notification.body}
-                    <span class="notification-body block text-xs text-gray-500 leading-snug mt-0.5 break-words line-clamp-2">{@html parseUserMarkdown(notification.body)}</span>
+                    <span class="notification-body block text-xs text-gray-500 leading-snug mt-0.5 break-words line-clamp-2">{@html notificationBodyPreview(notification.body)}</span>
                   {/if}
                   <span class="block text-xs text-gray-400 mt-1">
                     {notification.category_label || notification.category} &middot; {relativeTime(notification.created_at)}
@@ -166,9 +168,14 @@
 {/if}
 
 <style>
-  /* Tailwind preflight zeroes default element styles; restore the few the
-     sanitized markdown bodies need. Block children (p, ul) collapse into the
-     two-line -webkit-box clamp, so only inline styling matters here. */
+  /* Keep sanitized markdown in one clampable flow while retaining inline
+     emphasis, code, and links in the compact preview. */
+  .notification-body :global(*) {
+    display: inline;
+  }
+  .notification-body :global(hr) {
+    display: none;
+  }
   .notification-body :global(a) {
     color: #0284c7;
     text-decoration: underline;
