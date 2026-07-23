@@ -478,6 +478,7 @@ const routes = {
   - `poapsAPI` - POAP list/detail/claims, user POAPs, secret claims, mint-link claims, and recovery wallet verification
   - `validatorsAPI.getWallOfShame(params)` - Public Wall of Shame list for active validators with Grafana metrics/logs status badges (renders in `routes/WallOfShame.svelte`)
   - `notificationsAPI` - Portal notifications (`list`, `unreadCount`, `markRead(id)`, `markAllRead`)
+  - `telegramAPI` - Telegram bot linking (`getLinkToken()` returns a one-time `t.me` deep link, `disconnect()`). The connection is PRIVATE: the backend only includes `user.telegram_connection` for the owner/staff, so it must never be rendered on other users' profiles
   - `socialTasksAPI` - Social tasks (`list({ status, category })`, `complete(slug)`)
   - `stewardAPI` - Steward tools: submissions review plus structured AI-review feedback (`getAIFeedback(id)` reads all reviewer records for a submission; `submitAIFeedback(id, data)` creates or versioned-revises the current reviewer's exact-proposal feedback) and Discord XP (`getDiscordXP(params)` lists community XP rows for contributions and social task completions; `recordDiscordXPCopy(stateId)`, `markDiscordXPDistributed(stateId)`, `unsetDiscordXPDistributed(stateId)` act on a row's state id — `row.id`, not the contribution id)
 
@@ -634,7 +635,8 @@ Investor-oriented home page (`routes/Overview.svelte`), top to bottom: hero → 
   - Honors optional per-user Monday-Sunday UTC contribution-type limits from `user_weekly_*` API fields and shows the user's remaining weekly capacity.
   - New Milestones links can select only highlighted Projects contributions. `EditSubmission.svelte` passes the current submission ID so a pre-policy pending milestone keeps its existing unhighlighted link.
 - `EditSubmission.svelte` - Edit submitted contributions (supports URL and description evidence only - no file uploads)
-- `ProfileEdit.svelte` - User profile editing (name and profile fields; node version shown read-only, Grafana-sourced)
+- `ProfileEdit.svelte` - User profile editing (name and profile fields; node version shown read-only, Grafana-sourced; the Telegram text input was removed — Telegram now links via `TelegramLink.svelte` in the profile header)
+- `TelegramLink.svelte` - Telegram connect pill for the profile header, rendered ONLY inside `ProfileHeader.svelte`'s `isOwnProfile` branch (the connection is private). Not connected: opens the `telegramAPI.getLinkToken()` deep link in a new tab (tab opened synchronously before the await to dodge popup blockers) and polls `getCurrentUser()` every 3s for up to 2 min until `telegram_connection` appears. Connected: shows `@username` (or "Telegram") with an unlink button (`telegramAPI.disconnect()`)
 - `Profile.svelte` - Public participant profile view
 
 ### Wallet Integration (`src/lib/wallet/`)

@@ -171,6 +171,13 @@ def send_campaign(campaign, *, actor=None):
     if batch:
         Notification.objects.bulk_create(batch, ignore_conflicts=True)
 
+    if 'telegram' in (campaign.channels or []):
+        # Deduped per (notification, connection): a resend keeps the same
+        # notification rows, so it never re-pushes to Telegram. Recall +
+        # resend (new rows) is the deliberate way to push again.
+        from . import telegram
+        telegram.enqueue_campaign(campaign, audience.users)
+
     campaign.status = CustomNotification.STATUS_SENT
     campaign.sent_at = now
     campaign.sent_by = actor
@@ -191,10 +198,14 @@ def send_campaign(campaign, *, actor=None):
 def recall_campaign(campaign):
     """Delete delivered portal notifications for a custom campaign.
 
-    The campaign record is kept for audit and can be resent later. Future
-    email/Telegram channels should add their own outbox recall/cancel logic
-    next to this portal-row deletion.
+    The campaign record is kept for audit and can be resent later. Queued
+    (not yet sent) Telegram deliveries are cancelled first; messages Telegram
+    already delivered cannot be recalled.
     """
+    from . import telegram
+
+    cancelled = telegram.cancel_pending_for_campaign(campaign)
+
     queryset = Notification.objects.filter(
         event_type='custom.announcement',
         dedupe_key=campaign.dedupe_key,
@@ -204,4 +215,4 @@ def recall_campaign(campaign):
     )
     count = queryset.count()
     queryset.delete()
-    return count
+    return count, cancelled

@@ -109,18 +109,16 @@ class UserProfileUpdateTests(TestCase):
             'name': 'Updated Name',
             'description': 'This is my bio',
             'website': 'https://example.com',
-            'telegram_handle': 'mytelegram'
         }
-        
+
         response = self.client.patch('/api/v1/users/me/', update_data)
-        
+
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
+
         self.verified_user.refresh_from_db()
         self.assertEqual(self.verified_user.name, 'Updated Name')
         self.assertEqual(self.verified_user.description, 'This is my bio')
         self.assertEqual(self.verified_user.website, 'https://example.com')
-        self.assertEqual(self.verified_user.telegram_handle, 'mytelegram')
 
     def test_profile_patch_does_not_create_validator_profile(self):
         """Node versions are Grafana-sourced and not writable via profile updates."""
@@ -152,18 +150,19 @@ class UserProfileUpdateTests(TestCase):
         self.assertEqual(self.verified_user.twitter_handle, 'oauth_twitter')
         self.assertEqual(self.verified_user.discord_handle, 'oauth_discord')
     
-    def test_telegram_handle_strips_at_symbol(self):
-        """Test that @ symbol is stripped from Telegram handle."""
+    def test_telegram_handle_is_not_profile_editable(self):
+        """telegram_handle was replaced by the private TelegramConnection
+        (linked via the bot); the profile endpoint must ignore it."""
         self.authenticate(self.verified_user)
-        
+
         response = self.client.patch('/api/v1/users/me/', {
             'telegram_handle': '@mytelegram'
         })
-        
+
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.verified_user.refresh_from_db()
-        self.assertEqual(self.verified_user.telegram_handle, 'mytelegram')
-    
+        self.assertEqual(self.verified_user.telegram_handle, '')
+
     def test_description_length_validation(self):
         """Test that description cannot exceed 500 characters."""
         self.authenticate(self.verified_user)

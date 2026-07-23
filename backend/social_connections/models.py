@@ -96,6 +96,124 @@ class DiscordConnection(SocialConnection):
         verbose_name_plural = 'Discord Connections'
 
 
+class TelegramConnection(SocialConnection):
+    """Verified Telegram account link, created via the bot's /start deep link.
+
+    Owner-only data: never exposed through public serializers. For private
+    chats Telegram's chat id equals the user id, so `platform_user_id` doubles
+    as the chat id for outbound sends. Telegram bots receive no user tokens,
+    so the inherited access/refresh token fields stay blank.
+    """
+
+    notifications_enabled = models.BooleanField(
+        default=True,
+        help_text="Whether portal notifications are pushed to this Telegram account (/mute toggles this)",
+    )
+    blocked_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Set when Telegram reports the user blocked the bot; cleared on a successful re-link",
+    )
+
+    class Meta:
+        db_table = 'social_connections_telegram'
+        verbose_name = 'Telegram Connection'
+        verbose_name_plural = 'Telegram Connections'
+        constraints = [
+            # Inbound commands route portal accounts by Telegram id, so one
+            # Telegram account can only ever be linked to one portal user.
+            # The /start handler's friendly pre-check is racy on its own;
+            # this makes the invariant DB-enforced.
+            models.UniqueConstraint(
+                fields=['platform_user_id'],
+                name='uniq_telegram_platform_user_id',
+            ),
+        ]
+
+
+class TelegramMessage(BaseModel):
+    """Telegram message log and delivery outbox in one table.
+
+    Inbound rows (direction='in') are a permanent conversation log. Outbound
+    rows are either interactive replies recorded after the fact, or
+    notification deliveries enqueued as status='pending' and drained by the
+    cron-triggered delivery endpoint.
+    """
+
+    DIRECTION_IN = 'in'
+    DIRECTION_OUT = 'out'
+    DIRECTION_CHOICES = [
+        (DIRECTION_IN, 'Inbound'),
+        (DIRECTION_OUT, 'Outbound'),
+    ]
+
+    STATUS_PENDING = 'pending'
+    STATUS_SENDING = 'sending'
+    STATUS_SENT = 'sent'
+    STATUS_FAILED = 'failed'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_SENDING, 'Sending'),
+        (STATUS_SENT, 'Sent'),
+        (STATUS_FAILED, 'Failed'),
+    ]
+
+    direction = models.CharField(max_length=3, choices=DIRECTION_CHOICES)
+    connection = models.ForeignKey(
+        TelegramConnection,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='messages',
+    )
+    chat_id = models.CharField(
+        max_length=64,
+        help_text="Telegram chat id at the time of the message (historical record; "
+                  "the drain sends to the connection's live platform_user_id)",
+    )
+    text = models.TextField(blank=True)
+    status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        blank=True,
+        default='',
+        help_text="Delivery status for outbound rows; blank for inbound rows",
+    )
+    attempts = models.PositiveSmallIntegerField(default=0)
+    notification = models.ForeignKey(
+        'notifications.Notification',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='telegram_messages',
+    )
+    error = models.CharField(max_length=200, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'social_connections_telegram_message'
+        indexes = [
+            models.Index(fields=['status', 'created_at']),
+            models.Index(fields=['direction', '-created_at']),
+        ]
+        constraints = [
+            # One delivery per (notification, connection): makes every enqueue
+            # idempotent, so re-broadcasts and campaign resends never double-send.
+            models.UniqueConstraint(
+                fields=['notification', 'connection'],
+                condition=models.Q(
+                    direction='out',
+                    notification__isnull=False,
+                    connection__isnull=False,
+                ),
+                name='uniq_telegram_out_per_notification',
+            ),
+        ]
+
+    def __str__(self):
+        return f"TelegramMessage({self.direction}, chat={self.chat_id}, status={self.status or 'n/a'})"
+
+
 class DiscordRole(models.Model):
     """Cached Discord guild role metadata."""
 
@@ -225,9 +343,47 @@ class PendingOAuthState(models.Model):
             return pending
 
     @classmethod
-    def cleanup_old(cls, minutes=10):
+    def consume_deep_link(cls, state_id, platform, max_age_minutes=10):
+        """Atomically consume a state row for cross-channel deep-link flows.
+
+        Unlike consume(), there is deliberately no user or session binding:
+        the Telegram /start webhook is the consumer, which runs outside any
+        browser session, and the token itself identifies the issuing user.
+        The unguessable one-time token is the sole credential.
+        """
+        cutoff = timezone.now() - timedelta(minutes=max_age_minutes)
+        with transaction.atomic():
+            pending = (
+                cls.objects
+                .select_for_update()
+                .filter(
+                    state_id=state_id,
+                    platform=platform,
+                    consumed_at__isnull=True,
+                    created_at__gte=cutoff,
+                )
+                .first()
+            )
+            if not pending:
+                return None
+
+            pending.consumed_at = timezone.now()
+            pending.save(update_fields=['consumed_at'])
+            return pending
+
+    @classmethod
+    def cleanup_old(cls, minutes=10, platform=None):
+        """Delete expired rows, scoped to one platform.
+
+        Flows use different lifetimes (Telegram deep-link tokens live longer
+        than OAuth states), so each flow must only sweep its own platform;
+        an unscoped 10-minute sweep would expire Telegram tokens early.
+        """
         cutoff = timezone.now() - timedelta(minutes=minutes)
-        deleted, _ = cls.objects.filter(created_at__lt=cutoff).delete()
+        queryset = cls.objects.filter(created_at__lt=cutoff)
+        if platform:
+            queryset = queryset.filter(platform=platform)
+        deleted, _ = queryset.delete()
         if deleted:
             logger.debug(f"Cleaned up {deleted} expired pending OAuth states")
         return deleted

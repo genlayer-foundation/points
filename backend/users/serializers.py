@@ -324,8 +324,9 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['name', 'description', 'website',
-                  'telegram_handle', 'linkedin_handle']
+        # telegram_handle removed: replaced by the verified, private
+        # TelegramConnection (linked via the bot, not user-typed).
+        fields = ['name', 'description', 'website', 'linkedin_handle']
 
     def to_internal_value(self, data):
         if 'email' in data:
@@ -358,13 +359,6 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
                 validator(value)
             except DjangoValidationError:
                 raise serializers.ValidationError("Enter a valid URL.")
-        return value
-    
-    def validate_telegram_handle(self, value):
-        """Validate Telegram handle format"""
-        if value:
-            # Remove @ if provided
-            value = value.lstrip('@')
         return value
     
     def validate_linkedin_handle(self, value):
@@ -526,6 +520,7 @@ class UserSerializer(serializers.ModelSerializer):
     github_connection = serializers.SerializerMethodField()
     twitter_connection = serializers.SerializerMethodField()
     discord_connection = serializers.SerializerMethodField()
+    telegram_connection = serializers.SerializerMethodField()
 
     # Backward-compat computed fields for github
     github_username = serializers.SerializerMethodField()
@@ -554,6 +549,7 @@ class UserSerializer(serializers.ModelSerializer):
                   'can_view_role_sections',
                   # Social connections
                   'github_connection', 'twitter_connection', 'discord_connection',
+                  'telegram_connection',
                   # Referral fields
                   'referral_code', 'referred_by_info', 'total_referrals', 'referral_details',
                   # Working groups
@@ -815,6 +811,15 @@ class UserSerializer(serializers.ModelSerializer):
         from social_connections.serializers import PublicDiscordConnectionSerializer
         return self._get_social_connection(obj, 'discordconnection', PublicDiscordConnectionSerializer)
 
+    def get_telegram_connection(self, obj):
+        """Owner/staff only. Telegram links are private: there is no public
+        serializer, and to_representation() also drops the key entirely for
+        other viewers (defense in depth)."""
+        if self._can_view_private_user_data(obj):
+            from social_connections.serializers import TelegramConnectionSerializer
+            return self._get_social_connection(obj, 'telegramconnection', TelegramConnectionSerializer)
+        return None
+
     def get_github_username(self, obj):
         """Backward compat: read from GitHubConnection if available."""
         try:
@@ -848,6 +853,9 @@ class UserSerializer(serializers.ModelSerializer):
                 'referred_by_info',
                 'total_referrals',
                 'referral_details',
+                # Telegram is private: never present for other viewers.
+                'telegram_connection',
+                'telegram_handle',
             ]:
                 data.pop(field, None)
 

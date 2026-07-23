@@ -36,11 +36,12 @@ logger = get_app_logger('auth')
 LOGIN_STATEMENT = 'Sign in with Ethereum to GenLayer Testnet Contributions'
 email_verification_service = EmailVerificationService()
 turnstile_verifier = TurnstileVerifier()
+# telegram_handle removed: Telegram links only through the bot's verified
+# private TelegramConnection, never as a user-typed handle.
 PENDING_SIGNUP_PROFILE_FIELDS = {
     'name',
     'description',
     'website',
-    'telegram_handle',
     'linkedin_handle',
     'selected_role',
 }

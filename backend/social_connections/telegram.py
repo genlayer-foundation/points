@@ -1,0 +1,145 @@
+"""Thin Telegram Bot API client for outbound messages.
+
+Plain requests calls, no bot framework. Shared by the interactive webhook
+replies (social_connections.telegram_bot) and the notification delivery
+drain (notifications.telegram).
+"""
+import logging
+
+import requests
+from django.conf import settings
+from django.utils import timezone
+
+logger = logging.getLogger(__name__)
+
+TELEGRAM_MAX_LEN = 4096
+REQUEST_TIMEOUT = 10
+
+
+def telegram_api_url(method):
+    return f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/{method}"
+
+
+def redact_token(text):
+    """Strip the bot token from text destined for logs.
+
+    requests exceptions embed the request URL, which contains the token;
+    logging them raw would persist the credential in CloudWatch.
+    """
+    token = settings.TELEGRAM_BOT_TOKEN
+    if token:
+        text = str(text).replace(token, '<bot-token>')
+    return str(text)
+
+
+def escape(text):
+    """Escape user-derived content for Telegram HTML parse mode."""
+    return str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+
+def truncate(text, limit=TELEGRAM_MAX_LEN):
+    """Final safety net for Telegram's 4096-char message limit.
+
+    Callers should truncate the plain-text segments before assembling HTML;
+    if this cut ever lands inside a tag, the parse-error fallback in
+    send_telegram_message() still delivers the message without formatting.
+    """
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1] + '…'
+
+
+def _mark_blocked(connection, chat_id):
+    """Disable delivery after Telegram reports the chat blocked/gone.
+
+    Conditional queryset update keyed on the pk AND the chat id that got the
+    403: the row is per-user, so a disconnect (row deleted) or a relink (row
+    repointed at a new Telegram account) while the send was in flight makes
+    this a no-op. Saving the stale instance instead would raise on the
+    deleted row or wrongly disable the freshly linked account.
+    """
+    if connection is None:
+        return
+    from .models import TelegramConnection
+
+    now = timezone.now()
+    TelegramConnection.objects.filter(
+        pk=connection.pk,
+        platform_user_id=str(chat_id),
+    ).update(
+        blocked_at=now,
+        notifications_enabled=False,
+        updated_at=now,
+    )
+
+
+def send_telegram_message(
+    chat_id, text, *, connection=None, disable_web_page_preview=True, reply_markup=None
+):
+    """Send one message. Returns (ok, retry_after_seconds_or_None, description).
+
+    reply_markup is an optional Bot API inline keyboard dict (URL buttons).
+
+    Never raises. On 403 (user blocked the bot / account deactivated) the
+    connection is disabled so future enqueues skip it; a later successful
+    /start re-link clears the flag. On a 400 the message is retried in
+    degraded form (drop HTML formatting, then the buttons) so a rendering
+    bug never bricks a delivery.
+    """
+    if not settings.TELEGRAM_BOT_TOKEN:
+        return False, None, 'bot_token_not_configured'
+
+    payload = {
+        'chat_id': chat_id,
+        'text': truncate(text),
+        'parse_mode': 'HTML',
+        'disable_web_page_preview': disable_web_page_preview,
+    }
+    if reply_markup:
+        payload['reply_markup'] = reply_markup
+
+    # Original attempt + up to two degraded retries (no parse_mode, no
+    # buttons). Terminates because every branch returns except the two
+    # degrade retries, and each of those pops its payload key exactly once.
+    while True:
+        try:
+            response = requests.post(
+                telegram_api_url('sendMessage'), json=payload, timeout=REQUEST_TIMEOUT
+            )
+        except requests.RequestException as exc:
+            logger.warning(f"Telegram sendMessage transport error: {redact_token(exc)}")
+            return False, None, f'request_error:{exc.__class__.__name__}'
+
+        if response.status_code == 200:
+            return True, None, ''
+
+        try:
+            description = str(response.json().get('description', ''))
+        except ValueError:
+            description = response.text or ''
+
+        if response.status_code == 403:
+            _mark_blocked(connection, chat_id)
+            return False, None, 'blocked'
+
+        if response.status_code == 429:
+            try:
+                retry_after = int(response.json()['parameters']['retry_after'])
+            except (ValueError, KeyError, TypeError):
+                retry_after = 5
+            return False, retry_after, 'rate_limited'
+
+        if response.status_code == 400:
+            lowered = description.lower()
+            # Broken HTML assembly (bad truncation, unescaped content):
+            # retry as plain text so the message still lands.
+            if "can't parse entities" in lowered and payload.pop('parse_mode', None):
+                continue
+            # Rejected inline button (e.g. BUTTON_URL_INVALID): retry without it.
+            if ('button' in lowered or 'url' in lowered) and payload.pop('reply_markup', None):
+                continue
+
+        logger.warning(
+            f"Telegram sendMessage failed ({response.status_code}): {description[:200]}"
+        )
+        return False, None, description[:200] or f'http_{response.status_code}'

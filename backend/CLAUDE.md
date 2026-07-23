@@ -27,7 +27,7 @@ backend/
 ├── api/                    # Core API app
 ├── contributions/          # Contribution tracking
 ├── leaderboard/           # Leaderboard and rankings
-├── social_connections/    # OAuth (GitHub, Twitter, Discord) + encrypted token storage
+├── social_connections/    # OAuth (GitHub, Twitter, Discord) + Telegram bot link + encrypted token storage
 ├── social_tasks/          # Repeatable social tasks (follow, join, like) and completions
 ├── users/                 # User management and auth
 ├── partners/              # Ecosystem partners directory
@@ -46,13 +46,13 @@ backend/
   - Validator model with node_version field (OneToOne with User)
   - Custom UserManager for email-based auth
 - **Views**: `users/views.py`
-  - `/api/v1/users/me/` - GET/PATCH current user profile (name/description/website/socials editable; node_version is NOT editable — Grafana-sourced, display only)
+  - `/api/v1/users/me/` - GET/PATCH current user profile (name/description/website/linkedin editable; telegram_handle removed — Telegram links via the bot's verified TelegramConnection; node_version is NOT editable — Grafana-sourced, display only)
   - `/api/v1/users/by-address/{address}/` - Get user by wallet address
   - `/api/v1/users/validators/` - Get validator list from blockchain
 - **Serializers**: `users/serializers.py`
   - UserSerializer - Full user data including validator info
   - ValidatorSerializer - Validator node version and target matching
-  - UserProfileUpdateSerializer - Allows name/description/website/socials updates (node_version removed — Grafana is source of truth)
+  - UserProfileUpdateSerializer - Allows name/description/website/linkedin updates (telegram_handle removed — replaced by the private TelegramConnection; node_version removed — Grafana is source of truth)
   - UserCreateSerializer - Registration
 
 ### Authentication
@@ -307,9 +307,9 @@ backend/
 - **Models**: `notifications/models.py`
   - `Notification` - Personal (has `recipient`) or broadcast (`recipient=None` + `audience`: all/validators/stewards/builders/community). Audiences resolve via the role OneToOnes (Validator/Steward/Builder/Creator) in `services.audiences_for`. Broadcasts are ONE row regardless of user count; users see broadcasts created after their `date_joined`. Frozen copy (`title`/`body`/`link_url`), `payload` JSON for future channel renderers, `dedupe_key` (re-broadcasting a source object refreshes + resurfaces instead of duplicating).
   - `NotificationReceipt` - Lazy per-user read state for broadcast rows (created on read).
-  - `CustomNotification` - Admin-composed campaign: title/markdown body/optional link + targeting (`everyone` | `roles` union of builders/validators/stewards/creators | hand-picked `target_users` M2M | pasted `target_wallets`) + delivery record (`status` draft/sent, `sent_count`, `unmatched_wallets`, `channels` reserved for email/Telegram).
+  - `CustomNotification` - Admin-composed campaign: title/markdown body/optional link + targeting (`everyone` | `roles` union of builders/validators/stewards/creators | hand-picked `target_users` M2M | pasted `target_wallets`) + delivery record (`status` draft/sent, `sent_count`, `unmatched_wallets`, `channels` JSON list: `portal` always + optional `telegram` checkbox in the admin form).
 - **Campaigns**: `notifications/campaigns.py`
-  - `resolve_recipients(campaign)` - The channel-agnostic enumeration step (always `is_active=True`; banned/invisible users included by design). Future email/Telegram channels reuse this and add their own delivery.
+  - `resolve_recipients(campaign)` - The channel-agnostic enumeration step (always `is_active=True`; banned/invisible users included by design). The Telegram channel reuses this (`notifications/telegram.py:enqueue_campaign`); a future email channel would do the same.
   - `send_campaign(campaign, actor=...)` - Fans out personal `Notification` rows (snapshot semantics, never broadcast rows, so campaigns stay private to recipients). Idempotent via dedupe key `custom.announcement:{pk}`; resend refreshes copy + resurfaces unread, scoped to the currently resolved audience.
   - `recall_campaign(campaign)` - Deletes delivered portal notification rows for that campaign while keeping the campaign record for audit/resend.
   - Compose flow: Django admin > Notifications > Custom notifications. Saving is a silent draft with reach preview; off-by-default "Send now" checkbox or `send_selected`/`resend_selected` actions deliver. "Recall delivered portal notifications" or the `recall_selected` action removes delivered portal rows. The send/recall runs in `save_related` (M2M targeting commits after `save_model`).
@@ -323,7 +323,9 @@ backend/
   - `/api/v1/notifications/unread-count/` - Unread badge count
   - `/api/v1/notifications/{id}/mark-read/` - Personal sets `read_at`; broadcast creates a receipt
   - `/api/v1/notifications/mark-all-read/`
-- **Future channels**: email/Telegram slot in via registry `channels` + a delivery outbox and `NotificationPreference` model when the first external channel ships (Telegram link would follow the `social_connections` pattern).
+- **Telegram channel** (`notifications/telegram.py`): events whose registry entry includes `'telegram'` in `channels` (all `submission.*`, `contribution.highlighted`, `validator.graduated`, `mission.published`, `node_version.published`, `alert.published`, `custom.announcement`) also enqueue rows into the `social_connections.TelegramMessage` outbox for recipients with a linked, unmuted, unblocked `TelegramConnection`. `notify()` enqueues per recipient; `broadcast()` fans out via `services.users_for_audience(audience)` (the queryset twin of `estimate_broadcast_reach`); `send_campaign()` gates on `campaign.channels`. Enqueues are idempotent (partial unique constraint on `(notification, connection)` — re-broadcasts/resends only reach users who linked after the original send) and best-effort (failures never break notification creation). The outbox is drained by `POST /api/v1/notifications/telegram/deliver/` (IsCronToken; GitHub Action `telegram-deliver.yml` every 5 min; ~25 msg/s pacing, 3 attempts, 429-aware) or `python manage.py deliver_telegram_messages`. Campaign recall cancels pending outbox rows; already-sent Telegram messages cannot be recalled.
+- **Telegram bot** (`social_connections/telegram_bot.py` + `telegram.py`): deep-link account linking (portal issues a one-time `PendingOAuthState` token; `https://t.me/<bot>?start=<token>`; the webhook binds the sender's numeric Telegram id to a `TelegramConnection`), webhook `POST /api/webhooks/telegram/` (validated via `X-Telegram-Bot-Api-Secret-Token` == `TELEGRAM_WEBHOOK_SECRET`, always 200 after auth), and one-shot commands: `/rank`, `/points` (LeaderboardEntry), `/missions` (active Missions), `/mute`/`/unmute` (`notifications_enabled`), `/unlink`, `/help`. All inbound/outbound messages are logged in `TelegramMessage`. **Privacy: TelegramConnection is owner-only** — `UserSerializer.get_telegram_connection` returns it for owner/staff only, `to_representation` strips `telegram_connection`/`telegram_handle` for other viewers, user search does not match `telegram_handle`, and `UserProfileUpdateSerializer` no longer accepts `telegram_handle` (replaced by the verified connection). Dev: `python manage.py run_telegram_polling` (getUpdates loop, no public URL needed; refuses to run while a webhook is registered unless `--delete-webhook` is passed, so a prod token can't be hijacked by accident); prod one-time setup: `python manage.py set_telegram_webhook --url https://<api-host>/api/webhooks/telegram/`. The three `TELEGRAM_*` env vars are wired into both App Runner deploy scripts as SSM secrets (`telegram_bot_token` / `telegram_bot_username` / `telegram_webhook_secret`) — create the SSM parameters BEFORE deploying or App Runner will fail to start.
+- **Future channels**: email slots in the same way via registry `channels` + its own delivery module; per-user `NotificationPreference` is still future work (Telegram has a single `/mute`).
 
 ### Gen TV
 - **Models**: `gen_tv/models.py`
@@ -507,6 +509,12 @@ GET    /api/v1/notifications/              (requires auth, ?unread=true ?categor
 GET    /api/v1/notifications/unread-count/ (requires auth)
 POST   /api/v1/notifications/{id}/mark-read/   (requires auth)
 POST   /api/v1/notifications/mark-all-read/    (requires auth)
+POST   /api/v1/notifications/telegram/deliver/ (cron-protected, X-Cron-Token; drains the Telegram outbox)
+
+# Telegram bot
+POST   /api/v1/users/telegram/link-token/  (requires auth; returns one-time t.me deep link)
+POST   /api/v1/users/telegram/disconnect/  (requires auth; idempotent unlink)
+POST   /api/webhooks/telegram/             (Telegram only; X-Telegram-Bot-Api-Secret-Token)
 ```
 
 ### Leaderboard monthly date ranges
@@ -563,7 +571,9 @@ The cron `POST /api/v1/metrics/overview/refresh/` (GitHub Action `sync-overview-
 - `OVERVIEW_TOP_VALIDATORS` - optional JSON array of curated validators; superseded by the per-wallet `ValidatorWallet.show_in_overview` + `assets_under_management_usd` admin fields when any are set.
 - `DEFILLAMA_FEES_RANK` / `DEFILLAMA_FEES_RANK_URL` - the DeFiLlama fees-rank value/source shown on the overview.
 - `DISCORD_BOT_TOKEN` + `DISCORD_GUILD_ID` (Discord members), `SORSA_API_KEY` + `X_METRICS_USERNAME` (X followers), `GITHUB_METRICS_REPO` + `GITHUB_METRICS_TOKEN` (boilerplate stars).
-- `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` for the live Telegram member count, else `TELEGRAM_MEMBERS` or the built-in `13300` curated fallback.
+- `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` for the live Telegram member count, else `TELEGRAM_MEMBERS` or the built-in `13300` curated fallback. The same token powers the portal Telegram bot (notifications + commands); the bot must be a member of the chat for the count to work.
+- `TELEGRAM_BOT_USERNAME` - Portal bot username without `@`; used to build `t.me/<bot>?start=<token>` account-linking deep links (link-token endpoint returns 503 when unset).
+- `TELEGRAM_WEBHOOK_SECRET` - Random secret registered via `set_telegram_webhook`; Telegram echoes it in `X-Telegram-Bot-Api-Secret-Token` and the webhook rejects everything when it is unset or mismatched.
 
 **AWS Deployment:** For production deployments on AWS App Runner, all environment variables must be stored in AWS Systems Manager (SSM) Parameter Store. See `aws-deployment-guide.md` for setup instructions.
 

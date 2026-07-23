@@ -127,7 +127,9 @@ class OAuthService:
 
     def create_pending_state(self, user, code_verifier='', redirect_url='', request=None):
         """Persist bulky state data server-side and return a compact signed state."""
-        PendingOAuthState.cleanup_old(minutes=10)
+        # Scoped to this platform: Telegram deep-link tokens share the table
+        # with a longer lifetime and must not be swept by OAuth initiations.
+        PendingOAuthState.cleanup_old(minutes=10, platform=self.platform_name)
         session_key = ''
         if request is not None:
             if not request.session.session_key:

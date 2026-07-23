@@ -1,7 +1,13 @@
 from rest_framework import serializers
 
 from .discord_roles import manual_refresh_next_allowed_at
-from .models import GitHubConnection, TwitterConnection, DiscordConnection, DiscordRole
+from .models import (
+    GitHubConnection,
+    TwitterConnection,
+    DiscordConnection,
+    DiscordRole,
+    TelegramConnection,
+)
 
 
 class GitHubConnectionSerializer(serializers.ModelSerializer):
@@ -119,4 +125,15 @@ class PublicDiscordConnectionSerializer(serializers.ModelSerializer):
     class Meta:
         model = DiscordConnection
         fields = ['platform_username']
+        read_only_fields = fields
+
+
+class TelegramConnectionSerializer(serializers.ModelSerializer):
+    """Owner-only serializer. There is deliberately NO public variant:
+    Telegram connections are private and must never appear on other
+    users' profiles or any public payload."""
+
+    class Meta:
+        model = TelegramConnection
+        fields = ['platform_username', 'linked_at', 'notifications_enabled']
         read_only_fields = fields
