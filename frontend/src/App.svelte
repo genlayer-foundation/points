@@ -67,6 +67,7 @@
   }
   
   import Overview from './routes/Overview.svelte';
+  import Dashboard from './routes/Dashboard.svelte';
   import Contributions from './routes/Contributions.svelte';
   import AllContributions from './routes/AllContributions.svelte';
   import Leaderboard from './routes/Leaderboard.svelte';
@@ -240,6 +241,7 @@
     '/referrals': protectedRoute(Referrals),
     '/community': RoleFunnel,
     '/community/journey': protectedRoute(CommunityJourneyGate),
+    '/community/dashboard': roleGatedRoute(Dashboard, 'community'),
     '/community/contributions': roleGatedRoute(Contributions, 'community'),
     '/community/all-contributions': roleGatedRoute(AllContributions, 'community'),
     '/community/referrals': LegacyReferralRedirect,
@@ -257,6 +259,7 @@
     // Builders routes
     '/builders': RoleFunnel,
     '/builders/journey': protectedRoute(BuilderJourney),
+    '/builders/dashboard': roleGatedRoute(Dashboard, 'builder'),
     '/builders/contributions': roleGatedRoute(Contributions, 'builder'),
     '/builders/all-contributions': roleGatedRoute(AllContributions, 'builder'),
     '/builders/leaderboard': protectedRoute(Leaderboard),
@@ -270,6 +273,7 @@
     // Validators routes
     '/validators': RoleFunnel,
     '/validators/journey': ValidatorWaitlist,
+    '/validators/dashboard': roleGatedRoute(Dashboard, 'validator'),
     '/validators/contributions': roleGatedRoute(Contributions, 'validator'),
     '/validators/all-contributions': roleGatedRoute(AllContributions, 'validator'),
     '/validators/leaderboard': protectedRoute(Leaderboard),
