@@ -1,10 +1,14 @@
 from importlib import import_module
 
+from django import forms
 from django.apps import apps as django_apps
+from django.contrib import admin
+from django.contrib.admin.utils import flatten_fieldsets
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
-from django.test import TestCase
+from django.test import RequestFactory, TestCase
 
+from contributions.admin import ContributionTypeAdmin
 from contributions.models import (
     Category,
     ContributionType,
@@ -103,6 +107,60 @@ class BuilderReviewHierarchyModelTests(TestCase):
         self.builder = builder
         self.community = community
 
+    def _contribution_type_admin_form(
+        self,
+        *,
+        category,
+        apply_builder_defaults,
+        include_review_fields=True,
+        requires_ai_review=False,
+        escalation_threshold_points='',
+    ):
+        data = {
+            'name': 'Admin Builder Type',
+            'slug': 'admin-builder-type',
+            'category': category.pk,
+            'min_points': 0,
+            'max_points': 100,
+            'rubric_extra_points': 2,
+            'is_submittable': 'on',
+            'review_flow': ContributionType.REVIEW_FLOW_STANDARD,
+            'escalation_threshold_points': escalation_threshold_points,
+            'examples': '[]',
+            'required_social_accounts': '[]',
+            'required_evidence_url_type_groups': '[]',
+        }
+        if apply_builder_defaults:
+            data['apply_builder_review_defaults'] = 'on'
+        if requires_ai_review:
+            data['requires_ai_review'] = 'on'
+        request = RequestFactory().post(
+            '/admin/contributions/contributiontype/add/',
+            data,
+        )
+        request.user = User(
+            is_active=True,
+            is_staff=True,
+            is_superuser=True,
+        )
+        model_admin = admin.site._registry[ContributionType]
+        self.assertIsInstance(model_admin, ContributionTypeAdmin)
+        fields = flatten_fieldsets(model_admin.get_fieldsets(request))
+        if not include_review_fields:
+            fields = [
+                field
+                for field in fields
+                if field not in ContributionType.BUILDER_REVIEW_DEFAULT_FIELDS
+            ]
+        form_class = model_admin.get_form(
+            request,
+            change=False,
+            fields=fields,
+        )
+        form = form_class(data=request.POST)
+        self.assertTrue(form.is_valid(), form.errors)
+        return request, model_admin, form
+
     def test_builder_types_receive_hierarchy_defaults_on_creation(self):
         builder_type = ContributionType.objects.create(
             name='New Builder Type',
@@ -153,6 +211,22 @@ class BuilderReviewHierarchyModelTests(TestCase):
         )
         assigned_threshold.escalation_threshold_points = 275
         assigned_threshold.save()
+        assigned_opt_out = ContributionType(
+            name='Assigned Opt-out Builder Type',
+            slug='assigned-opt-out-builder-type',
+            category=self.builder,
+        )
+        assigned_opt_out.requires_ai_review = False
+        assigned_opt_out.escalation_threshold_points = None
+        assigned_opt_out.save()
+        constructed_opt_out = ContributionType(
+            name='Constructed Opt-out Builder Type',
+            slug='constructed-opt-out-builder-type',
+            category=self.builder,
+            requires_ai_review=False,
+            escalation_threshold_points=None,
+        )
+        constructed_opt_out.save()
 
         self.assertFalse(ai_opt_out.requires_ai_review)
         self.assertEqual(ai_opt_out.escalation_threshold_points, 400)
@@ -164,6 +238,171 @@ class BuilderReviewHierarchyModelTests(TestCase):
         self.assertIsNone(full_opt_out.escalation_threshold_points)
         self.assertTrue(assigned_threshold.requires_ai_review)
         self.assertEqual(assigned_threshold.escalation_threshold_points, 275)
+        self.assertFalse(assigned_opt_out.requires_ai_review)
+        self.assertIsNone(assigned_opt_out.escalation_threshold_points)
+        self.assertFalse(constructed_opt_out.requires_ai_review)
+        self.assertIsNone(constructed_opt_out.escalation_threshold_points)
+
+    def test_registered_admin_form_applies_builder_defaults_by_default(self):
+        request, model_admin, form = self._contribution_type_admin_form(
+            category=self.builder,
+            apply_builder_defaults=True,
+        )
+        self.assertTrue(form.fields['apply_builder_review_defaults'].initial)
+        contribution_type = model_admin.save_form(request, form, change=False)
+
+        model_admin.save_model(
+            request,
+            contribution_type,
+            form,
+            change=False,
+        )
+
+        contribution_type.refresh_from_db()
+        self.assertTrue(contribution_type.requires_ai_review)
+        self.assertEqual(contribution_type.escalation_threshold_points, 400)
+
+    def test_registered_admin_form_preserves_explicit_builder_opt_out(self):
+        request, model_admin, form = self._contribution_type_admin_form(
+            category=self.builder,
+            apply_builder_defaults=False,
+        )
+        contribution_type = model_admin.save_form(request, form, change=False)
+
+        model_admin.save_model(
+            request,
+            contribution_type,
+            form,
+            change=False,
+        )
+
+        contribution_type.refresh_from_db()
+        self.assertFalse(contribution_type.requires_ai_review)
+        self.assertIsNone(contribution_type.escalation_threshold_points)
+
+    def test_registered_admin_form_preserves_custom_builder_settings(self):
+        request, model_admin, form = self._contribution_type_admin_form(
+            category=self.builder,
+            apply_builder_defaults=False,
+            requires_ai_review=True,
+            escalation_threshold_points=275,
+        )
+        contribution_type = model_admin.save_form(request, form, change=False)
+
+        model_admin.save_model(
+            request,
+            contribution_type,
+            form,
+            change=False,
+        )
+
+        contribution_type.refresh_from_db()
+        self.assertTrue(contribution_type.requires_ai_review)
+        self.assertEqual(contribution_type.escalation_threshold_points, 275)
+
+    def test_registered_admin_form_defaults_excluded_builder_review_fields(self):
+        request, model_admin, form = self._contribution_type_admin_form(
+            category=self.builder,
+            apply_builder_defaults=False,
+            include_review_fields=False,
+        )
+        contribution_type = model_admin.save_form(request, form, change=False)
+
+        model_admin.save_model(
+            request,
+            contribution_type,
+            form,
+            change=False,
+        )
+
+        contribution_type.refresh_from_db()
+        self.assertTrue(contribution_type.requires_ai_review)
+        self.assertEqual(contribution_type.escalation_threshold_points, 400)
+
+    def test_registered_admin_form_leaves_non_builder_defaults_unchanged(self):
+        request, model_admin, form = self._contribution_type_admin_form(
+            category=self.community,
+            apply_builder_defaults=True,
+        )
+        contribution_type = model_admin.save_form(request, form, change=False)
+
+        model_admin.save_model(
+            request,
+            contribution_type,
+            form,
+            change=False,
+        )
+
+        contribution_type.refresh_from_db()
+        self.assertFalse(contribution_type.requires_ai_review)
+        self.assertIsNone(contribution_type.escalation_threshold_points)
+
+    def test_registered_admin_form_supports_commit_true(self):
+        _request, _model_admin, form = self._contribution_type_admin_form(
+            category=self.builder,
+            apply_builder_defaults=True,
+        )
+
+        contribution_type = form.save(commit=True)
+
+        contribution_type.refresh_from_db()
+        self.assertTrue(contribution_type.requires_ai_review)
+        self.assertEqual(contribution_type.escalation_threshold_points, 400)
+
+    def test_registered_admin_hides_builder_default_control_on_change(self):
+        contribution_type = ContributionType.objects.create(
+            name='Existing Admin Builder Type',
+            slug='existing-admin-builder-type',
+            category=self.builder,
+        )
+        request = RequestFactory().get(
+            f'/admin/contributions/contributiontype/{contribution_type.pk}/change/'
+        )
+        request.user = User(
+            is_active=True,
+            is_staff=True,
+            is_superuser=True,
+        )
+        model_admin = admin.site._registry[ContributionType]
+        fields = flatten_fieldsets(
+            model_admin.get_fieldsets(request, contribution_type)
+        )
+        form_class = model_admin.get_form(
+            request,
+            contribution_type,
+            change=True,
+            fields=fields,
+        )
+
+        form = form_class(instance=contribution_type)
+        default_control = form.fields['apply_builder_review_defaults']
+
+        self.assertTrue(default_control.disabled)
+        self.assertIsInstance(default_control.widget, forms.HiddenInput)
+
+    def test_generic_model_form_preserves_builder_opt_out_assignments(self):
+        form_class = forms.modelform_factory(
+            ContributionType,
+            fields=(
+                'name',
+                'slug',
+                'category',
+                'requires_ai_review',
+                'escalation_threshold_points',
+            ),
+        )
+        form = form_class(data={
+            'name': 'Generic Form Opt-out Builder Type',
+            'slug': 'generic-form-opt-out-builder-type',
+            'category': self.builder.pk,
+            'escalation_threshold_points': '',
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+
+        contribution_type = form.save()
+
+        self.assertFalse(contribution_type.requires_ai_review)
+        self.assertIsNone(contribution_type.escalation_threshold_points)
 
     def test_builder_defaults_can_be_overridden_after_creation(self):
         builder_type = ContributionType.objects.create(

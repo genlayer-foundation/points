@@ -2523,62 +2523,61 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                         at_date=submission.contribution_date,
                     )
                 except GlobalLeaderboardMultiplier.DoesNotExist:
-                    pass
-                else:
-                    points = serializer.validated_data['points']
-                    final_points = round(points * float(multiplier))
-                    if final_points >= threshold:
-                        if previous_state == 'more_info_needed':
-                            submission.state = 'pending'
-                            submission.staff_reply = ''
-                            submission.reviewed_by = None
-                            submission.reviewed_at = None
-                        escalated_at = timezone.now()
-                        rubric_review = serializer.validated_data.get('rubric_review')
-                        rubric_record, review_proposal = self._persist_human_proposal(
-                            submission,
-                            proposer=request.user,
-                            action_name='accept',
-                            points=points,
-                            contribution_type=contribution_type,
-                            proposed_user=contribution_user,
-                            staff_reply=serializer.validated_data.get('staff_reply', ''),
-                            create_highlight=serializer.validated_data.get('create_highlight', False),
-                            highlight_title=serializer.validated_data.get('highlight_title', ''),
-                            highlight_description=serializer.validated_data.get('highlight_description', ''),
-                            template=serializer.validated_data.get('template_id'),
-                            rubric_review=rubric_review,
-                            escalated_at=escalated_at,
-                        )
-                        SubmissionStateTransition.record(
-                            submission,
-                            SubmissionStateTransition.EVENT_ESCALATED,
-                            from_state=previous_state,
-                            actor=request.user,
-                        )
-                        reviewer_name = request.user.name or request.user.address[:10] + '...'
-                        rubric_str = f"\n\n{rubric_summary_text(rubric_review)}" if rubric_review else ''
-                        SubmissionNote.objects.create(
-                            submitted_contribution=submission,
-                            user=request.user,
-                            message=(
-                                f"Escalated proposed acceptance with **{points} points** "
-                                f"({final_points} final points) by {reviewer_name}{rubric_str}"
-                            ),
-                            is_proposal=True,
-                            data={
-                                'action': 'escalate',
-                                'points': points,
-                                'final_points': final_points,
-                                'threshold': threshold,
-                                'rubric_review_id': rubric_record.id if rubric_record else None,
-                                'review_proposal_id': review_proposal.id if review_proposal else None,
-                            },
-                        )
-                        return Response(
-                            self.get_serializer(submission).data,
-                            status=status.HTTP_200_OK,
-                        )
+                    multiplier = 1
+                points = serializer.validated_data['points']
+                final_points = round(points * float(multiplier))
+                if final_points >= threshold:
+                    if previous_state == 'more_info_needed':
+                        submission.state = 'pending'
+                        submission.staff_reply = ''
+                        submission.reviewed_by = None
+                        submission.reviewed_at = None
+                    escalated_at = timezone.now()
+                    rubric_review = serializer.validated_data.get('rubric_review')
+                    rubric_record, review_proposal = self._persist_human_proposal(
+                        submission,
+                        proposer=request.user,
+                        action_name='accept',
+                        points=points,
+                        contribution_type=contribution_type,
+                        proposed_user=contribution_user,
+                        staff_reply=serializer.validated_data.get('staff_reply', ''),
+                        create_highlight=serializer.validated_data.get('create_highlight', False),
+                        highlight_title=serializer.validated_data.get('highlight_title', ''),
+                        highlight_description=serializer.validated_data.get('highlight_description', ''),
+                        template=serializer.validated_data.get('template_id'),
+                        rubric_review=rubric_review,
+                        escalated_at=escalated_at,
+                    )
+                    SubmissionStateTransition.record(
+                        submission,
+                        SubmissionStateTransition.EVENT_ESCALATED,
+                        from_state=previous_state,
+                        actor=request.user,
+                    )
+                    reviewer_name = request.user.name or request.user.address[:10] + '...'
+                    rubric_str = f"\n\n{rubric_summary_text(rubric_review)}" if rubric_review else ''
+                    SubmissionNote.objects.create(
+                        submitted_contribution=submission,
+                        user=request.user,
+                        message=(
+                            f"Escalated proposed acceptance with **{points} points** "
+                            f"({final_points} final points) by {reviewer_name}{rubric_str}"
+                        ),
+                        is_proposal=True,
+                        data={
+                            'action': 'escalate',
+                            'points': points,
+                            'final_points': final_points,
+                            'threshold': threshold,
+                            'rubric_review_id': rubric_record.id if rubric_record else None,
+                            'review_proposal_id': review_proposal.id if review_proposal else None,
+                        },
+                    )
+                    return Response(
+                        self.get_serializer(submission).data,
+                        status=status.HTTP_200_OK,
+                    )
 
         active_proposal = None
         if submission.proposed_by_id:

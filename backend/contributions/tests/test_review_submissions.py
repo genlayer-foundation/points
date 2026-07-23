@@ -792,8 +792,8 @@ class GateReviewedCommandTest(Tier1RuleTestBase):
         self.assertEqual(submission.staff_reply, '')
         self.assertIn('appeals_reviewed: 1', out.getvalue())
 
-    def test_command_gate_reviews_appeal_when_rejection_template_is_missing(self):
-        ReviewTemplate.objects.filter(label='Reject: No Evidence').delete()
+    def test_command_gate_reviews_appeal_when_no_review_templates_exist(self):
+        ReviewTemplate.objects.all().delete()
         submission = self._create_submission(notes='Missing evidence')
         submission.has_appeal = True
         submission.appeal_reason = 'Please reconsider this submission.'
@@ -807,7 +807,7 @@ class GateReviewedCommandTest(Tier1RuleTestBase):
         self.assertEqual(submission.state, 'pending')
         self.assertTrue(submission.gate_reviewed)
         self.assertIsNone(submission.reviewed_by)
-        self.assertNotIn('Template not found', out.getvalue())
+        self.assertIn('No review templates found', out.getvalue())
         self.assertIn('appeals_reviewed: 1', out.getvalue())
 
     def test_command_skips_gate_reviewed_submission(self):

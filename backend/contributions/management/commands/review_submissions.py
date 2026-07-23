@@ -264,13 +264,6 @@ class Command(BaseCommand):
 
         ai_user = self._ensure_ai_steward()
 
-        templates = {t.label: t for t in ReviewTemplate.objects.all()}
-        if not templates:
-            self.stdout.write(self.style.ERROR(
-                'No review templates found. Please create them first.'
-            ))
-            return
-
         # Build queryset
         qs = (
             SubmittedContribution.objects
@@ -305,6 +298,42 @@ class Command(BaseCommand):
         submissions = list(qs)
         self.stdout.write(f'Found {len(submissions)} submissions to process')
 
+        stats = defaultdict(int)
+        appealed_submissions = [
+            submission for submission in submissions
+            if submission.has_appeal
+        ]
+
+        # Appeals do not require templates and must remain pending for a human.
+        for i, submission in enumerate(appealed_submissions, 1):
+            evidence_items = list(submission.evidence_items.all())
+            self.stdout.write(
+                f'\n[{i}/{len(submissions)}] {submission.id} '
+                f'| {submission.contribution_type.name} '
+                f'| evidence: {len(evidence_items)} '
+                f'| notes: {len((submission.notes or ""))}chars'
+            )
+            stats['appeals_reviewed'] += 1
+            self.stdout.write(self.style.WARNING(
+                '  -> HUMAN REVIEW: appealed submission preserved'
+            ))
+            if not dry_run:
+                self._mark_gate_reviewed(submission)
+
+        submissions = [
+            submission for submission in submissions
+            if not submission.has_appeal
+        ]
+
+        templates = {t.label: t for t in ReviewTemplate.objects.all()}
+        if not templates:
+            self.stdout.write(self.style.ERROR(
+                'No review templates found. Please create them first.'
+            ))
+            if stats:
+                self._write_summary(stats, dry_run)
+            return
+
         # Pre-load all evidence URLs for O(1) duplicate checking
         url_to_sub_ids, accepted_urls, submitted_created_at = (
             self._build_url_lookup()
@@ -318,27 +347,17 @@ class Command(BaseCommand):
         # only older submitted duplicates count so the outcome is deterministic.
         skip_pending_duplicates = bool(options['submission_id'])
 
-        stats = defaultdict(int)
-
-        for i, submission in enumerate(submissions, 1):
+        for i, submission in enumerate(
+            submissions, len(appealed_submissions) + 1,
+        ):
             evidence_items = list(submission.evidence_items.all())
             self.stdout.write(
-                f'\n[{i}/{len(submissions)}] {submission.id} '
+                f'\n[{i}/{len(submissions) + len(appealed_submissions)}] '
+                f'{submission.id} '
                 f'| {submission.contribution_type.name} '
                 f'| evidence: {len(evidence_items)} '
                 f'| notes: {len((submission.notes or ""))}chars'
             )
-
-            if submission.has_appeal:
-                # Appeals must remain pending for human reconsideration even
-                # when a deterministic reject condition might apply.
-                stats['appeals_reviewed'] += 1
-                self.stdout.write(self.style.WARNING(
-                    '  -> HUMAN REVIEW: appealed submission preserved'
-                ))
-                if not dry_run:
-                    self._mark_gate_reviewed(submission)
-                continue
 
             result = self._run_tier1(
                 submission, evidence_items, templates,
@@ -372,7 +391,9 @@ class Command(BaseCommand):
         banned_count = self._check_auto_bans(ai_user, dry_run)
         stats['auto_banned'] = banned_count
 
-        # Summary
+        self._write_summary(stats, dry_run)
+
+    def _write_summary(self, stats, dry_run):
         self.stdout.write('\n' + '=' * 60)
         self.stdout.write(self.style.SUCCESS('SUMMARY'))
         for key, count in sorted(stats.items()):

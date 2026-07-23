@@ -199,6 +199,29 @@ class EscalationReviewTests(APITestCase):
         self.assertEqual(note.data['final_points'], 400)
         self.assertEqual(note.data['threshold'], 400)
 
+    def test_missing_date_specific_multiplier_uses_one_for_escalation(self):
+        submission = SubmittedContribution.objects.create(
+            user=self.submitter,
+            contribution_type=self.review_type,
+            contribution_date=timezone.now() - timedelta(days=2),
+            notes='Predates the available multiplier.',
+            state='pending',
+        )
+
+        response = self.review(submission, self.reviewer, points=400)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        submission.refresh_from_db()
+        self.assertEqual(submission.state, 'pending')
+        self.assertIsNotNone(submission.escalated_at)
+        self.assertIsNone(submission.converted_contribution)
+        note = SubmissionNote.objects.get(
+            submitted_contribution=submission,
+            data__action='escalate',
+        )
+        self.assertEqual(note.data['final_points'], 400)
+        self.assertEqual(note.data['threshold'], 400)
+
     def test_null_threshold_and_tier_two_accept_normally(self):
         ordinary = self.create_submission(self.no_threshold_type)
         ordinary_response = self.review(ordinary, self.reviewer, points=500)

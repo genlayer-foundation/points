@@ -145,8 +145,51 @@ class GlobalLeaderboardMultiplierInline(admin.TabularInline):
     fields = ('multiplier_value', 'valid_from', 'description')
 
 
+class ContributionTypeAdminForm(forms.ModelForm):
+    apply_builder_review_defaults = forms.BooleanField(
+        required=False,
+        initial=True,
+        label='Apply Builder review defaults',
+        help_text=(
+            'For new Builder types, set AI review on and the escalation '
+            'threshold to 400. Uncheck to use the review settings below.'
+        ),
+    )
+
+    class Meta:
+        model = ContributionType
+        fields = '__all__'
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        super().__init__(*args, **kwargs)
+        if not self.instance._state.adding:
+            field = self.fields['apply_builder_review_defaults']
+            field.disabled = True
+            field.initial = False
+            field.widget = forms.HiddenInput()
+
+    def save(self, commit: bool = True) -> ContributionType:
+        contribution_type = super().save(commit=False)
+        if (
+            contribution_type._state.adding
+            and self.cleaned_data.get('apply_builder_review_defaults')
+            and contribution_type.category_id
+            and contribution_type.category.slug
+            == ContributionType.BUILDER_CATEGORY_SLUG
+        ):
+            contribution_type.requires_ai_review = True
+            contribution_type.escalation_threshold_points = (
+                ContributionType.BUILDER_DEFAULT_ESCALATION_THRESHOLD_POINTS
+            )
+        if commit:
+            contribution_type.save()
+            self._save_m2m()
+        return contribution_type
+
+
 @admin.register(ContributionType)
 class ContributionTypeAdmin(BroadcastNotificationAdminMixin, admin.ModelAdmin):
+    form = ContributionTypeAdminForm
     broadcast_event_slug = 'contribution_type.published'
     broadcast_service = staticmethod(notification_services.broadcast_contribution_type)
     broadcast_eligible = staticmethod(lambda obj: obj.is_submittable)

@@ -42,6 +42,7 @@ class Category(BaseModel):
     def __str__(self):
         return self.name
 
+
 def evidence_file_path(instance, filename):
     """Generate a unique file path for evidence files."""
     # Generate a unique path for each file based on user and timestamp
@@ -83,17 +84,41 @@ class ContributionType(BaseModel):
     ]
     BUILDER_CATEGORY_SLUG = 'builder'
     BUILDER_DEFAULT_ESCALATION_THRESHOLD_POINTS = 400
-    BUILDER_REVIEW_DEFAULT_FIELDS = {
+    BUILDER_REVIEW_DEFAULT_FIELDS = frozenset({
         'requires_ai_review',
         'escalation_threshold_points',
-    }
+    })
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object) -> None:
         explicit_review_fields = self.BUILDER_REVIEW_DEFAULT_FIELDS.intersection(
             kwargs
         )
+        object.__setattr__(
+            self,
+            '_explicit_builder_review_fields',
+            explicit_review_fields,
+        )
+        object.__setattr__(self, '_track_builder_review_assignments', False)
         super().__init__(*args, **kwargs)
-        self._explicit_review_fields_on_create = explicit_review_fields
+        object.__setattr__(self, '_track_builder_review_assignments', True)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        # ModelForms assign cleaned values after constructing an empty model.
+        if (
+            name in self.BUILDER_REVIEW_DEFAULT_FIELDS
+            and getattr(self, '_track_builder_review_assignments', False)
+        ):
+            explicit_review_fields = getattr(
+                self,
+                '_explicit_builder_review_fields',
+                frozenset(),
+            )
+            object.__setattr__(
+                self,
+                '_explicit_builder_review_fields',
+                explicit_review_fields | {name},
+            )
+        super().__setattr__(name, value)
 
     name = models.CharField(max_length=100)
     slug = models.SlugField(max_length=100, unique=True, null=True, blank=True, help_text="Unique identifier for this contribution type")
@@ -269,6 +294,11 @@ class ContributionType(BaseModel):
 
     def save(self, *args, **kwargs):
         if self._state.adding and self.category_id:
+            explicit_review_fields = getattr(
+                self,
+                '_explicit_builder_review_fields',
+                frozenset(),
+            )
             category = self._state.fields_cache.get('category')
             category_slug = (
                 category.slug
@@ -280,13 +310,13 @@ class ContributionType(BaseModel):
             if category_slug == self.BUILDER_CATEGORY_SLUG:
                 if (
                     'requires_ai_review'
-                    not in self._explicit_review_fields_on_create
+                    not in explicit_review_fields
                     and self.requires_ai_review is False
                 ):
                     self.requires_ai_review = True
                 if (
                     'escalation_threshold_points'
-                    not in self._explicit_review_fields_on_create
+                    not in explicit_review_fields
                     and self.escalation_threshold_points is None
                 ):
                     self.escalation_threshold_points = (
