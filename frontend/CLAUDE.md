@@ -293,10 +293,10 @@ frontend/src/
   - Mobile responsive menu
 - **Notifications**: `src/components/NotificationCenter.svelte`
   - Bell icon button in the navbar, left of the search bar on desktop, before the auth button on mobile; only when authenticated
-  - Unread badge, dropdown with latest notifications, mark-all-read, "View all" linking to `/notifications`
+  - Unread badge, dropdown with latest notifications, mark-all-read, "View all" linking to `/notifications`. Dropdown body previews retain sanitized markdown formatting and links while being capped at 120 characters and visually clamped to two lines; the full notifications page retains rich markdown.
   - Polls unread count every 60s while the tab is visible; the desktop/mobile instances share one refcounted timer and visibility listener, and returning to the tab refreshes immediately. Clicking a notification marks it read (non-blocking) and follows its `link_url` (internal routes push in-app, http(s) opens a new tab)
   - Full feed page: `src/routes/Notifications.svelte` (All/Unread filter pills, load-more pagination). Bodies render as sanitized image-free markdown via `parseUserMarkdown()` (no `<img>`, so private campaign opens can't ping external tracking pixels); rows are `div[role=button]` so markdown links stay clickable, inline anchor clicks don't also trigger the row's `link_url` redirect, and rows without a `link_url` show a default cursor (pure announcements)
-  - Shared utils: `src/lib/notificationUtils.js` (`asList` payload normalization, `followNotificationLink` link handling) and `src/lib/relativeTime.js` for compact timestamps
+  - Shared utils: `src/lib/notificationUtils.js` (`asList` payload normalization, `notificationBodyPreview` compact dropdown copy, `followNotificationLink` link handling) and `src/lib/relativeTime.js` for compact timestamps
 - **Sidebar**: `src/components/Sidebar.svelte`
   - Side navigation with collapsible sections
   - Admin-managed role viewer: `/users/me/` may return `can_view_role_sections=true`. This unlocks gated Builder, Validator, and Community views without changing `hasEarnedRole`; Steward tools are excluded and point-bearing actions remain real-role-only.

@@ -4,6 +4,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Notification bodies in the navbar dropdown now stop at 120 characters with an ellipsis while keeping their formatting and links (b4815f48)
+
 - Builder submissions now pass through AI review before standard steward review, high-point acceptances are escalated as proposals to top-level stewards, and apex stewards have a focused queue for accepted contributions marked interesting. Appeals and more-information resubmissions remain visible to both AI review stages.
 
 - The Metrics page contribution state trends now show how many submissions were really pending, accepted, or awaiting more info at each point in time (not just those submitted in the selected range), daily grouping no longer errors on wide date ranges (the start date adapts automatically while keeping the end date), and the contribution type filter includes non-submittable types (20860fe7)

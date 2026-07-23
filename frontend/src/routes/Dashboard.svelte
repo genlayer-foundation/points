@@ -1,6 +1,8 @@
 <script>
   import { contributionsAPI, statsAPI, leaderboardAPI, validatorsAPI, buildersAPI } from '../lib/api';
   import { visibleContributions } from '../lib/hiddenContributions.js';
+  import { hasReadOnlyRoleSectionAccess } from '../lib/roleState.js';
+  import { userStore } from '../lib/userStore.js';
   import { currentCategory } from '../stores/category.js';
 
   // Generic UI components
@@ -43,6 +45,9 @@
   let isBuilder = $derived(category === 'builder');
   let isValidator = $derived(category === 'validator');
   let isCommunity = $derived(category === 'community');
+  let isRoleSectionReadOnly = $derived(
+    hasReadOnlyRoleSectionAccess($userStore.user, category)
+  );
   let accentColor = $derived(isBuilder ? '#ee8521' : isCommunity ? '#7f52e1' : '#4f76f6');
   let valueLabel = $derived(isBuilder ? 'BP' : isCommunity ? 'CP' : 'VP');
   let dashboardTitle = $derived(
@@ -295,6 +300,14 @@
 </script>
 
 <div class="dashboard-page max-w-full overflow-x-hidden space-y-8">
+  {#if isRoleSectionReadOnly}
+    <div class="flex justify-end">
+      <span class="inline-flex min-h-7 items-center rounded-full border border-[#cdddf8] bg-[#edf4ff] px-3 text-[11px] font-semibold text-[#245ca8]">
+        View-only access
+      </span>
+    </div>
+  {/if}
+
   <!-- 1. Hero Banner -->
   <HeroBanner category={category} compact={true} />
 
@@ -467,54 +480,56 @@
     </div>
   {/if}
 
-  <!-- 9. CTA Section with gradient background -->
-  <div class="relative -mt-8 overflow-hidden pt-8">
-    <!-- Gradient background — extends beyond container to cover main padding -->
-    <div
-      class="absolute -bottom-3 inset-x-0 top-0 pointer-events-none"
-      style="background: {isBuilder
-        ? 'radial-gradient(ellipse 80% 60% at 0% 100%, rgba(233, 147, 34, 0.25) 0%, transparent 70%), radial-gradient(ellipse 80% 60% at 100% 100%, rgba(233, 147, 34, 0.25) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 50% 0%, rgba(248, 185, 61, 0.12) 0%, transparent 60%)'
-        : isCommunity
-          ? 'radial-gradient(ellipse 80% 60% at 0% 100%, rgba(127, 82, 225, 0.20) 0%, transparent 70%), radial-gradient(ellipse 80% 60% at 100% 100%, rgba(127, 82, 225, 0.20) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 50% 0%, rgba(170, 141, 255, 0.12) 0%, transparent 60%)'
-        : 'radial-gradient(ellipse 80% 60% at 0% 100%, rgba(56, 125, 232, 0.20) 0%, transparent 70%), radial-gradient(ellipse 80% 60% at 100% 100%, rgba(56, 125, 232, 0.20) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 50% 0%, rgba(109, 167, 243, 0.12) 0%, transparent 60%)'
-      };"
-    ></div>
-    <!-- White fade at top for smooth transition -->
-    <div
-      class="absolute inset-x-0 top-0 h-40 pointer-events-none z-[1]"
-      style="background: linear-gradient(to bottom, white 0%, transparent 100%);"
-    ></div>
-    {#if isBuilder}
-      <CTASection
-        title="Start building today"
-        description="Join professional validators and builders in testing the trust infrastructure for the AI age."
-        primaryButtonText="Become a builder"
-        primaryButtonPath="/submit-contribution"
-        secondaryLinkText="Visit the Studio"
-        secondaryLinkPath="https://studio.genlayer.com"
-        secondaryLinkExternal={true}
-      />
-    {:else if isCommunity}
-      <CTASection
-        title="Contribute to the community"
-        description="Create content, share knowledge, and help more people understand GenLayer."
-        primaryButtonText="Submit Contribution"
-        primaryButtonPath="/submit-contribution"
-        secondaryLinkText="Browse Contributions"
-        secondaryLinkPath="/community/all-contributions"
-      />
-    {:else}
-      <CTASection
-        title="Become a Validator"
-        description="Join professional validators and builders in testing the trust infrastructure for the AI age."
-        primaryButtonText="Join the Waitlist"
-        primaryButtonPath="/validators/waitlist/join"
-        secondaryLinkText="Read the Docs"
-        secondaryLinkPath="https://docs.genlayer.com"
-        secondaryLinkExternal={true}
-      />
-    {/if}
-  </div>
+  {#if !isRoleSectionReadOnly}
+    <!-- 9. CTA Section with gradient background -->
+    <div class="relative -mt-8 overflow-hidden pt-8">
+      <!-- Gradient background — extends beyond container to cover main padding -->
+      <div
+        class="absolute -bottom-3 inset-x-0 top-0 pointer-events-none"
+        style="background: {isBuilder
+          ? 'radial-gradient(ellipse 80% 60% at 0% 100%, rgba(233, 147, 34, 0.25) 0%, transparent 70%), radial-gradient(ellipse 80% 60% at 100% 100%, rgba(233, 147, 34, 0.25) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 50% 0%, rgba(248, 185, 61, 0.12) 0%, transparent 60%)'
+          : isCommunity
+            ? 'radial-gradient(ellipse 80% 60% at 0% 100%, rgba(127, 82, 225, 0.20) 0%, transparent 70%), radial-gradient(ellipse 80% 60% at 100% 100%, rgba(127, 82, 225, 0.20) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 50% 0%, rgba(170, 141, 255, 0.12) 0%, transparent 60%)'
+            : 'radial-gradient(ellipse 80% 60% at 0% 100%, rgba(56, 125, 232, 0.20) 0%, transparent 70%), radial-gradient(ellipse 80% 60% at 100% 100%, rgba(56, 125, 232, 0.20) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 50% 0%, rgba(109, 167, 243, 0.12) 0%, transparent 60%)'
+        };"
+      ></div>
+      <!-- White fade at top for smooth transition -->
+      <div
+        class="absolute inset-x-0 top-0 h-40 pointer-events-none z-[1]"
+        style="background: linear-gradient(to bottom, white 0%, transparent 100%);"
+      ></div>
+      {#if isBuilder}
+        <CTASection
+          title="Start building today"
+          description="Join professional validators and builders in testing the trust infrastructure for the AI age."
+          primaryButtonText="Become a builder"
+          primaryButtonPath="/submit-contribution"
+          secondaryLinkText="Visit the Studio"
+          secondaryLinkPath="https://studio.genlayer.com"
+          secondaryLinkExternal={true}
+        />
+      {:else if isCommunity}
+        <CTASection
+          title="Contribute to the community"
+          description="Create content, share knowledge, and help more people understand GenLayer."
+          primaryButtonText="Submit Contribution"
+          primaryButtonPath="/submit-contribution"
+          secondaryLinkText="Browse Contributions"
+          secondaryLinkPath="/community/all-contributions"
+        />
+      {:else}
+        <CTASection
+          title="Become a Validator"
+          description="Join professional validators and builders in testing the trust infrastructure for the AI age."
+          primaryButtonText="Join the Waitlist"
+          primaryButtonPath="/validators/waitlist/join"
+          secondaryLinkText="Read the Docs"
+          secondaryLinkPath="https://docs.genlayer.com"
+          secondaryLinkExternal={true}
+        />
+      {/if}
+    </div>
+  {/if}
 </div>
 
 <style>
