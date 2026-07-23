@@ -179,6 +179,20 @@ class BuilderReviewHierarchyModelTests(TestCase):
         self.assertFalse(builder_type.requires_ai_review)
         self.assertIsNone(builder_type.escalation_threshold_points)
 
+    def test_reclassifying_an_existing_type_does_not_apply_defaults(self):
+        contribution_type = ContributionType.objects.create(
+            name='Reclassified Type',
+            slug='reclassified-type',
+            category=self.community,
+        )
+
+        contribution_type.category = self.builder
+        contribution_type.save()
+
+        contribution_type.refresh_from_db()
+        self.assertFalse(contribution_type.requires_ai_review)
+        self.assertIsNone(contribution_type.escalation_threshold_points)
+
 
 class StewardTierPermissionTests(TestCase):
     def setUp(self):
