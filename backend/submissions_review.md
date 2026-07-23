@@ -154,9 +154,12 @@ Two fields on `ContributionType` control the hierarchy:
   accept becomes a human proposal instead of creating a `Contribution`.
   Blank disables escalation.
 
-Builder-category types are initialized with AI review required and a 400-point
-escalation threshold. The threshold is evaluated against the final type chosen
-by the reviewer. Reject and request-more-info decisions never escalate.
+Existing Builder-category types are backfilled once, and new types are created
+with AI review required and a 400-point escalation threshold when those values
+are not supplied explicitly. Administrators can opt individual types out
+afterward; later saves do not reapply the defaults. The threshold is evaluated
+against the final type chosen by the reviewer. Reject and
+request-more-info decisions never escalate.
 
 Escalation reuses the normal `proposed_*`, `ProjectMilestoneReview`, and
 `ReviewProposal` records. `SubmittedContribution.escalated_at` marks the active

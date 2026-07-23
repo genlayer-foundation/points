@@ -271,6 +271,22 @@
     selectedSubmissions = new Set(selectedSubmissions);
   }
 
+  function syncOrRemoveSubmission(submissionId, updatedSubmission, extraMatch = true, onUpdate = null) {
+    if (!extraMatch || !matchesActiveQueueFlags(updatedSubmission)) {
+      removeSubmissionFromPage(submissionId);
+      return false;
+    }
+
+    const idx = submissions.findIndex(submission => submission.id === submissionId);
+    if (idx !== -1) {
+      submissions[idx] = updatedSubmission;
+      onUpdate?.(updatedSubmission);
+      submissions = [...submissions];
+    }
+
+    return true;
+  }
+
   async function loadSubmissions() {
     if (destroyed) return; // unmounted mid-load — don't fetch or touch the URL
     const requestId = ++submissionsRequestId;
@@ -438,16 +454,7 @@
   async function handleToggleInteresting(submissionId, isInteresting) {
     try {
       const response = await stewardAPI.toggleInteresting(submissionId, isInteresting);
-      if (!matchesActiveQueueFlags(response.data)) {
-        removeSubmissionFromPage(submissionId);
-        return;
-      }
-
-      const idx = submissions.findIndex(s => s.id === submissionId);
-      if (idx !== -1) {
-        submissions[idx] = response.data;
-        submissions = [...submissions];
-      }
+      syncOrRemoveSubmission(submissionId, response.data);
     } catch (err) {
       showError('Failed to update flag: ' + (err.response?.data?.detail || err.message));
       throw err;
@@ -461,15 +468,7 @@
     try {
       const response = await stewardAPI.changeSubmissionType(submissionId, contributionTypeId);
       const updatedSub = response.data;
-      if (!matchesActiveQueueFlags(updatedSub)) {
-        removeSubmissionFromPage(submissionId);
-      } else {
-        const idx = submissions.findIndex(s => s.id === submissionId);
-        if (idx !== -1) {
-          submissions[idx] = updatedSub;
-          submissions = [...submissions];
-        }
-      }
+      syncOrRemoveSubmission(submissionId, updatedSub);
       reviewData[submissionId] = {
         action: 'accept',
         user: updatedSub.user,
@@ -561,14 +560,11 @@
           : getSuccessMessage(data.action)
       );
 
-      // Update in-place: remove if state no longer matches filter, otherwise update
-      if (
-        (!stateFilter || stateFilter === updatedSub.state) &&
-        matchesActiveQueueFlags(updatedSub)
-      ) {
-        const idx = submissions.findIndex(s => s.id === submissionId);
-        if (idx !== -1) {
-          submissions[idx] = updatedSub;
+      const remainsInQueue = syncOrRemoveSubmission(
+        submissionId,
+        updatedSub,
+        !stateFilter || stateFilter === updatedSub.state,
+        () => {
           if (updatedSub.state === 'accepted' && updatedSub.contribution) {
             acceptedEdits[submissionId] = getAcceptedEditData(updatedSub);
             acceptedEdits = { ...acceptedEdits };
@@ -576,12 +572,12 @@
             delete acceptedEdits[submissionId];
             acceptedEdits = { ...acceptedEdits };
           }
-          submissions = [...submissions];
         }
+      );
+
+      if (remainsInQueue) {
         // Reload notes since review creates a CRM note
         loadNotes(submissionId);
-      } else {
-        removeSubmissionFromPage(submissionId);
       }
     } catch (err) {
       showError('Failed to review submission: ' + (err.response?.data?.detail || err.message));
@@ -669,15 +665,7 @@
       const response = await stewardAPI.proposeSubmission(submissionId, data);
 
       // Update submission in-place with proposal data
-      if (!matchesActiveQueueFlags(response.data)) {
-        removeSubmissionFromPage(submissionId);
-      } else {
-        const idx = submissions.findIndex(s => s.id === submissionId);
-        if (idx !== -1) {
-          submissions[idx] = response.data;
-          submissions = [...submissions];
-        }
-      }
+      syncOrRemoveSubmission(submissionId, response.data);
       // Also reload notes since a proposal creates a CRM note
       loadNotes(submissionId);
       showSuccess('Proposal submitted successfully');

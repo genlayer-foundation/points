@@ -79,6 +79,8 @@ class ReviewerRewardTests(APITestCase):
             min_points=0,
             max_points=100,
             review_flow=ContributionType.REVIEW_FLOW_BUILDER_PROJECT,
+            requires_ai_review=False,
+            escalation_threshold_points=None,
         )
         self.standard_type = ContributionType.objects.create(
             name='Reviewer Reward Standard',
@@ -86,6 +88,8 @@ class ReviewerRewardTests(APITestCase):
             category=self.category,
             min_points=0,
             max_points=100,
+            requires_ai_review=False,
+            escalation_threshold_points=None,
         )
         self.reward_type, _ = ContributionType.objects.get_or_create(
             slug=REVIEWER_REWARD_TYPE_SLUG,

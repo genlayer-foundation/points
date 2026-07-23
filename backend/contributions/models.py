@@ -81,6 +81,19 @@ class ContributionType(BaseModel):
         (REVIEW_FLOW_STANDARD, 'Standard'),
         (REVIEW_FLOW_BUILDER_PROJECT, 'Builder Project'),
     ]
+    BUILDER_CATEGORY_SLUG = 'builder'
+    BUILDER_DEFAULT_ESCALATION_THRESHOLD_POINTS = 400
+    BUILDER_REVIEW_DEFAULT_FIELDS = {
+        'requires_ai_review',
+        'escalation_threshold_points',
+    }
+
+    def __init__(self, *args, **kwargs):
+        explicit_review_fields = self.BUILDER_REVIEW_DEFAULT_FIELDS.intersection(
+            kwargs
+        )
+        super().__init__(*args, **kwargs)
+        self._explicit_review_fields_on_create = explicit_review_fields
 
     name = models.CharField(max_length=100)
     slug = models.SlugField(max_length=100, unique=True, null=True, blank=True, help_text="Unique identifier for this contribution type")
@@ -253,6 +266,33 @@ class ContributionType(BaseModel):
         if submission_count is None:
             return False
         return submission_count >= self.max_submissions_per_user_per_week
+
+    def save(self, *args, **kwargs):
+        if self._state.adding and self.category_id:
+            category = self._state.fields_cache.get('category')
+            category_slug = (
+                category.slug
+                if category is not None
+                else Category.objects.filter(pk=self.category_id)
+                .values_list('slug', flat=True)
+                .first()
+            )
+            if category_slug == self.BUILDER_CATEGORY_SLUG:
+                if (
+                    'requires_ai_review'
+                    not in self._explicit_review_fields_on_create
+                    and self.requires_ai_review is False
+                ):
+                    self.requires_ai_review = True
+                if (
+                    'escalation_threshold_points'
+                    not in self._explicit_review_fields_on_create
+                    and self.escalation_threshold_points is None
+                ):
+                    self.escalation_threshold_points = (
+                        self.BUILDER_DEFAULT_ESCALATION_THRESHOLD_POINTS
+                    )
+        super().save(*args, **kwargs)
         
     def clean(self):
         """Validate the contribution type data."""

@@ -41,6 +41,8 @@ class ProjectsAndMilestonesTest(TestCase):
                 'max_points': 100,
                 'is_submittable': True,
                 'review_flow': ContributionType.REVIEW_FLOW_STANDARD,
+                'requires_ai_review': False,
+                'escalation_threshold_points': None,
             },
         )
         self.milestone_type, _ = ContributionType.objects.update_or_create(
@@ -53,6 +55,8 @@ class ProjectsAndMilestonesTest(TestCase):
                 'max_points': 50,
                 'is_submittable': True,
                 'review_flow': ContributionType.REVIEW_FLOW_STANDARD,
+                'requires_ai_review': False,
+                'escalation_threshold_points': None,
             },
         )
         for contribution_type in (self.project_type, self.milestone_type):

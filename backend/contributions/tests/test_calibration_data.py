@@ -31,13 +31,15 @@ def _create_test_fixtures():
         slug='builder',
         defaults={'name': 'Builder', 'description': 'Builder category'},
     )
-    ct, _ = ContributionType.objects.get_or_create(
+    ct, _ = ContributionType.objects.update_or_create(
         slug='educational-content',
         defaults={
             'name': 'Educational Content',
             'category': category,
             'min_points': 1,
             'max_points': 10,
+            'requires_ai_review': False,
+            'escalation_threshold_points': None,
         },
     )
     # Create multiplier for the contribution type
