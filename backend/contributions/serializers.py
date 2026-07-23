@@ -72,6 +72,8 @@ class LightContributionTypeSerializer(serializers.Serializer):
     user_weekly_submissions_remaining = serializers.SerializerMethodField()
     user_weekly_is_full = serializers.SerializerMethodField()
     review_flow = serializers.CharField(read_only=True)
+    requires_ai_review = serializers.BooleanField(read_only=True)
+    escalation_threshold_points = serializers.IntegerField(read_only=True)
     # Include category slug only, not the full category object
     category = serializers.SerializerMethodField()
 
@@ -230,7 +232,8 @@ class ContributionTypeSerializer(serializers.ModelSerializer):
         model = ContributionType
         fields = [
             'id', 'name', 'slug', 'description', 'category', 'min_points', 'max_points',
-            'rubric_extra_points', 'current_multiplier', 'is_submittable', 'review_flow', 'max_submissions',
+            'rubric_extra_points', 'current_multiplier', 'is_submittable', 'review_flow',
+            'requires_ai_review', 'escalation_threshold_points', 'max_submissions',
             'submission_count', 'submissions_remaining', 'is_full',
             'max_submissions_per_user_per_week', 'user_weekly_submission_count',
             'user_weekly_submissions_remaining', 'user_weekly_is_full',
@@ -1530,7 +1533,7 @@ class StewardSubmissionSerializer(MoreInfoRequestsMixin, serializers.ModelSerial
                   'proposal_questioned_by', 'proposal_questioned_by_details',
                   'proposal_questioned_at',
                   'rubric_review', 'ai_analysis',
-                  'notes_count', 'is_interesting', 'gate_reviewed',
+                  'notes_count', 'is_interesting', 'gate_reviewed', 'escalated_at',
                   'has_appeal', 'appeal_reason', 'appealed_at', 'more_info_requests',
                   'created_at', 'updated_at', 'last_edited_at', 'converted_contribution', 'contribution',
                   'mission', 'project_contribution', 'milestone_version']
@@ -1547,7 +1550,8 @@ class StewardSubmissionSerializer(MoreInfoRequestsMixin, serializers.ModelSerial
                             'proposal_review_status', 'proposal_review_feedback',
                             'proposal_questioned_by', 'proposal_questioned_at',
                             'created_at', 'updated_at', 'last_edited_at', 'proposed_points',
-                            'is_interesting', 'gate_reviewed', 'has_appeal', 'appeal_reason', 'appealed_at',
+                            'is_interesting', 'gate_reviewed', 'escalated_at',
+                            'has_appeal', 'appeal_reason', 'appealed_at',
                             'converted_contribution', 'mission', 'milestone_version']
 
     def get_user_details(self, obj):

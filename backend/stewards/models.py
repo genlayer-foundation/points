@@ -9,10 +9,23 @@ class Steward(BaseModel):
     Steward profile - empty for now, fields to be added later.
     One-to-one relationship with User.
     """
+    TIER_REVIEWER = 1
+    TIER_TOP_LEVEL = 2
+    TIER_APEX = 3
+    TIER_CHOICES = [
+        (TIER_REVIEWER, 'Reviewer'),
+        (TIER_TOP_LEVEL, 'Top-level steward'),
+        (TIER_APEX, 'Apex steward'),
+    ]
+
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='steward'
+    )
+    tier = models.PositiveSmallIntegerField(
+        choices=TIER_CHOICES,
+        default=TIER_REVIEWER,
     )
     can_review_feature_candidates = models.BooleanField(
         default=False,

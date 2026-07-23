@@ -94,6 +94,40 @@ class AIReviewScopeTests(APITestCase):
             response = self.client.get(url, **auth)
             self.assertEqual(response.status_code, 200, url)
 
+    def test_appealed_submissions_are_included_by_default_and_filterable(self):
+        submission = _make_submission()
+        submission.has_appeal = True
+        submission.appeal_reason = 'The evidence was misunderstood.'
+        submission.appealed_at = timezone.now()
+        submission.save(update_fields=['has_appeal', 'appeal_reason', 'appealed_at'])
+        _, _, plaintext = _issue(scopes=('ai_review:read',))
+        auth = _bearer(plaintext)
+
+        response = self.client.get(LIST_URL, **auth)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            str(submission.id),
+            {str(item['id']) for item in response.data['results']},
+        )
+        self.assertEqual(
+            self.client.get(f'{LIST_URL}{submission.id}/', **auth).status_code,
+            200,
+        )
+
+        appealed_only = self.client.get(LIST_URL, {'has_appeal': 'true'}, **auth)
+        self.assertEqual(appealed_only.status_code, 200)
+        self.assertIn(
+            str(submission.id),
+            {str(item['id']) for item in appealed_only.data['results']},
+        )
+
+        without_appeals = self.client.get(LIST_URL, {'has_appeal': 'false'}, **auth)
+        self.assertEqual(without_appeals.status_code, 200)
+        self.assertNotIn(
+            str(submission.id),
+            {str(item['id']) for item in without_appeals.data['results']},
+        )
+
     def test_read_only_token_gets_403_on_propose(self):
         submission = _make_submission()
         _, _, plaintext = _issue(scopes=('ai_review:read',))

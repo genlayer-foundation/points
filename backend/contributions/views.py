@@ -36,7 +36,11 @@ from .models import (
 )
 from .ai_feedback import fetch_reviewed_commit_sha, resolve_proposal_binding
 from .constants import METRICS_POINTS_EXCLUDED_TYPE_SLUGS
-from .reviewer_rewards import compute_reviewer_reward, grant_reviewer_reward
+from .reviewer_rewards import (
+    compute_reviewer_reward,
+    grant_decision_reward,
+    grant_reviewer_reward,
+)
 from .rubric_review import rubric_summary_text, uses_project_rubric
 from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          EvidenceSerializer, SubmittedContributionSerializer,
@@ -53,12 +57,16 @@ from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          FeaturedContentSerializer, AlertSerializer,
                          ContributionDiscordXPStateSerializer)
 from .permissions import (
+    effective_steward_tier,
     IsSteward,
     steward_has_permission,
     steward_permission_map,
     steward_permitted_type_ids,
 )
-from .lifecycle_filters import SubmissionLifecycleFilterMixin
+from .lifecycle_filters import (
+    SubmissionLifecycleFilterMixin,
+    more_info_resubmission_transitions,
+)
 from .proposal_filters import ProposalReviewStatusFilterMixin
 from .project_milestones import (
     highlighted_project_contributions_for_user,
@@ -1142,6 +1150,7 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         # Soft delete - mark as canceled with cancellation note
         previous_state = instance.state
         instance.state = 'canceled'
+        instance.escalated_at = None
         # Preserve the original rejection reason if this submission was appealed;
         # otherwise record the cancellation in staff_reply.
         if not instance.has_appeal:
@@ -1390,6 +1399,7 @@ class StewardSubmissionFilterSet(
     proposed_confidence = CharFilter(method='filter_proposed_confidence')
     proposed_template = NumberFilter(method='filter_proposed_template')
     is_interesting = BooleanFilter(field_name='is_interesting')
+    is_escalated = BooleanFilter(method='filter_is_escalated')
     search = CharFilter(method='filter_search')
     category = CharFilter(method='filter_category')
     exclude_category = CharFilter(method='filter_exclude_category')
@@ -1466,6 +1476,12 @@ class StewardSubmissionFilterSet(
         if value:
             return queryset.filter(contribution_type__category__slug=value)
         return queryset
+
+    def filter_is_escalated(self, queryset, name, value):
+        """Filter by whether the submission has an active escalation."""
+        if value is None:
+            return queryset
+        return queryset.filter(escalated_at__isnull=not value)
 
     def filter_exclude_category(self, queryset, name, value):
         """Exclude submissions from a specific category."""
@@ -2154,17 +2170,99 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['-created_at']
 
     def _active_review_proposal(self, submission):
+        if not submission.proposed_at:
+            return None
         return (
             ReviewProposal.objects
             .select_for_update()
             .filter(
                 submitted_contribution=submission,
                 proposer_id=submission.proposed_by_id,
+                created_at__gte=submission.proposed_at,
                 decided_at__isnull=True,
             )
             .order_by('-created_at', '-id')
             .first()
         )
+
+    def _persist_human_proposal(
+        self,
+        submission,
+        *,
+        proposer,
+        action_name,
+        points=None,
+        contribution_type=None,
+        proposed_user=None,
+        staff_reply='',
+        create_highlight=False,
+        highlight_title='',
+        highlight_description='',
+        confidence=None,
+        template=None,
+        rubric_review=None,
+        escalated_at=None,
+    ):
+        """Persist the active proposal summary and optional rubric snapshot."""
+        effective_contribution_type = contribution_type or submission.contribution_type
+
+        submission.proposed_action = action_name
+        submission.proposed_points = points
+        submission.proposed_contribution_type = contribution_type
+        submission.proposed_user = proposed_user
+        submission.proposed_staff_reply = staff_reply
+        submission.proposed_create_highlight = create_highlight
+        submission.proposed_highlight_title = highlight_title
+        submission.proposed_highlight_description = highlight_description
+        submission.proposed_by = proposer
+        submission.proposed_at = timezone.now()
+        submission.proposed_confidence = confidence
+        submission.proposed_template = template
+        submission.proposal_review_status = SubmittedContribution.PROPOSAL_STATUS_PENDING_REVIEW
+        submission.proposal_review_feedback = ''
+        submission.proposal_questioned_by = None
+        submission.proposal_questioned_at = None
+        submission.escalated_at = escalated_at
+        submission.save()
+
+        requires_project_rubric = uses_project_rubric(effective_contribution_type)
+        rubric_record = None
+        if rubric_review and requires_project_rubric:
+            rubric_record, _ = ProjectMilestoneReview.objects.update_or_create(
+                submitted_contribution=submission,
+                defaults={
+                    'proposer': proposer,
+                    'review_flow': effective_contribution_type.review_flow,
+                    'action': action_name,
+                    'confidence': confidence,
+                    'gate_failures': rubric_review['gate_failures'],
+                    'sections': rubric_review['sections'],
+                    'extras': rubric_review['extras'],
+                    'overall_reason': rubric_review['overall_reason'],
+                },
+            )
+        elif not requires_project_rubric:
+            ProjectMilestoneReview.objects.filter(submitted_contribution=submission).delete()
+
+        review_proposal = None
+        # Pre-deploy in-flight standard escalations have no ReviewProposal row,
+        # so they receive no reward on finalize; new escalations include one.
+        if (rubric_review and requires_project_rubric) or escalated_at is not None:
+            review_proposal = ReviewProposal.objects.create(
+                submitted_contribution=submission,
+                proposer=proposer,
+                source=ReviewProposal.SOURCE_HUMAN,
+                action=action_name,
+                points=points,
+                staff_reply=staff_reply,
+                confidence=confidence,
+                gate_failures=rubric_review['gate_failures'] if rubric_review else [],
+                sections=rubric_review['sections'] if rubric_review else {},
+                extras=rubric_review['extras'] if rubric_review else [],
+                overall_reason=rubric_review['overall_reason'] if rubric_review else '',
+            )
+
+        return rubric_record, review_proposal
 
     def _visible_submission_queryset(self, queryset=None):
         # Filter by the steward's permitted contribution types and actions.
@@ -2197,6 +2295,31 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             # a more_info_needed submission, or whose permissions changed).
             visibility_filter |= Q(proposed_by=self.request.user)
             queryset = queryset.filter(visibility_filter)
+
+            if effective_steward_tier(self.request.user) < 2:
+                ai_proposal_notes = SubmissionNote.objects.filter(
+                    submitted_contribution_id=OuterRef('pk'),
+                    is_proposal=True,
+                    user__email=AI_STEWARD_EMAIL,
+                )
+                ai_review_proposals = ReviewProposal.objects.filter(
+                    submitted_contribution_id=OuterRef('pk'),
+                    source=ReviewProposal.SOURCE_AI,
+                )
+                more_info_resubmissions = more_info_resubmission_transitions()
+                gated_submission = (
+                    Q(
+                        state='pending',
+                        contribution_type__requires_ai_review=True,
+                        has_appeal=False,
+                        proposed_action__isnull=True,
+                    )
+                    & ~Q(assigned_to=self.request.user)
+                    & ~Exists(ai_proposal_notes)
+                    & ~Exists(ai_review_proposals)
+                    & ~Exists(more_info_resubmissions)
+                )
+                queryset = queryset.exclude(gated_submission)
         else:
             queryset = queryset.none()
 
@@ -2302,7 +2425,14 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                 {'detail': 'Only pending submissions or submissions awaiting more information can be reviewed.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        if submission.proposal_review_status == SubmittedContribution.PROPOSAL_STATUS_QUESTIONED:
+        can_revise_questioned_escalation = bool(
+            submission.escalated_at
+            and submission.proposed_by_id == request.user.id
+        )
+        if (
+            submission.proposal_review_status == SubmittedContribution.PROPOSAL_STATUS_QUESTIONED
+            and not can_revise_questioned_escalation
+        ):
             return Response(
                 {'detail': 'This proposal has been questioned and must be revised before final review.'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -2338,27 +2468,18 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        active_proposal = None
-        if submission.proposed_by_id:
-            active_proposal = self._active_review_proposal(submission)
-
-        # Update submission fields
         previous_state = submission.state
-        submission.reviewed_by = request.user
-        submission.reviewed_at = timezone.now()
+        contribution_type = final_contribution_type
+        contribution_user = None
+        project_contribution = None
+        milestone_version = submission.milestone_version
 
         if action_name == 'accept':
-            # Get the contribution type (use provided or keep original)
-            contribution_type = final_contribution_type
-
-            # Get the user for the contribution (use provided or keep original submitter)
             contribution_user = serializer.validated_data.get('user', submission.user)
-
             project_contribution = serializer.validated_data.get(
                 'project_contribution',
                 submission.project_contribution,
             )
-            milestone_version = submission.milestone_version
             if is_milestone_contribution_type(contribution_type):
                 if not project_contribution:
                     return Response(
@@ -2368,8 +2489,6 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                 project_contribution = Contribution.objects.select_for_update().get(
                     id=project_contribution.id,
                 )
-                # Validate against the user the contribution will belong to
-                # (stewards can reassign it), not the original submitter.
                 existing_project_id = (
                     submission.project_contribution_id
                     if is_milestone_contribution_type(submission.contribution_type)
@@ -2385,18 +2504,110 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                         {'detail': 'Milestones can only be accepted for a highlighted project contribution owned by the selected user.'},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
-                if project_contribution != submission.project_contribution:
+                if (
+                    contribution_type != submission.contribution_type
+                    or project_contribution != submission.project_contribution
+                ):
                     milestone_version = None
                 if not milestone_version:
                     milestone_version = next_milestone_version(
                         project_contribution,
                         exclude_submission_id=submission.id,
                     )
-                submission.project_contribution = project_contribution
-                submission.milestone_version = milestone_version
+                if contribution_type == submission.contribution_type:
+                    submission.project_contribution = project_contribution
+                    submission.milestone_version = milestone_version
             else:
-                submission.project_contribution = None
-                submission.milestone_version = None
+                project_contribution = None
+                milestone_version = None
+                if contribution_type == submission.contribution_type:
+                    submission.project_contribution = None
+                    submission.milestone_version = None
+
+            threshold = contribution_type.escalation_threshold_points
+            if effective_steward_tier(request.user) < 2 and threshold is not None:
+                try:
+                    _, multiplier = GlobalLeaderboardMultiplier.get_active_for_type(
+                        contribution_type,
+                        at_date=submission.contribution_date,
+                    )
+                except GlobalLeaderboardMultiplier.DoesNotExist:
+                    multiplier = 1
+                points = serializer.validated_data['points']
+                final_points = round(points * float(multiplier))
+                if final_points >= threshold:
+                    if previous_state == 'more_info_needed':
+                        submission.state = 'pending'
+                        submission.staff_reply = ''
+                        submission.reviewed_by = None
+                        submission.reviewed_at = None
+                    escalated_at = timezone.now()
+                    rubric_review = serializer.validated_data.get('rubric_review')
+                    rubric_record, review_proposal = self._persist_human_proposal(
+                        submission,
+                        proposer=request.user,
+                        action_name='accept',
+                        points=points,
+                        contribution_type=contribution_type,
+                        proposed_user=contribution_user,
+                        staff_reply=serializer.validated_data.get('staff_reply', ''),
+                        create_highlight=serializer.validated_data.get('create_highlight', False),
+                        highlight_title=serializer.validated_data.get('highlight_title', ''),
+                        highlight_description=serializer.validated_data.get('highlight_description', ''),
+                        template=serializer.validated_data.get('template_id'),
+                        rubric_review=rubric_review,
+                        escalated_at=escalated_at,
+                    )
+                    SubmissionStateTransition.record(
+                        submission,
+                        SubmissionStateTransition.EVENT_ESCALATED,
+                        from_state=previous_state,
+                        actor=request.user,
+                    )
+                    reviewer_name = request.user.name or request.user.address[:10] + '...'
+                    rubric_str = f"\n\n{rubric_summary_text(rubric_review)}" if rubric_review else ''
+                    SubmissionNote.objects.create(
+                        submitted_contribution=submission,
+                        user=request.user,
+                        message=(
+                            f"Escalated proposed acceptance with **{points} points** "
+                            f"({final_points} final points) by {reviewer_name}{rubric_str}"
+                        ),
+                        is_proposal=True,
+                        data={
+                            'action': 'escalate',
+                            'points': points,
+                            'final_points': final_points,
+                            'threshold': threshold,
+                            'rubric_review_id': rubric_record.id if rubric_record else None,
+                            'review_proposal_id': review_proposal.id if review_proposal else None,
+                        },
+                    )
+                    return Response(
+                        self.get_serializer(submission).data,
+                        status=status.HTTP_200_OK,
+                    )
+
+        was_escalated = submission.escalated_at is not None
+        active_proposal = None
+        if submission.proposed_by_id:
+            active_proposal = self._active_review_proposal(submission)
+
+        # Update submission fields
+        submission.reviewed_by = request.user
+        submission.reviewed_at = timezone.now()
+
+        if action_name == 'accept':
+            submission.project_contribution = (
+                project_contribution
+                if is_milestone_contribution_type(contribution_type)
+                else None
+            )
+            submission.milestone_version = (
+                milestone_version
+                if is_milestone_contribution_type(contribution_type)
+                else None
+            )
 
             # Update submission contribution type if changed
             if contribution_type != submission.contribution_type:
@@ -2476,6 +2687,7 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
         submission.proposal_review_feedback = ''
         submission.proposal_questioned_by = None
         submission.proposal_questioned_at = None
+        submission.escalated_at = None
 
         submission.save()
 
@@ -2523,7 +2735,7 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                 active_proposal.source == ReviewProposal.SOURCE_HUMAN
                 and active_proposal.proposer_id
                 and active_proposal.proposer_id != request.user.id
-                and requires_project_rubric
+                and (requires_project_rubric or was_escalated)
             )
 
             if reward_eligible:
@@ -2532,6 +2744,8 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                     proposed_sections=active_proposal.sections,
                     final_action=action_name,
                     final_sections=final_sections,
+                    proposed_points=active_proposal.points,
+                    final_points=serializer.validated_data.get('points'),
                 )
                 if computed_reward_points > 0:
                     reward_contribution = grant_reviewer_reward(
@@ -2547,6 +2761,11 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                     reward_reason = 'action_changed'
                 elif action_name not in ('accept', 'reject'):
                     reward_reason = 'non_terminal'
+                elif (
+                    active_proposal.points is not None
+                    and active_proposal.points != serializer.validated_data.get('points')
+                ):
+                    reward_reason = 'points_adjusted'
                 else:
                     reward_reason = 'rubric_adjusted'
 
@@ -2564,6 +2783,8 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                     reviewer_reward_note = "\n\nReviewer reward: no reward - action changed."
                 elif reward_reason == 'non_terminal':
                     reviewer_reward_note = "\n\nReviewer reward: no reward - final action is not terminal."
+                elif reward_reason == 'points_adjusted':
+                    reviewer_reward_note = "\n\nReviewer reward: no reward - points adjusted."
                 else:
                     reviewer_reward_note = "\n\nReviewer reward: no reward - rubric adjusted."
 
@@ -2592,9 +2813,32 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                 'proposer': active_proposal.proposer_id,
             }
 
-        # Create CRM note recording the final decision
-        from .models import SubmissionNote
         reviewer_name = request.user.name or request.user.address[:10] + '...'
+        decision_reward_note = ''
+        decision_reward_data = None
+        decided_type = contribution_type if action_name == 'accept' else submission.contribution_type
+        if (
+            decided_type.escalation_threshold_points is not None
+            and effective_steward_tier(request.user) < 2
+            and submission.user_id != request.user.id
+        ):
+            decision_contribution, decision_reason = grant_decision_reward(
+                request.user,
+                submission,
+                action_name,
+            )
+            decision_reward_data = {
+                'reason': decision_reason,
+                'points': decision_contribution.points if decision_contribution else 0,
+                'contribution_id': decision_contribution.id if decision_contribution else None,
+            }
+            if decision_contribution:
+                decision_reward_note = (
+                    f"\n\nDecision reward: **{decision_contribution.points} points** "
+                    f"to {reviewer_name}."
+                )
+
+        # Create CRM note recording the final decision
         pts_str = f" with **{serializer.validated_data.get('points', '')} points**" if action_name == 'accept' else ''
         reply_text = serializer.validated_data.get('staff_reply', '') or ''
         reply_str = f"\n\n> {reply_text}" if reply_text and action_name in ('reject', 'more_info') else ''
@@ -2604,7 +2848,7 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             user=request.user,
             message=(
                 f"Reviewed: **{action_name}**{pts_str} by {reviewer_name}"
-                f"{reply_str}{rubric_str}{reviewer_reward_note}"
+                f"{reply_str}{rubric_str}{reviewer_reward_note}{decision_reward_note}"
             ),
             is_proposal=False,
             data={
@@ -2615,6 +2859,7 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                 'rubric_review_id': rubric_record.id if rubric_record else None,
                 'review_proposal_id': active_proposal.id if active_proposal else None,
                 'reviewer_reward': reviewer_reward_data,
+                'decision_reward': decision_reward_data,
             },
         )
 
@@ -2653,9 +2898,21 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
         serializer.is_valid(raise_exception=True)
 
         points = serializer.validated_data['points']
+        threshold = contribution.contribution_type.escalation_threshold_points
+        final_points = round(points * float(contribution.multiplier_at_creation or 1))
+        if (
+            effective_steward_tier(request.user) < 2
+            and threshold is not None
+            and final_points >= threshold
+            and final_points > contribution.frozen_global_points
+        ):
+            return Response(
+                {'detail': 'Only a top-level steward can raise this accepted contribution to the escalation threshold.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         contribution.points = points
-        multiplier = float(contribution.multiplier_at_creation or 1)
-        contribution.frozen_global_points = round(points * multiplier)
+        contribution.frozen_global_points = final_points
         contribution.save(update_fields=['points', 'frozen_global_points', 'updated_at'])
 
         if serializer.validated_data.get('create_highlight'):
@@ -3277,6 +3534,7 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             submission.proposal_review_feedback = ''
             submission.proposal_questioned_by = None
             submission.proposal_questioned_at = None
+            submission.escalated_at = None
 
             submission.save(update_fields=[
                 'contribution_type',
@@ -3299,6 +3557,7 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                 'proposal_review_feedback',
                 'proposal_questioned_by',
                 'proposal_questioned_at',
+                'escalated_at',
                 'updated_at',
             ])
             ProjectMilestoneReview.objects.filter(submitted_contribution=submission).delete()
@@ -3342,9 +3601,11 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        submissions = SubmittedContribution.objects.filter(
-            id__in=submission_ids,
-            state__in=['pending', 'more_info_needed']
+        submissions = self._visible_submission_queryset(
+            SubmittedContribution.objects.filter(
+                id__in=submission_ids,
+                state__in=['pending', 'more_info_needed'],
+            )
         )
 
         # Filter by steward's reject permission on each submission's contribution type
@@ -3375,6 +3636,7 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                 staff_reply=staff_reply,
                 reviewed_by=request.user,
                 reviewed_at=now,
+                escalated_at=None,
                 updated_at=now,
             )
 
@@ -3479,69 +3741,25 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
         )
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        effective_contribution_type = (
-            data.get('proposed_contribution_type')
-            or submission.contribution_type
-        )
-        requires_project_rubric = uses_project_rubric(effective_contribution_type)
-
-        # Set proposed_* fields on the submission
-        submission.proposed_action = data['proposed_action']
-        submission.proposed_points = data.get('proposed_points')
-        submission.proposed_contribution_type = data.get('proposed_contribution_type')
-        submission.proposed_user = data.get('proposed_user')
-        submission.proposed_staff_reply = data.get('proposed_staff_reply', '')
-        submission.proposed_create_highlight = data.get('proposed_create_highlight', False)
-        submission.proposed_highlight_title = data.get('proposed_highlight_title', '')
-        submission.proposed_highlight_description = data.get('proposed_highlight_description', '')
-        submission.proposed_by = request.user
-        submission.proposed_at = timezone.now()
-        submission.proposed_confidence = data.get('confidence')
-        submission.proposal_review_status = SubmittedContribution.PROPOSAL_STATUS_PENDING_REVIEW
-        submission.proposal_review_feedback = ''
-        submission.proposal_questioned_by = None
-        submission.proposal_questioned_at = None
-
         # Resolve template FK (PrimaryKeyRelatedField returns instance or None)
         template = data.get('template_id')
-        submission.proposed_template = template
-
-        submission.save()
-
         rubric_review = data.get('rubric_review')
-        rubric_record = None
-        if rubric_review and requires_project_rubric:
-            rubric_record, _ = ProjectMilestoneReview.objects.update_or_create(
-                submitted_contribution=submission,
-                defaults={
-                    'proposer': request.user,
-                    'review_flow': effective_contribution_type.review_flow,
-                    'action': data['proposed_action'],
-                    'confidence': data.get('confidence'),
-                    'gate_failures': rubric_review['gate_failures'],
-                    'sections': rubric_review['sections'],
-                    'extras': rubric_review['extras'],
-                    'overall_reason': rubric_review['overall_reason'],
-                },
-            )
-        elif not requires_project_rubric:
-            ProjectMilestoneReview.objects.filter(submitted_contribution=submission).delete()
-
-        review_proposal = None
-        if rubric_review and requires_project_rubric:
-            review_proposal = ReviewProposal.objects.create(
-                submitted_contribution=submission,
-                proposer=request.user,
-                source=ReviewProposal.SOURCE_HUMAN,
-                action=data['proposed_action'],
-                points=data.get('proposed_points'),
-                staff_reply=data.get('proposed_staff_reply', ''),
-                confidence=data.get('confidence'),
-                gate_failures=rubric_review['gate_failures'],
-                sections=rubric_review['sections'],
-                extras=rubric_review['extras'],
-                overall_reason=rubric_review['overall_reason'],
-            )
+        rubric_record, review_proposal = self._persist_human_proposal(
+            submission,
+            proposer=request.user,
+            action_name=data['proposed_action'],
+            points=data.get('proposed_points'),
+            contribution_type=data.get('proposed_contribution_type'),
+            proposed_user=data.get('proposed_user'),
+            staff_reply=data.get('proposed_staff_reply', ''),
+            create_highlight=data.get('proposed_create_highlight', False),
+            highlight_title=data.get('proposed_highlight_title', ''),
+            highlight_description=data.get('proposed_highlight_description', ''),
+            confidence=data.get('confidence'),
+            template=template,
+            rubric_review=rubric_review,
+            escalated_at=None,
+        )
 
         # Create CRM note recording the proposal
         from .models import SubmissionNote

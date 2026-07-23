@@ -54,7 +54,8 @@
     contributionTypeUpdating = false,
     onAcceptedEditChange = null,
     onAcceptedUpdate = null,
-    enableRubricReview = false
+    enableRubricReview = false,
+    stewardTier = 1
   } = $props();
 
   let togglingInteresting = $state(false);
@@ -136,6 +137,11 @@
     submission.ai_analysis &&
     hasAnyTypePermission
   ));
+  let canReviseQuestionedEscalation = $derived(Boolean(
+    isProposalQuestioned &&
+    submission.escalated_at &&
+    isCurrentProposalOwner
+  ));
 
   async function writeClipboard(text) {
     if (navigator.clipboard?.writeText) {
@@ -185,13 +191,19 @@
 
   // Determine which actions this steward can take on this submission
   let canAccept = $derived(
-    showReviewForm && !isProposalQuestioned && permissions[submission.contribution_type]?.includes('accept')
+    showReviewForm &&
+    (!isProposalQuestioned || canReviseQuestionedEscalation) &&
+    permissions[submission.contribution_type]?.includes('accept')
   );
   let canReject = $derived(
-    showReviewForm && !isProposalQuestioned && permissions[submission.contribution_type]?.includes('reject')
+    showReviewForm &&
+    (!isProposalQuestioned || canReviseQuestionedEscalation) &&
+    permissions[submission.contribution_type]?.includes('reject')
   );
   let canRequestInfo = $derived(
-    showReviewForm && !isProposalQuestioned && permissions[submission.contribution_type]?.includes('request_more_info')
+    showReviewForm &&
+    (!isProposalQuestioned || canReviseQuestionedEscalation) &&
+    permissions[submission.contribution_type]?.includes('request_more_info')
   );
   let canPropose = $derived(
     showReviewForm &&
@@ -411,6 +423,7 @@
     }
     if (reviewAction === 'more_info') return 'Request information';
     if (reviewAction === 'reject') return 'Reject submission';
+    if (willEscalateAccept) return 'Accept → propose to top steward';
     return 'Accept contribution';
   }
 
@@ -616,6 +629,18 @@
     const multiplier = multipliers[selectedType] || 1;
     return Math.round(points * multiplier);
   }
+
+  function acceptWillEscalate() {
+    return submissionModeFor('accept') === 'final' &&
+      Number(stewardTier) < 2 &&
+      selectedTypeDetails?.escalation_threshold_points != null &&
+      getFinalPoints() >= Number(selectedTypeDetails.escalation_threshold_points);
+  }
+
+  let willEscalateAccept = $derived(
+    reviewAction === 'accept' &&
+    acceptWillEscalate()
+  );
 
   function getTypeName(typeId) {
     const type = contributionTypes.find(t => t.id === typeId);
@@ -1456,6 +1481,9 @@
             {isProposalQuestioned ? 'Proposal questioned' : 'Proposal'}
           </span>
         {/if}
+        {#if submission.escalated_at}
+          <span class="rounded-md bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-800">Escalated</span>
+        {/if}
         {#if submission.has_appeal}
           <span class="rounded-md bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-800">Appealed</span>
         {/if}
@@ -1713,8 +1741,8 @@
                 <div>
                   <h3 class="text-sm font-semibold text-slate-950">Review outcome</h3>
                 </div>
-                <span class="rounded-md px-2.5 py-1 text-xs font-semibold {selectedSubmissionMode === 'proposal' ? 'bg-amber-100 text-amber-800' : 'bg-slate-900 text-white'}">
-                  {selectedSubmissionMode === 'proposal' ? 'Submits a proposal' : 'Final decision'}
+                <span class="rounded-md px-2.5 py-1 text-xs font-semibold {selectedSubmissionMode === 'proposal' || willEscalateAccept ? 'bg-amber-100 text-amber-800' : 'bg-slate-900 text-white'}">
+                  {selectedSubmissionMode === 'proposal' || willEscalateAccept ? 'Submits a proposal' : 'Final decision'}
                 </span>
               </div>
 
@@ -1727,7 +1755,7 @@
                   <button
                     type="button"
                     aria-pressed={reviewAction === outcome}
-                    title="{actionLabel(outcome)} will be submitted as {submissionModeFor(outcome) === 'proposal' ? 'a proposal' : 'a final decision'}"
+                    title="{actionLabel(outcome)} will be submitted as {submissionModeFor(outcome) === 'proposal' || (outcome === 'accept' && acceptWillEscalate()) ? 'a proposal' : 'a final decision'}"
                     onclick={() => selectOutcome(outcome)}
                     class="min-h-11 rounded-t-md px-2 text-sm font-semibold transition-colors {reviewAction === outcome ? (outcome === 'accept' ? 'bg-emerald-600 text-white' : outcome === 'reject' ? 'bg-red-600 text-white' : 'bg-sky-600 text-white') : 'text-slate-600 hover:bg-slate-100'}"
                   >
@@ -1805,6 +1833,12 @@
                       <p class="text-xl font-semibold tabular-nums text-slate-950">{getFinalPoints()}</p>
                     </div>
                   </div>
+
+                  {#if willEscalateAccept}
+                    <p class="rounded-md bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 shadow-[0_0_0_1px_rgba(217,119,6,0.20)]" role="status">
+                      Will be submitted as a proposal to the top-level steward
+                    </p>
+                  {/if}
 
                   <details class="rounded-lg bg-slate-50 p-3">
                     <summary class="min-h-10 cursor-pointer list-none text-sm font-semibold text-slate-800">

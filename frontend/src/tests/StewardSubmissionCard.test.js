@@ -63,6 +63,7 @@ function makeSubmission(overrides = {}) {
     proposed_at: null,
     proposed_by_details: null,
     has_proposal: false,
+    escalated_at: null,
     proposal_review_status: null,
     proposal_review_feedback: '',
     proposal_is_ai: false,
@@ -232,6 +233,22 @@ describe('StewardSubmissionCard', () => {
     expect(screen.getByText('Human Reviewer')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Show AI review synthesis' })).toBeNull();
     expect(screen.queryByText('AI review')).toBeNull();
+  });
+
+  it('marks an escalated proposal in the card header', () => {
+    renderCard({
+      submission: makeSubmission({
+        has_proposal: true,
+        escalated_at: '2026-06-02T12:00:00Z',
+        proposed_action: 'accept',
+        proposed_by: 21,
+        proposed_by_details: { name: 'Human Reviewer' },
+        proposal_review_status: 'pending_review'
+      })
+    });
+
+    expect(screen.getByText('Proposal')).toBeTruthy();
+    expect(screen.getByText('Escalated')).toBeTruthy();
   });
 
   it('lets a different direct reviewer question a pending human proposal in a dialog', async () => {
@@ -458,6 +475,101 @@ describe('StewardSubmissionCard', () => {
     await fireEvent.input(pointsInput, { target: { value: '40' } });
     await fireEvent.click(submit);
     expect(onReview).toHaveBeenCalledWith(42, expect.objectContaining({ points: 40 }));
+  });
+
+  it('warns and relabels a tier-1 accept at the escalation threshold', async () => {
+    const escalatingType = {
+      ...contributionType,
+      escalation_threshold_points: 80
+    };
+    renderCard({
+      ...reviewProps({ permissions: ['accept'] }),
+      submission: makeSubmission({ contribution_type_details: escalatingType }),
+      contributionTypes: [escalatingType],
+      reviewData: {
+        action: 'accept',
+        user: 9,
+        contribution_type: 7,
+        points: 39,
+        staff_reply: ''
+      },
+      multipliers: { 7: 2 },
+      stewardTier: 1
+    });
+
+    const pointsInput = await screen.findByLabelText('Points');
+    expect(screen.queryByText('Will be submitted as a proposal to the top-level steward')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Accept contribution' })).toBeTruthy();
+
+    await fireEvent.input(pointsInput, { target: { value: '40' } });
+
+    expect(screen.getByText('Will be submitted as a proposal to the top-level steward')).toBeTruthy();
+    expect(screen.getByText('Submits a proposal')).toBeTruthy();
+    expect(screen.queryByText('Final decision')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Accept', exact: true }).getAttribute('title')).toContain('a proposal');
+    expect(screen.getByRole('button', { name: 'Accept → propose to top steward' })).toBeTruthy();
+  });
+
+  it('keeps a top-level steward accept as a final decision above the threshold', async () => {
+    const escalatingType = {
+      ...contributionType,
+      escalation_threshold_points: 80
+    };
+    renderCard({
+      ...reviewProps({ permissions: ['accept'] }),
+      submission: makeSubmission({ contribution_type_details: escalatingType }),
+      contributionTypes: [escalatingType],
+      reviewData: {
+        action: 'accept',
+        user: 9,
+        contribution_type: 7,
+        points: 40,
+        staff_reply: ''
+      },
+      multipliers: { 7: 2 },
+      stewardTier: 2
+    });
+
+    expect(await screen.findByRole('button', { name: 'Accept contribution' })).toBeTruthy();
+    expect(screen.queryByText('Will be submitted as a proposal to the top-level steward')).toBeNull();
+  });
+
+  it('lets an accept-only reviewer revise their questioned escalation', async () => {
+    const onReview = vi.fn();
+    const onPropose = vi.fn();
+    const escalatingType = {
+      ...contributionType,
+      escalation_threshold_points: 80
+    };
+    renderCard({
+      ...reviewProps({ permissions: ['accept'], onReview, onPropose }),
+      submission: makeSubmission({
+        contribution_type_details: escalatingType,
+        has_proposal: true,
+        escalated_at: '2026-06-02T12:00:00Z',
+        proposed_action: 'accept',
+        proposed_points: 40,
+        proposed_contribution_type: 7,
+        proposed_user: 9,
+        proposed_by: 5,
+        proposed_by_details: { id: 5, name: 'Accept Only' },
+        proposal_review_status: 'questioned',
+        proposal_review_feedback: 'Explain the requested award.'
+      }),
+      contributionTypes: [escalatingType],
+      multipliers: { 7: 2 },
+      currentUserId: 5,
+      stewardTier: 1
+    });
+
+    const submit = await screen.findByRole('button', { name: 'Accept → propose to top steward' });
+    await fireEvent.click(submit);
+
+    expect(onReview).toHaveBeenCalledWith(42, expect.objectContaining({
+      action: 'accept',
+      points: 40
+    }));
+    expect(onPropose).not.toHaveBeenCalled();
   });
 
   it('does not retry a failed accepted-project lookup until its tracked inputs change', async () => {

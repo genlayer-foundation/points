@@ -51,8 +51,8 @@
     { name: 'include', description: 'Only show submissions containing text', values: () => [] },
     { name: 'has', description: 'Filter by presence', values: () => ['more-info-request', 'url', 'evidence', 'proposal', 'appeal'] },
     { name: 'no', description: 'Filter by absence', values: () => ['more-info-request', 'url', 'evidence', 'proposal', 'appeal'] },
-    { name: 'is', description: 'Filter by lifecycle or internal flag', values: () => ['more-info-resubmitted', 'interesting', 'appealed', 'ai-reviewed'] },
-    { name: 'not', description: 'Exclude by lifecycle or internal flag', values: () => ['more-info-resubmitted', 'interesting', 'appealed', 'ai-reviewed'] },
+    { name: 'is', description: 'Filter by lifecycle or internal flag', values: () => ['more-info-resubmitted', 'escalated', 'interesting', 'appealed', 'ai-reviewed'] },
+    { name: 'not', description: 'Exclude by lifecycle or internal flag', values: () => ['more-info-resubmitted', 'escalated', 'interesting', 'appealed', 'ai-reviewed'] },
     { name: 'proposal', description: 'Filter by proposed action', values: () => ['accept', 'reject', 'more-info'] },
     { name: 'proposal-status', description: 'Filter by proposal review status', values: () => ['pending', 'questioned'] },
     { name: 'confidence', description: 'Filter by proposal confidence', values: () => ['high', 'medium', 'low'] },
@@ -296,6 +296,7 @@
           <div class="help-row"><code>no:url</code><span>Only submissions without URL evidence</span></div>
           <div class="help-row"><code>is:interesting</code><span>Flagged as interesting</span></div>
           <div class="help-row"><code>is:ai-reviewed</code><span>Has an AI review analysis</span></div>
+          <div class="help-row"><code>is:escalated</code><span>Submitted to a top-level steward for review</span></div>
           <div class="help-row"><code>is:more-info-resubmitted</code><span>Resubmitted after a request for more information</span></div>
           <div class="help-row"><code>has:more-info-request</code><span>Has a recorded more-information request block</span></div>
         </div>
@@ -326,6 +327,7 @@
           <div class="help-row"><code>-assigned:unassigned -assigned:Joaquin</code><span>Repeated exclusions also work</span></div>
           <div class="help-row"><code>-proposed-by:ai</code><span>Exclude active AI proposals</span></div>
           <div class="help-row"><code>-mission:name</code><span>Exclude a mission while keeping other matches</span></div>
+          <div class="help-row"><code>not:escalated</code><span>Exclude submissions awaiting top-level review</span></div>
           <div class="help-row"><code>not:more-info-resubmitted</code><span>Exclude submissions reopened after a more-info request</span></div>
         </div>
         <div class="help-section">
