@@ -47,8 +47,11 @@ def compute_reviewer_reward(
     penalty = int(getattr(settings, 'REVIEWER_REWARD_PENALTY_PER_SCORE_POINT', 2))
     reward = max(0, base - penalty * delta)
 
-    if proposed_points and final_points is not None:
-        factor = 1 - abs(final_points - proposed_points) / proposed_points
+    if proposed_points is not None and final_points is not None:
+        if proposed_points == 0:
+            factor = 1 if final_points == 0 else 0
+        else:
+            factor = 1 - abs(final_points - proposed_points) / proposed_points
         reward = max(0, round(reward * factor))
 
     return reward

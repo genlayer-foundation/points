@@ -485,6 +485,14 @@ class ReviewerRewardMathTests(APITestCase):
         self.assertEqual(
             compute_reviewer_reward(
                 **exact_match,
+                proposed_points=0,
+                final_points=10,
+            ),
+            0,
+        )
+        self.assertEqual(
+            compute_reviewer_reward(
+                **exact_match,
                 proposed_points=None,
                 final_points=10,
             ),
