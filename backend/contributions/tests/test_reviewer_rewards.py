@@ -155,15 +155,18 @@ class ReviewerRewardTests(APITestCase):
         )
         return submission
 
-    def propose(self, submission, *, user=None, action='accept', payload=None):
+    def propose(self, submission, *, user=None, action='accept', payload=None, points=None):
         self.client.force_authenticate(user=user or self.proposer)
+        data = {
+            'proposed_action': action,
+            'proposed_staff_reply': 'Needs more work.' if action in ('reject', 'more_info') else '',
+            'rubric_review': payload or rubric_payload(),
+        }
+        if points is not None:
+            data['proposed_points'] = points
         return self.client.post(
             f'/api/v1/steward-submissions/{submission.id}/propose/',
-            data={
-                'proposed_action': action,
-                'proposed_staff_reply': 'Needs more work.' if action in ('reject', 'more_info') else '',
-                'rubric_review': payload or rubric_payload(),
-            },
+            data=data,
             content_type='application/json',
         )
 
@@ -205,6 +208,11 @@ class ReviewerRewardTests(APITestCase):
         self.assertEqual(proposal.reward_contribution.user, self.proposer)
         self.assertEqual(proposal.reward_contribution.points, 10)
         self.assertEqual(proposal.reward_contribution.contribution_type.slug, REVIEWER_REWARD_TYPE_SLUG)
+        self.assertEqual(proposal.reward_contribution.title, 'Project Review Reward')
+        self.assertEqual(
+            proposal.reward_contribution.notes,
+            f"Project review reward for submission {submission.id}",
+        )
 
         note = SubmissionNote.objects.filter(
             submitted_contribution=submission,
@@ -246,6 +254,31 @@ class ReviewerRewardTests(APITestCase):
                 notes__contains=str(mismatch.id),
             ).exists()
         )
+
+    def test_points_adjustment_to_zero_records_points_adjusted_reason(self):
+        submission = self.create_submission()
+        self.assertEqual(
+            self.propose(submission, points=10).status_code,
+            200,
+        )
+
+        review_response = self.review(submission, points=30)
+
+        self.assertEqual(review_response.status_code, 200)
+        proposal = ReviewProposal.objects.get(submitted_contribution=submission)
+        self.assertEqual(proposal.points, 10)
+        self.assertEqual(proposal.final_points, 30)
+        self.assertEqual(proposal.reward_points, 0)
+        self.assertIsNone(proposal.reward_contribution)
+
+        note = SubmissionNote.objects.filter(
+            submitted_contribution=submission,
+            is_proposal=False,
+            data__action='accept',
+        ).first()
+        self.assertEqual(note.data['reviewer_reward']['reason'], 'points_adjusted')
+        self.assertEqual(note.data['reviewer_reward']['points'], 0)
+        self.assertIn('Reviewer reward: no reward - points adjusted.', note.message)
 
     def test_reward_grant_failure_records_no_awarded_points(self):
         submission = self.create_submission()
@@ -424,6 +457,59 @@ class ReviewerRewardTests(APITestCase):
 
 
 class ReviewerRewardMathTests(APITestCase):
+    def test_points_proportional_slash(self):
+        base_sections = rubric_payload()['sections']
+        exact_match = {
+            'proposed_action': 'accept',
+            'proposed_sections': base_sections,
+            'final_action': 'accept',
+            'final_sections': base_sections,
+        }
+
+        self.assertEqual(
+            compute_reviewer_reward(
+                **exact_match,
+                proposed_points=20,
+                final_points=10,
+            ),
+            5,
+        )
+        self.assertEqual(
+            compute_reviewer_reward(
+                **exact_match,
+                proposed_points=10,
+                final_points=30,
+            ),
+            0,
+        )
+        self.assertEqual(
+            compute_reviewer_reward(
+                **exact_match,
+                proposed_points=None,
+                final_points=10,
+            ),
+            10,
+        )
+        self.assertEqual(
+            compute_reviewer_reward(
+                proposed_action='accept',
+                proposed_sections=base_sections,
+                final_action='accept',
+                final_sections=adjusted_payload('engineering', 1)['sections'],
+                proposed_points=20,
+                final_points=10,
+            ),
+            3,
+        )
+        self.assertEqual(
+            compute_reviewer_reward(
+                **exact_match,
+                proposed_points=20,
+                final_points=17,
+            ),
+            8,
+        )
+
     def test_reward_math_and_constants(self):
         base_sections = rubric_payload()['sections']
         self.assertEqual(

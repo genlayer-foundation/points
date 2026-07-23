@@ -21,12 +21,16 @@ def _score_value(section):
         return None
 
 
-def compute_reviewer_reward(*, proposed_action, proposed_sections, final_action, final_sections):
-    """Compute escrowed reviewer points from action match and rubric score deltas.
-
-    Final point edits are intentionally ignored; Builder Project points derive
-    from the rubric and only section-score disagreement is penalized.
-    """
+def compute_reviewer_reward(
+    *,
+    proposed_action,
+    proposed_sections,
+    final_action,
+    final_sections,
+    proposed_points=None,
+    final_points=None,
+):
+    """Compute escrowed reviewer points from action, rubric, and point deltas."""
     if final_action != proposed_action or final_action not in ('accept', 'reject'):
         return 0
 
@@ -41,11 +45,17 @@ def compute_reviewer_reward(*, proposed_action, proposed_sections, final_action,
 
     base = int(getattr(settings, 'REVIEWER_REWARD_BASE_POINTS', 10))
     penalty = int(getattr(settings, 'REVIEWER_REWARD_PENALTY_PER_SCORE_POINT', 2))
-    return max(0, base - penalty * delta)
+    reward = max(0, base - penalty * delta)
+
+    if proposed_points and final_points is not None:
+        factor = 1 - abs(final_points - proposed_points) / proposed_points
+        reward = max(0, round(reward * factor))
+
+    return reward
 
 
-def grant_reviewer_reward(proposal, reward_points):
-    if reward_points <= 0 or not proposal.proposer_id:
+def _grant_reward_contribution(user, reward_points, *, notes, title, log_ref):
+    if reward_points <= 0 or not user:
         return None
 
     contribution_type = ContributionType.objects.filter(
@@ -53,8 +63,8 @@ def grant_reviewer_reward(proposal, reward_points):
     ).first()
     if not contribution_type:
         logger.warning(
-            "Skipping reviewer reward for proposal %s: missing contribution type %s",
-            proposal.pk,
+            "Skipping reviewer reward for %s: missing contribution type %s",
+            log_ref,
             REVIEWER_REWARD_TYPE_SLUG,
         )
         return None
@@ -85,15 +95,56 @@ def grant_reviewer_reward(proposal, reward_points):
                 contribution_type.max_points,
             )
             return Contribution.objects.create(
-                user=proposal.proposer,
+                user=user,
                 contribution_type=contribution_type,
                 points=clamped_points,
                 contribution_date=timezone.now(),
-                notes=f"Project review reward for submission {proposal.submitted_contribution_id}",
-                title='Project Review Reward',
+                notes=notes,
+                title=title,
             )
     except ValidationError:
-        logger.exception("Failed to grant reviewer reward for proposal %s", proposal.pk)
+        logger.exception("Failed to grant reviewer reward for %s", log_ref)
     except Exception:
-        logger.exception("Unexpected reviewer reward grant failure for proposal %s", proposal.pk)
+        logger.exception("Unexpected reviewer reward grant failure for %s", log_ref)
     return None
+
+
+def grant_reviewer_reward(proposal, reward_points):
+    if reward_points <= 0 or not proposal.proposer_id:
+        return None
+
+    return _grant_reward_contribution(
+        proposal.proposer,
+        reward_points,
+        notes=f"Project review reward for submission {proposal.submitted_contribution_id}",
+        title='Project Review Reward',
+        log_ref=f"proposal {proposal.pk}",
+    )
+
+
+def grant_decision_reward(user, submission, action):
+    notes = f"Review decision reward for submission {submission.id} [{action}]"
+    contribution_type = ContributionType.objects.filter(
+        slug=REVIEWER_REWARD_TYPE_SLUG,
+    ).first()
+    if not contribution_type:
+        return None, 'unavailable'
+
+    if Contribution.objects.filter(
+        user=user,
+        contribution_type=contribution_type,
+        notes=notes,
+    ).exists():
+        return None, 'duplicate'
+
+    reward_points = int(getattr(settings, 'REVIEWER_REWARD_BASE_POINTS', 10))
+    contribution = _grant_reward_contribution(
+        user,
+        reward_points,
+        notes=notes,
+        title='Review Decision Reward',
+        log_ref=f"decision on submission {submission.id} [{action}]",
+    )
+    if not contribution:
+        return None, 'grant_failed'
+    return contribution, 'granted'

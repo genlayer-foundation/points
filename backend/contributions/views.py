@@ -36,7 +36,11 @@ from .models import (
 )
 from .ai_feedback import fetch_reviewed_commit_sha, resolve_proposal_binding
 from .constants import METRICS_POINTS_EXCLUDED_TYPE_SLUGS
-from .reviewer_rewards import compute_reviewer_reward, grant_reviewer_reward
+from .reviewer_rewards import (
+    compute_reviewer_reward,
+    grant_decision_reward,
+    grant_reviewer_reward,
+)
 from .rubric_review import rubric_summary_text, uses_project_rubric
 from .serializers import (ContributionTypeSerializer, ContributionSerializer,
                          EvidenceSerializer, SubmittedContributionSerializer,
@@ -2166,12 +2170,15 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['-created_at']
 
     def _active_review_proposal(self, submission):
+        if not submission.proposed_at:
+            return None
         return (
             ReviewProposal.objects
             .select_for_update()
             .filter(
                 submitted_contribution=submission,
                 proposer_id=submission.proposed_by_id,
+                created_at__gte=submission.proposed_at,
                 decided_at__isnull=True,
             )
             .order_by('-created_at', '-id')
@@ -2238,7 +2245,9 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             ProjectMilestoneReview.objects.filter(submitted_contribution=submission).delete()
 
         review_proposal = None
-        if rubric_review and requires_project_rubric:
+        # Pre-deploy in-flight standard escalations have no ReviewProposal row,
+        # so they receive no reward on finalize; new escalations include one.
+        if (rubric_review and requires_project_rubric) or escalated_at is not None:
             review_proposal = ReviewProposal.objects.create(
                 submitted_contribution=submission,
                 proposer=proposer,
@@ -2247,10 +2256,10 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                 points=points,
                 staff_reply=staff_reply,
                 confidence=confidence,
-                gate_failures=rubric_review['gate_failures'],
-                sections=rubric_review['sections'],
-                extras=rubric_review['extras'],
-                overall_reason=rubric_review['overall_reason'],
+                gate_failures=rubric_review['gate_failures'] if rubric_review else [],
+                sections=rubric_review['sections'] if rubric_review else {},
+                extras=rubric_review['extras'] if rubric_review else [],
+                overall_reason=rubric_review['overall_reason'] if rubric_review else '',
             )
 
         return rubric_record, review_proposal
@@ -2579,6 +2588,7 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                         status=status.HTTP_200_OK,
                     )
 
+        was_escalated = submission.escalated_at is not None
         active_proposal = None
         if submission.proposed_by_id:
             active_proposal = self._active_review_proposal(submission)
@@ -2725,7 +2735,7 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                 active_proposal.source == ReviewProposal.SOURCE_HUMAN
                 and active_proposal.proposer_id
                 and active_proposal.proposer_id != request.user.id
-                and requires_project_rubric
+                and (requires_project_rubric or was_escalated)
             )
 
             if reward_eligible:
@@ -2734,6 +2744,8 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                     proposed_sections=active_proposal.sections,
                     final_action=action_name,
                     final_sections=final_sections,
+                    proposed_points=active_proposal.points,
+                    final_points=serializer.validated_data.get('points'),
                 )
                 if computed_reward_points > 0:
                     reward_contribution = grant_reviewer_reward(
@@ -2749,6 +2761,11 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                     reward_reason = 'action_changed'
                 elif action_name not in ('accept', 'reject'):
                     reward_reason = 'non_terminal'
+                elif (
+                    active_proposal.points is not None
+                    and active_proposal.points != serializer.validated_data.get('points')
+                ):
+                    reward_reason = 'points_adjusted'
                 else:
                     reward_reason = 'rubric_adjusted'
 
@@ -2766,6 +2783,8 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                     reviewer_reward_note = "\n\nReviewer reward: no reward - action changed."
                 elif reward_reason == 'non_terminal':
                     reviewer_reward_note = "\n\nReviewer reward: no reward - final action is not terminal."
+                elif reward_reason == 'points_adjusted':
+                    reviewer_reward_note = "\n\nReviewer reward: no reward - points adjusted."
                 else:
                     reviewer_reward_note = "\n\nReviewer reward: no reward - rubric adjusted."
 
@@ -2794,8 +2813,32 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                 'proposer': active_proposal.proposer_id,
             }
 
-        # Create CRM note recording the final decision
         reviewer_name = request.user.name or request.user.address[:10] + '...'
+        decision_reward_note = ''
+        decision_reward_data = None
+        decided_type = contribution_type if action_name == 'accept' else submission.contribution_type
+        if (
+            decided_type.escalation_threshold_points is not None
+            and effective_steward_tier(request.user) < 2
+            and submission.user_id != request.user.id
+        ):
+            decision_contribution, decision_reason = grant_decision_reward(
+                request.user,
+                submission,
+                action_name,
+            )
+            decision_reward_data = {
+                'reason': decision_reason,
+                'points': decision_contribution.points if decision_contribution else 0,
+                'contribution_id': decision_contribution.id if decision_contribution else None,
+            }
+            if decision_contribution:
+                decision_reward_note = (
+                    f"\n\nDecision reward: **{decision_contribution.points} points** "
+                    f"to {reviewer_name}."
+                )
+
+        # Create CRM note recording the final decision
         pts_str = f" with **{serializer.validated_data.get('points', '')} points**" if action_name == 'accept' else ''
         reply_text = serializer.validated_data.get('staff_reply', '') or ''
         reply_str = f"\n\n> {reply_text}" if reply_text and action_name in ('reject', 'more_info') else ''
@@ -2805,7 +2848,7 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
             user=request.user,
             message=(
                 f"Reviewed: **{action_name}**{pts_str} by {reviewer_name}"
-                f"{reply_str}{rubric_str}{reviewer_reward_note}"
+                f"{reply_str}{rubric_str}{reviewer_reward_note}{decision_reward_note}"
             ),
             is_proposal=False,
             data={
@@ -2816,6 +2859,7 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                 'rubric_review_id': rubric_record.id if rubric_record else None,
                 'review_proposal_id': active_proposal.id if active_proposal else None,
                 'reviewer_reward': reviewer_reward_data,
+                'decision_reward': decision_reward_data,
             },
         )
 

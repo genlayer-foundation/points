@@ -161,16 +161,30 @@ afterward; later saves do not reapply the defaults. The threshold is evaluated
 against the final type chosen by the reviewer. Reject and
 request-more-info decisions never escalate.
 
-Escalation reuses the normal `proposed_*`, `ProjectMilestoneReview`, and
-`ReviewProposal` records. `SubmittedContribution.escalated_at` marks the active
-proposal, and an `escalated` `SubmissionStateTransition` provides durable
-history. Replacing or deciding the proposal clears the marker. A tier-1
-reviewer can revise, reject, question, request more information, or accept
-below the threshold; another at-threshold accept remains a proposal. Tier 2+
-accepts finalize normally, including reviewer rewards for matching project
-rubrics. If a top-level steward questions an escalation, its original reviewer
-can revise it through their direct review permission even without a separate
-`propose` permission.
+Every escalation reuses the normal `proposed_*` fields and records a human
+`ReviewProposal`; Builder Project escalations also update
+`ProjectMilestoneReview`, while standard-flow proposals store empty rubric
+fields. `SubmittedContribution.escalated_at` marks the active proposal, and an
+`escalated` `SubmissionStateTransition` provides durable history. Replacing or
+deciding the proposal clears the marker. A tier-1 reviewer can revise, reject,
+question, request more information, or accept below the threshold; another
+at-threshold accept remains a proposal.
+
+Escalated accepts defer the tier-1 reviewer's reward until a different steward
+finalizes the proposal. Matching Builder Project decisions start at 10 points
+and lose 2 points per rubric-section score point of disagreement; standard-flow
+decisions use a binary 10 points for a matching accept or 0 when the action
+changes. After either calculation, changing the proposed point award reduces
+the reward proportionally, down to 0. If a top-level steward questions an
+escalation, its original reviewer can revise it through their direct review
+permission even without a separate `propose` permission.
+
+Tier-1 direct decisions on threshold-enabled types earn 10 points immediately
+when the submission belongs to someone else. The award is granted once per
+reviewer, submission, and action, so an appeal cannot duplicate the same
+decision reward; reject, request-more-information, and below-threshold accept
+remain distinct actions. Escalated accepts, tier 2+ decisions, and bulk rejects
+do not receive this direct reward.
 
 Tier-1 stewards also cannot edit an already accepted award upward across the
 type threshold. The steward search grammar exposes `is:escalated` and

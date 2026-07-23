@@ -55,6 +55,9 @@ class EscalationReviewTests(APITestCase):
             threshold=None,
             multiplier=2,
         )
+        self.reward_type = ContributionType.objects.get(
+            slug=REVIEWER_REWARD_TYPE_SLUG,
+        )
         self.submitter = self.create_user(
             'escalation-submitter@example.com',
             '0x1000000000000000000000000000000000000001',
@@ -63,6 +66,11 @@ class EscalationReviewTests(APITestCase):
             'escalation-reviewer@example.com',
             '0x1000000000000000000000000000000000000002',
             name='Tier One',
+        )
+        self.other_reviewer = self.create_user(
+            'escalation-other-reviewer@example.com',
+            '0x1000000000000000000000000000000000000009',
+            name='Other Tier One',
         )
         self.top_level = self.create_user(
             'escalation-top@example.com',
@@ -77,15 +85,17 @@ class EscalationReviewTests(APITestCase):
         )
 
         self.reviewer_steward = Steward.objects.create(user=self.reviewer)
+        self.other_reviewer_steward = Steward.objects.create(user=self.other_reviewer)
         Steward.objects.create(user=self.top_level, tier=Steward.TIER_TOP_LEVEL)
         Steward.objects.create(user=self.apex_superuser)
         for contribution_type in (self.review_type, self.no_threshold_type):
-            for action in ('propose', 'accept', 'reject', 'request_more_info'):
-                StewardPermission.objects.create(
-                    steward=self.reviewer_steward,
-                    contribution_type=contribution_type,
-                    action=action,
-                )
+            for steward in (self.reviewer_steward, self.other_reviewer_steward):
+                for action in ('propose', 'accept', 'reject', 'request_more_info'):
+                    StewardPermission.objects.create(
+                        steward=steward,
+                        contribution_type=contribution_type,
+                        action=action,
+                    )
 
         self.client = APIClient()
 
@@ -135,24 +145,44 @@ class EscalationReviewTests(APITestCase):
             )
         return contribution_type
 
-    def create_submission(self, contribution_type=None):
+    def create_submission(self, contribution_type=None, *, user=None):
         return SubmittedContribution.objects.create(
-            user=self.submitter,
+            user=user or self.submitter,
             contribution_type=contribution_type or self.review_type,
             contribution_date=timezone.now(),
             notes='Review this contribution.',
             state='pending',
         )
 
-    def review(self, submission, user, *, points=200, contribution_type=None, **extra):
+    def review(
+        self,
+        submission,
+        user,
+        *,
+        action='accept',
+        points=200,
+        contribution_type=None,
+        **extra,
+    ):
         self.client.force_authenticate(user=user)
-        payload = {'action': 'accept', 'points': points, **extra}
+        payload = {'action': action, **extra}
+        if action == 'accept':
+            payload['points'] = points
+        else:
+            payload.setdefault('staff_reply', 'Direct tier-one decision.')
         if contribution_type:
             payload['contribution_type'] = contribution_type.id
         return self.client.post(
             f'/api/v1/steward-submissions/{submission.id}/review/',
             payload,
             format='json',
+        )
+
+    def decision_rewards(self, user, submission, action):
+        return Contribution.objects.filter(
+            user=user,
+            contribution_type=self.reward_type,
+            notes=f"Review decision reward for submission {submission.id} [{action}]",
         )
 
     def test_threshold_boundary_converts_accept_to_proposal(self):
@@ -183,6 +213,17 @@ class EscalationReviewTests(APITestCase):
         self.assertIsNone(at_threshold.reviewed_by)
         self.assertIsNone(at_threshold.reviewed_at)
         self.assertIsNone(at_threshold.converted_contribution)
+        proposal = ReviewProposal.objects.get(
+            submitted_contribution=at_threshold,
+            source=ReviewProposal.SOURCE_HUMAN,
+        )
+        self.assertEqual(proposal.proposer, self.reviewer)
+        self.assertEqual(proposal.action, 'accept')
+        self.assertEqual(proposal.points, 200)
+        self.assertEqual(proposal.sections, {})
+        self.assertFalse(
+            self.decision_rewards(self.reviewer, at_threshold, 'accept').exists()
+        )
         self.assertTrue(
             SubmissionStateTransition.objects.filter(
                 submitted_contribution=at_threshold,
@@ -222,6 +263,61 @@ class EscalationReviewTests(APITestCase):
         self.assertEqual(note.data['final_points'], 400)
         self.assertEqual(note.data['threshold'], 400)
 
+    def test_standard_escalation_rewards_follow_top_level_outcome(self):
+        for action, final_points, expected_reward in (
+            ('accept', 200, 10),
+            ('accept', 100, 5),
+            ('reject', None, 0),
+        ):
+            with self.subTest(
+                action=action,
+                final_points=final_points,
+                expected_reward=expected_reward,
+            ):
+                submission = self.create_submission()
+                escalated = self.review(submission, self.reviewer, points=200)
+                self.assertEqual(
+                    escalated.status_code,
+                    status.HTTP_200_OK,
+                    escalated.data,
+                )
+                proposal = ReviewProposal.objects.get(
+                    submitted_contribution=submission,
+                    source=ReviewProposal.SOURCE_HUMAN,
+                )
+
+                response = self.review(
+                    submission,
+                    self.top_level,
+                    action=action,
+                    points=final_points or 0,
+                )
+
+                self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+                proposal.refresh_from_db()
+                self.assertEqual(proposal.decided_by, self.top_level)
+                self.assertEqual(proposal.final_action, action)
+                self.assertEqual(proposal.reward_points, expected_reward)
+                if expected_reward:
+                    self.assertEqual(proposal.reward_contribution.user, self.reviewer)
+                    self.assertEqual(
+                        proposal.reward_contribution.contribution_type,
+                        self.reward_type,
+                    )
+                    self.assertEqual(
+                        proposal.reward_contribution.points,
+                        expected_reward,
+                    )
+                else:
+                    self.assertIsNone(proposal.reward_contribution)
+                    self.assertFalse(
+                        Contribution.objects.filter(
+                            user=self.reviewer,
+                            contribution_type=self.reward_type,
+                            notes=f"Project review reward for submission {submission.id}",
+                        ).exists()
+                    )
+
     def test_null_threshold_and_tier_two_accept_normally(self):
         ordinary = self.create_submission(self.no_threshold_type)
         ordinary_response = self.review(ordinary, self.reviewer, points=500)
@@ -229,6 +325,9 @@ class EscalationReviewTests(APITestCase):
         ordinary.refresh_from_db()
         self.assertEqual(ordinary.state, 'accepted')
         self.assertIsNone(ordinary.escalated_at)
+        self.assertFalse(
+            self.decision_rewards(self.reviewer, ordinary, 'accept').exists()
+        )
 
         top_level_submission = self.create_submission()
         top_response = self.review(top_level_submission, self.top_level, points=200)
@@ -236,12 +335,147 @@ class EscalationReviewTests(APITestCase):
         top_level_submission.refresh_from_db()
         self.assertEqual(top_level_submission.state, 'accepted')
         self.assertEqual(top_level_submission.reviewed_by, self.top_level)
+        self.assertFalse(
+            self.decision_rewards(
+                self.top_level,
+                top_level_submission,
+                'accept',
+            ).exists()
+        )
 
         superuser_submission = self.create_submission()
         super_response = self.review(superuser_submission, self.apex_superuser, points=200)
         self.assertEqual(super_response.status_code, status.HTTP_200_OK, super_response.data)
         superuser_submission.refresh_from_db()
         self.assertEqual(superuser_submission.state, 'accepted')
+        self.assertFalse(
+            self.decision_rewards(
+                self.apex_superuser,
+                superuser_submission,
+                'accept',
+            ).exists()
+        )
+
+    def test_tier_one_direct_reject_grants_once_and_records_note_data(self):
+        submission = self.create_submission()
+
+        response = self.review(submission, self.reviewer, action='reject')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        reward = self.decision_rewards(
+            self.reviewer,
+            submission,
+            'reject',
+        ).get()
+        self.assertEqual(reward.points, 10)
+        self.assertEqual(reward.title, 'Review Decision Reward')
+        note = SubmissionNote.objects.get(
+            submitted_contribution=submission,
+            is_proposal=False,
+            data__action='reject',
+        )
+        self.assertEqual(note.data['decision_reward']['reason'], 'granted')
+        self.assertEqual(note.data['decision_reward']['points'], 10)
+        self.assertEqual(
+            note.data['decision_reward']['contribution_id'],
+            reward.id,
+        )
+        self.assertIn('Decision reward: **10 points** to Tier One.', note.message)
+
+    def test_direct_decision_reward_is_deduplicated_after_appeal(self):
+        submission = self.create_submission()
+        first = self.review(submission, self.reviewer, action='reject')
+        self.assertEqual(first.status_code, status.HTTP_200_OK, first.data)
+
+        self.client.force_authenticate(user=self.submitter)
+        appeal = self.client.post(
+            f'/api/v1/submissions/{submission.id}/appeal/',
+            {'reason': 'Please reconsider this decision.'},
+            format='json',
+        )
+        self.assertEqual(appeal.status_code, status.HTTP_200_OK, appeal.data)
+
+        second = self.review(submission, self.reviewer, action='reject')
+
+        self.assertEqual(second.status_code, status.HTTP_200_OK, second.data)
+        self.assertEqual(
+            self.decision_rewards(
+                self.reviewer,
+                submission,
+                'reject',
+            ).count(),
+            1,
+        )
+        duplicate_note = SubmissionNote.objects.filter(
+            submitted_contribution=submission,
+            is_proposal=False,
+            data__action='reject',
+        ).first()
+        self.assertEqual(
+            duplicate_note.data['decision_reward'],
+            {
+                'reason': 'duplicate',
+                'points': 0,
+                'contribution_id': None,
+            },
+        )
+
+    def test_more_info_then_below_threshold_accept_grants_distinct_rewards(self):
+        submission = self.create_submission()
+
+        more_info = self.review(submission, self.reviewer, action='more_info')
+        self.assertEqual(
+            more_info.status_code,
+            status.HTTP_200_OK,
+            more_info.data,
+        )
+        accepted = self.review(submission, self.reviewer, points=199)
+
+        self.assertEqual(accepted.status_code, status.HTTP_200_OK, accepted.data)
+        self.assertEqual(
+            self.decision_rewards(
+                self.reviewer,
+                submission,
+                'more_info',
+            ).get().points,
+            10,
+        )
+        self.assertEqual(
+            self.decision_rewards(
+                self.reviewer,
+                submission,
+                'accept',
+            ).get().points,
+            10,
+        )
+        self.assertEqual(
+            Contribution.objects.filter(
+                user=self.reviewer,
+                contribution_type=self.reward_type,
+            ).count(),
+            2,
+        )
+
+    def test_self_review_does_not_grant_direct_decision_reward(self):
+        submission = self.create_submission(user=self.reviewer)
+
+        response = self.review(submission, self.reviewer, action='reject')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertFalse(
+            self.decision_rewards(self.reviewer, submission, 'reject').exists()
+        )
+
+    def test_ai_steward_cannot_receive_direct_decision_reward(self):
+        submission = self.create_submission()
+        ai_user = get_ai_steward()
+
+        response = self.review(submission, ai_user, action='reject')
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertFalse(
+            self.decision_rewards(ai_user, submission, 'reject').exists()
+        )
 
     def test_threshold_uses_final_contribution_type(self):
         source_type = self.create_type(
@@ -375,6 +609,40 @@ class EscalationReviewTests(APITestCase):
                 self.assertEqual(submission.state, expected_state)
                 self.assertIsNone(submission.escalated_at)
                 self.assertIsNone(submission.proposed_action)
+
+    def test_tier_one_rejecting_another_reviewers_escalation_gets_direct_reward(self):
+        submission = self.create_submission()
+        escalated = self.review(submission, self.reviewer, points=200)
+        self.assertEqual(
+            escalated.status_code,
+            status.HTTP_200_OK,
+            escalated.data,
+        )
+        proposal = ReviewProposal.objects.get(
+            submitted_contribution=submission,
+            source=ReviewProposal.SOURCE_HUMAN,
+        )
+
+        rejected = self.review(
+            submission,
+            self.other_reviewer,
+            action='reject',
+        )
+
+        self.assertEqual(rejected.status_code, status.HTTP_200_OK, rejected.data)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.decided_by, self.other_reviewer)
+        self.assertEqual(proposal.final_action, 'reject')
+        self.assertEqual(proposal.reward_points, 0)
+        self.assertIsNone(proposal.reward_contribution)
+        self.assertEqual(
+            self.decision_rewards(
+                self.other_reviewer,
+                submission,
+                'reject',
+            ).get().points,
+            10,
+        )
 
     def test_accept_only_escalator_can_revise_after_question(self):
         accept_only_user = self.create_user(
@@ -583,6 +851,61 @@ class EscalationReviewTests(APITestCase):
         rejected.refresh_from_db()
         self.assertEqual(rejected.state, 'rejected')
         self.assertIsNone(rejected.escalated_at)
+        self.assertFalse(
+            self.decision_rewards(self.reviewer, rejected, 'reject').exists()
+        )
+
+    def test_standard_proposal_does_not_rebind_superseded_escalation_snapshot(self):
+        submission = self.create_submission()
+        escalated = self.review(submission, self.reviewer, points=200)
+        self.assertEqual(escalated.status_code, status.HTTP_200_OK, escalated.data)
+        escalation_proposal = ReviewProposal.objects.get(
+            submitted_contribution=submission,
+            source=ReviewProposal.SOURCE_HUMAN,
+        )
+
+        self.client.force_authenticate(user=self.reviewer)
+        replacement = self.client.post(
+            f'/api/v1/steward-submissions/{submission.id}/propose/',
+            {
+                'proposed_action': 'accept',
+                'proposed_points': 100,
+            },
+            format='json',
+        )
+        self.assertEqual(
+            replacement.status_code,
+            status.HTTP_200_OK,
+            replacement.data,
+        )
+
+        project_type = self.create_type(
+            'Replacement Project',
+            'replacement-project',
+            threshold=None,
+            multiplier=1,
+            review_flow=ContributionType.REVIEW_FLOW_BUILDER_PROJECT,
+        )
+        finalized = self.review(
+            submission,
+            self.top_level,
+            points=100,
+            contribution_type=project_type,
+            rubric_review=project_rubric(),
+        )
+
+        self.assertEqual(finalized.status_code, status.HTTP_200_OK, finalized.data)
+        escalation_proposal.refresh_from_db()
+        self.assertIsNone(escalation_proposal.decided_at)
+        self.assertIsNone(escalation_proposal.reward_points)
+        self.assertIsNone(escalation_proposal.reward_contribution)
+        note = SubmissionNote.objects.get(
+            submitted_contribution=submission,
+            is_proposal=False,
+            data__action='accept',
+        )
+        self.assertIsNone(note.data['review_proposal_id'])
+        self.assertIsNone(note.data['reviewer_reward'])
 
     def test_update_accepted_cannot_cross_threshold_at_tier_one(self):
         submission = self.create_submission()
@@ -643,6 +966,70 @@ class EscalationReviewTests(APITestCase):
             ).exists()
         )
 
+    def test_tier_one_finalizer_can_receive_decision_and_proposal_rewards(self):
+        project_type = self.create_type(
+            'Direct Reward Project',
+            'direct-reward-project',
+            threshold=20,
+            multiplier=1,
+            review_flow=ContributionType.REVIEW_FLOW_BUILDER_PROJECT,
+        )
+        for steward in (self.reviewer_steward, self.other_reviewer_steward):
+            for action in ('propose', 'accept', 'reject', 'request_more_info'):
+                StewardPermission.objects.create(
+                    steward=steward,
+                    contribution_type=project_type,
+                    action=action,
+                )
+        submission = self.create_submission(project_type)
+
+        self.client.force_authenticate(user=self.reviewer)
+        proposed = self.client.post(
+            f'/api/v1/steward-submissions/{submission.id}/propose/',
+            {
+                'proposed_action': 'accept',
+                'proposed_points': 10,
+                'rubric_review': project_rubric(),
+            },
+            format='json',
+        )
+        self.assertEqual(proposed.status_code, status.HTTP_200_OK, proposed.data)
+        proposal = ReviewProposal.objects.get(
+            submitted_contribution=submission,
+            source=ReviewProposal.SOURCE_HUMAN,
+        )
+
+        accepted = self.review(
+            submission,
+            self.other_reviewer,
+            points=10,
+            rubric_review=project_rubric(),
+        )
+
+        self.assertEqual(accepted.status_code, status.HTTP_200_OK, accepted.data)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.reward_points, 10)
+        self.assertEqual(proposal.reward_contribution.user, self.reviewer)
+        decision_reward = self.decision_rewards(
+            self.other_reviewer,
+            submission,
+            'accept',
+        ).get()
+        self.assertEqual(decision_reward.points, 10)
+        note = SubmissionNote.objects.get(
+            submitted_contribution=submission,
+            is_proposal=False,
+            data__action='accept',
+        )
+        self.assertEqual(note.data['reviewer_reward']['points'], 10)
+        self.assertEqual(note.data['decision_reward']['points'], 10)
+        self.assertEqual(
+            Contribution.objects.filter(
+                contribution_type=self.reward_type,
+            ).count(),
+            2,
+        )
+
     def test_project_escalation_creates_human_rubric_proposal(self):
         project_type = self.create_type(
             'Escalated Project',
@@ -678,15 +1065,6 @@ class EscalationReviewTests(APITestCase):
         self.assertEqual(proposal.points, 10)
         self.assertEqual(proposal.sections, rubric.sections)
 
-        reward_type = self.create_type(
-            'Project Review Reward',
-            REVIEWER_REWARD_TYPE_SLUG,
-            threshold=None,
-            multiplier=1,
-        )
-        reward_type.is_submittable = False
-        reward_type.save(update_fields=['is_submittable'])
-
         top_response = self.review(
             submission,
             self.top_level,
@@ -701,7 +1079,10 @@ class EscalationReviewTests(APITestCase):
         self.assertEqual(proposal.decided_by, self.top_level)
         self.assertEqual(proposal.reward_points, 10)
         self.assertEqual(proposal.reward_contribution.user, self.reviewer)
-        self.assertEqual(proposal.reward_contribution.contribution_type, reward_type)
+        self.assertEqual(
+            proposal.reward_contribution.contribution_type,
+            self.reward_type,
+        )
 
 
 class AIReviewGateVisibilityTests(APITestCase):
