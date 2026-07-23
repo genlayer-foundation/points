@@ -6,7 +6,12 @@
   import { userStore } from '../lib/userStore.js';
   import { contributionsAPI, stewardAPI } from '../lib/api.js';
   import { stewardPermissions } from '../lib/stewardPermissions.js';
-  import { hasRoleSectionAccess, journeyPath, rolePath } from '../lib/roleState.js';
+  import {
+    hasReadOnlyRoleSectionAccess,
+    hasRoleSectionAccess,
+    journeyPath,
+    rolePath,
+  } from '../lib/roleState.js';
   import { getAnalyticsContext, setConnectWalletIntent, trackEvent } from '../lib/analytics.js';
   import Avatar from './Avatar.svelte';
 
@@ -310,6 +315,17 @@
 
         {#if !collapsed && getActiveSection() === 'builder' && $authState.isAuthenticated}
           <div class="pl-5">
+            {#if hasReadOnlyRoleSectionAccess($userStore.user, 'builder')}
+              <a
+                href="/builders/dashboard"
+                onclick={(e) => { e.preventDefault(); openRoleSection('/builders/dashboard', 'builder'); }}
+                class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                  isActive('/builders/dashboard') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
+                }"
+              >
+                Dashboard
+              </a>
+            {/if}
             <a
               href="/builders/contributions"
               onclick={(e) => { e.preventDefault(); openRoleSection('/builders/contributions', 'builder'); }}
@@ -367,6 +383,17 @@
 
         {#if !collapsed && getActiveSection() === 'validator' && $authState.isAuthenticated}
           <div class="pl-5">
+            {#if hasReadOnlyRoleSectionAccess($userStore.user, 'validator')}
+              <a
+                href="/validators/dashboard"
+                onclick={(e) => { e.preventDefault(); openRoleSection('/validators/dashboard', 'validator'); }}
+                class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                  isActive('/validators/dashboard') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
+                }"
+              >
+                Dashboard
+              </a>
+            {/if}
             <a
               href="/validators/contributions"
               onclick={(e) => { e.preventDefault(); openRoleSection('/validators/contributions', 'validator'); }}
@@ -437,6 +464,17 @@
 
         {#if !collapsed && getActiveSection() === 'community' && $authState.isAuthenticated}
           <div class="pl-5">
+            {#if hasReadOnlyRoleSectionAccess($userStore.user, 'community')}
+              <a
+                href="/community/dashboard"
+                onclick={(e) => { e.preventDefault(); openRoleSection('/community/dashboard', 'community'); }}
+                class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                  isActive('/community/dashboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
+                }"
+              >
+                Dashboard
+              </a>
+            {/if}
             <a
               href="/community/contributions"
               onclick={(e) => { e.preventDefault(); openRoleSection('/community/contributions', 'community'); }}
@@ -777,6 +815,17 @@
 
       {#if getActiveSection() === 'builder' && $authState.isAuthenticated}
         <div class="pl-5">
+          {#if hasReadOnlyRoleSectionAccess($userStore.user, 'builder')}
+            <a
+              href="/builders/dashboard"
+              onclick={(e) => { e.preventDefault(); openRoleSection('/builders/dashboard', 'builder'); }}
+              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                isActive('/builders/dashboard') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
+              }"
+            >
+              Dashboard
+            </a>
+          {/if}
           <a
             href="/builders/contributions"
             onclick={(e) => { e.preventDefault(); openRoleSection('/builders/contributions', 'builder'); }}
@@ -827,6 +876,17 @@
 
       {#if getActiveSection() === 'validator' && $authState.isAuthenticated}
         <div class="pl-5">
+          {#if hasReadOnlyRoleSectionAccess($userStore.user, 'validator')}
+            <a
+              href="/validators/dashboard"
+              onclick={(e) => { e.preventDefault(); openRoleSection('/validators/dashboard', 'validator'); }}
+              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                isActive('/validators/dashboard') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
+              }"
+            >
+              Dashboard
+            </a>
+          {/if}
           <a
             href="/validators/contributions"
             onclick={(e) => { e.preventDefault(); openRoleSection('/validators/contributions', 'validator'); }}
@@ -890,6 +950,17 @@
 
       {#if getActiveSection() === 'community' && $authState.isAuthenticated}
         <div class="pl-5">
+          {#if hasReadOnlyRoleSectionAccess($userStore.user, 'community')}
+            <a
+              href="/community/dashboard"
+              onclick={(e) => { e.preventDefault(); openRoleSection('/community/dashboard', 'community'); }}
+              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                isActive('/community/dashboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
+              }"
+            >
+              Dashboard
+            </a>
+          {/if}
           <a
             href="/community/contributions"
             onclick={(e) => { e.preventDefault(); openRoleSection('/community/contributions', 'community'); }}

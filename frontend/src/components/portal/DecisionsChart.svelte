@@ -103,9 +103,15 @@
             usePointStyle: true,
             titleColor: '#ffffff',
             bodyColor: '#e5e5e5',
+            footerColor: '#ffffff',
+            footerMarginTop: 8,
             callbacks: {
               title: (items) => `${items[0]?.label || ''} · decisions/week`,
               label: (i) => ` ${i.dataset.label}: ${Number(i.parsed.y).toLocaleString()}`,
+              footer: (items) => {
+                const total = items.reduce((sum, item) => sum + Number(item.parsed.y || 0), 0);
+                return `Total: ${total.toLocaleString()}`;
+              },
             },
           },
         },
