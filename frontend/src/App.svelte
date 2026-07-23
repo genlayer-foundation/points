@@ -67,6 +67,7 @@
   }
   
   import Overview from './routes/Overview.svelte';
+  import Dashboard from './routes/Dashboard.svelte';
   import Contributions from './routes/Contributions.svelte';
   import AllContributions from './routes/AllContributions.svelte';
   import Leaderboard from './routes/Leaderboard.svelte';
@@ -192,10 +193,17 @@
       let user = null;
       try {
         user = await userStore.loadUser();
-      } catch {
-        // Permission could not be verified. Fail closed rather than rendering
-        // a gated route from stale or missing client state.
-        user = null;
+      } catch (error) {
+        const status = error?.response?.status;
+        if (status === 401 || status === 403) {
+          const stillAuthenticated = await verifyAuth({ force: true });
+          if (!stillAuthenticated) {
+            await requireAuthForRoute(detail);
+          }
+        }
+        // Network/5xx failures say nothing about role access. Abort this
+        // navigation without redirecting or rendering from stale client state.
+        return false;
       }
       if (hasRoleSectionAccess(user, category)) return true;
 
@@ -240,6 +248,7 @@
     '/referrals': protectedRoute(Referrals),
     '/community': RoleFunnel,
     '/community/journey': protectedRoute(CommunityJourneyGate),
+    '/community/dashboard': roleGatedRoute(Dashboard, 'community'),
     '/community/contributions': roleGatedRoute(Contributions, 'community'),
     '/community/all-contributions': roleGatedRoute(AllContributions, 'community'),
     '/community/referrals': LegacyReferralRedirect,
@@ -257,6 +266,7 @@
     // Builders routes
     '/builders': RoleFunnel,
     '/builders/journey': protectedRoute(BuilderJourney),
+    '/builders/dashboard': roleGatedRoute(Dashboard, 'builder'),
     '/builders/contributions': roleGatedRoute(Contributions, 'builder'),
     '/builders/all-contributions': roleGatedRoute(AllContributions, 'builder'),
     '/builders/leaderboard': protectedRoute(Leaderboard),
@@ -270,6 +280,7 @@
     // Validators routes
     '/validators': RoleFunnel,
     '/validators/journey': ValidatorWaitlist,
+    '/validators/dashboard': roleGatedRoute(Dashboard, 'validator'),
     '/validators/contributions': roleGatedRoute(Contributions, 'validator'),
     '/validators/all-contributions': roleGatedRoute(AllContributions, 'validator'),
     '/validators/leaderboard': protectedRoute(Leaderboard),
