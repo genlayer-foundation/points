@@ -127,6 +127,18 @@ class ContributionType(BaseModel):
             "Leave blank for unlimited."
         ),
     )
+    requires_ai_review = models.BooleanField(
+        default=False,
+        help_text="Require AI review before tier-1 stewards can review pending submissions.",
+    )
+    escalation_threshold_points = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Escalate tier-1 accepts when rounded points after the multiplier "
+            "meet or exceed this value. Leave blank to disable escalation."
+        ),
+    )
     show_in_contributions = models.BooleanField(
         default=False,
         help_text=(
@@ -914,6 +926,12 @@ class SubmittedContribution(BaseModel):
         blank=True,
         help_text="When the active proposal was questioned"
     )
+    escalated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="When the active proposal was escalated to a top-level steward.",
+    )
 
     # Link to actual contribution when accepted
     converted_contribution = models.ForeignKey(
@@ -1025,6 +1043,7 @@ class SubmissionStateTransition(BaseModel):
     EVENT_CANCELED = 'canceled'
     EVENT_APPEAL = 'appeal'
     EVENT_EVIDENCE_ADDED = 'evidence_added'
+    EVENT_ESCALATED = 'escalated'
     EVENT_ADMIN = 'admin'
     EVENT_CHOICES = [
         (EVENT_SUBMITTED, 'Submitted'),
@@ -1035,6 +1054,7 @@ class SubmissionStateTransition(BaseModel):
         (EVENT_CANCELED, 'Canceled by Submitter'),
         (EVENT_APPEAL, 'Appeal'),
         (EVENT_EVIDENCE_ADDED, 'Evidence Added'),
+        (EVENT_ESCALATED, 'Escalated'),
         (EVENT_ADMIN, 'Admin Edit'),
     ]
 

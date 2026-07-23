@@ -154,6 +154,7 @@ class ContributionTypeAdmin(BroadcastNotificationAdminMixin, admin.ModelAdmin):
     list_display = (
         'name', 'category', 'review_flow', 'is_default', 'is_submittable',
         'get_submission_usage', 'max_submissions_per_user_per_week',
+        'requires_ai_review', 'escalation_threshold_points',
         'show_in_contributions',
         'get_current_multiplier', 'min_points', 'max_points', 'rubric_extra_points',
         'description', 'created_at',
@@ -164,13 +165,18 @@ class ContributionTypeAdmin(BroadcastNotificationAdminMixin, admin.ModelAdmin):
         'review_flow',
         'is_default',
         'is_submittable',
+        'requires_ai_review',
+        'escalation_threshold_points',
         'show_in_contributions',
         'rubric_extra_points',
         'description',
     )
     search_fields = ('name', 'description')
     readonly_fields = ('created_at', 'updated_at')
-    list_filter = ('category', 'review_flow', 'is_default', 'is_submittable', 'show_in_contributions')
+    list_filter = (
+        'category', 'review_flow', 'is_default', 'is_submittable',
+        'requires_ai_review', 'show_in_contributions',
+    )
     # Auto-fill slug from name on the edit page
     prepopulated_fields = { 'slug': ('name',) }
     filter_horizontal = (
@@ -830,15 +836,19 @@ class SubmissionNoteInline(admin.TabularInline):
 @admin.register(SubmittedContribution)
 class SubmittedContributionAdmin(admin.ModelAdmin):
     list_display = ('user', 'contribution_type', 'proposed_points', 'state', 'gate_reviewed',
-                   'contribution_date', 'created_at', 'reviewed_by')
-    list_filter = ('state', 'gate_reviewed', 'contribution_type__category', ContributionTypeListFilter, 'created_at', 'reviewed_at')
+                   'escalated_at', 'contribution_date', 'created_at', 'reviewed_by')
+    list_filter = (
+        'state', 'gate_reviewed', 'contribution_type__category',
+        ContributionTypeListFilter, 'created_at', 'reviewed_at', 'escalated_at',
+    )
     search_fields = ('user__email', 'user__name', 'notes', 'staff_reply', 'mission__name')
     list_per_page = 25
     show_full_result_count = False
     show_facets = admin.ShowFacets.NEVER
     autocomplete_fields = ('user', 'contribution_type', 'reviewed_by')
     readonly_fields = ('id', 'created_at', 'updated_at', 'last_edited_at',
-                      'converted_contribution_link', 'contribution_type_info', 'proposed_points')
+                      'converted_contribution_link', 'contribution_type_info',
+                      'proposed_points', 'escalated_at')
     inlines = [EvidenceInline, SubmissionNoteInline]
     
     fieldsets = (
@@ -846,7 +856,10 @@ class SubmittedContributionAdmin(admin.ModelAdmin):
             'fields': ('id', 'user', 'contribution_type', 'contribution_type_info', 'proposed_points', 'contribution_date', 'notes')
         }),
         ('Review Status', {
-            'fields': ('state', 'gate_reviewed', 'staff_reply', 'reviewed_by', 'reviewed_at')
+            'fields': (
+                'state', 'gate_reviewed', 'escalated_at', 'staff_reply',
+                'reviewed_by', 'reviewed_at',
+            )
         }),
         ('Tracking', {
             'fields': ('created_at', 'updated_at', 'last_edited_at', 'converted_contribution_link'),
@@ -895,6 +908,7 @@ class SubmittedContributionAdmin(admin.ModelAdmin):
         if state_changed:
             obj.reviewed_by = request.user
             obj.reviewed_at = timezone.now()
+            obj.escalated_at = None
 
         # Update last_edited_at if notes changed and state is more_info_needed
         if change and 'notes' in form.changed_data and obj.state == 'more_info_needed':

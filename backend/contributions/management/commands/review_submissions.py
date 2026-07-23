@@ -290,12 +290,9 @@ class Command(BaseCommand):
 
         # Skip submissions already reviewed by AI steward or carrying an
         # active proposal, since Tier 1 should not overwrite proposal state.
-        # Also skip appealed submissions — those are reserved for human
-        # steward reconsideration.
         qs = qs.exclude(reviewed_by=ai_user).filter(
             gate_reviewed=False,
             proposed_action__isnull=True,
-            has_appeal=False,
         )
 
         # Process newest first so that when duplicates share a URL,
@@ -331,6 +328,17 @@ class Command(BaseCommand):
                 f'| evidence: {len(evidence_items)} '
                 f'| notes: {len((submission.notes or ""))}chars'
             )
+
+            if submission.has_appeal:
+                # Appeals must remain pending for human reconsideration even
+                # when a deterministic reject condition might apply.
+                stats['appeals_reviewed'] += 1
+                self.stdout.write(self.style.WARNING(
+                    '  -> HUMAN REVIEW: appealed submission preserved'
+                ))
+                if not dry_run:
+                    self._mark_gate_reviewed(submission)
+                continue
 
             result = self._run_tier1(
                 submission, evidence_items, templates,
@@ -511,6 +519,7 @@ class Command(BaseCommand):
         submission.proposal_review_feedback = ''
         submission.proposal_questioned_by = None
         submission.proposal_questioned_at = None
+        submission.escalated_at = None
         submission.save()
 
         SubmissionNote.objects.create(

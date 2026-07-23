@@ -439,10 +439,6 @@ class AIReviewViewSet(
 
     def get_queryset(self):
         qs = SubmittedContribution.objects.filter(state='pending')
-        # Appealed submissions are reserved for human stewards by default, but
-        # keep them queryable when the caller explicitly asks for has_appeal.
-        if 'has_appeal' not in self.request.query_params:
-            qs = qs.filter(has_appeal=False)
         # The default list endpoint returns unproposed submissions. If the
         # caller uses proposal-specific filters, leave proposals queryable.
         if self.action == 'list' and self.proposal_query_params.isdisjoint(self.request.query_params):

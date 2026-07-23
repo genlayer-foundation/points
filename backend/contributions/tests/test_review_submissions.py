@@ -1,5 +1,6 @@
 from collections import defaultdict
 from io import StringIO
+from unittest.mock import patch
 
 from django.test import TestCase
 from django.contrib.auth import get_user_model
@@ -768,6 +769,46 @@ class GateReviewedCommandTest(Tier1RuleTestBase):
         submission.refresh_from_db()
         self.assertEqual(submission.state, 'rejected')
         self.assertTrue(submission.gate_reviewed)
+
+    def test_command_gate_reviews_appeal_without_auto_rejecting_it(self):
+        submission = self._create_submission(notes='Missing evidence')
+        submission.has_appeal = True
+        submission.appeal_reason = 'Please reconsider this submission.'
+        submission.appealed_at = timezone.now()
+        submission.save(update_fields=['has_appeal', 'appeal_reason', 'appealed_at'])
+
+        out = StringIO()
+        with patch(
+            'contributions.management.commands.review_submissions.Command._run_tier1',
+            side_effect=AssertionError('Appeals must skip deterministic rules.'),
+        ):
+            call_command('review_submissions', '--batch-size', '0', stdout=out)
+
+        submission.refresh_from_db()
+        self.assertEqual(submission.state, 'pending')
+        self.assertTrue(submission.gate_reviewed)
+        self.assertIsNone(submission.reviewed_by)
+        self.assertIsNone(submission.reviewed_at)
+        self.assertEqual(submission.staff_reply, '')
+        self.assertIn('appeals_reviewed: 1', out.getvalue())
+
+    def test_command_gate_reviews_appeal_when_rejection_template_is_missing(self):
+        ReviewTemplate.objects.filter(label='Reject: No Evidence').delete()
+        submission = self._create_submission(notes='Missing evidence')
+        submission.has_appeal = True
+        submission.appeal_reason = 'Please reconsider this submission.'
+        submission.appealed_at = timezone.now()
+        submission.save(update_fields=['has_appeal', 'appeal_reason', 'appealed_at'])
+
+        out = StringIO()
+        call_command('review_submissions', '--batch-size', '0', stdout=out)
+
+        submission.refresh_from_db()
+        self.assertEqual(submission.state, 'pending')
+        self.assertTrue(submission.gate_reviewed)
+        self.assertIsNone(submission.reviewed_by)
+        self.assertNotIn('Template not found', out.getvalue())
+        self.assertIn('appeals_reviewed: 1', out.getvalue())
 
     def test_command_skips_gate_reviewed_submission(self):
         submission = self._create_submission(

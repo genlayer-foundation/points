@@ -54,11 +54,13 @@
   );
   let proposalOnlyMode = $derived(hasProposalPermission && !hasReviewPermission);
   let rejectTemplates = $derived(templates.filter(t => t.action === 'reject'));
+  let stewardTier = $derived($userStore.user?.steward_tier ?? 1);
 
   // CRM Notes state - keyed by submission ID
   let submissionNotes = $state({});
   let notesLoading = $state({});
   let submissionsRequestId = 0;
+  let appliedQueueParams = {};
   let notesBatchRequestId = 0;
   const NOTES_CONCURRENCY = 4;
 
@@ -242,6 +244,33 @@
     }
   }
 
+  function matchesActiveQueueFlags(submission) {
+    const params = appliedQueueParams;
+
+    if (
+      params.is_interesting !== undefined &&
+      Boolean(submission.is_interesting) !== params.is_interesting
+    ) {
+      return false;
+    }
+
+    if (
+      params.is_escalated !== undefined &&
+      Boolean(submission.escalated_at) !== params.is_escalated
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+
+  function removeSubmissionFromPage(submissionId) {
+    submissions = submissions.filter(submission => submission.id !== submissionId);
+    totalCount = Math.max(0, totalCount - 1);
+    selectedSubmissions.delete(submissionId);
+    selectedSubmissions = new Set(selectedSubmissions);
+  }
+
   async function loadSubmissions() {
     if (destroyed) return; // unmounted mid-load — don't fetch or touch the URL
     const requestId = ++submissionsRequestId;
@@ -285,6 +314,7 @@
       const response = await stewardAPI.getSubmissions(params);
       if (requestId !== submissionsRequestId) return;
 
+      appliedQueueParams = { ...params };
       const loadedSubmissions = response.data.results || [];
       submissions = loadedSubmissions;
       totalCount = response.data.count || 0;
@@ -408,6 +438,11 @@
   async function handleToggleInteresting(submissionId, isInteresting) {
     try {
       const response = await stewardAPI.toggleInteresting(submissionId, isInteresting);
+      if (!matchesActiveQueueFlags(response.data)) {
+        removeSubmissionFromPage(submissionId);
+        return;
+      }
+
       const idx = submissions.findIndex(s => s.id === submissionId);
       if (idx !== -1) {
         submissions[idx] = response.data;
@@ -426,10 +461,14 @@
     try {
       const response = await stewardAPI.changeSubmissionType(submissionId, contributionTypeId);
       const updatedSub = response.data;
-      const idx = submissions.findIndex(s => s.id === submissionId);
-      if (idx !== -1) {
-        submissions[idx] = updatedSub;
-        submissions = [...submissions];
+      if (!matchesActiveQueueFlags(updatedSub)) {
+        removeSubmissionFromPage(submissionId);
+      } else {
+        const idx = submissions.findIndex(s => s.id === submissionId);
+        if (idx !== -1) {
+          submissions[idx] = updatedSub;
+          submissions = [...submissions];
+        }
       }
       reviewData[submissionId] = {
         action: 'accept',
@@ -513,12 +552,20 @@
 
       const response = await stewardAPI.reviewSubmission(submissionId, apiData);
       const updatedSub = response.data;
+      const wasEscalated = Boolean(updatedSub.escalated_at && updatedSub.state === 'pending');
 
       // Show success message
-      showSuccess(getSuccessMessage(data.action));
+      showSuccess(
+        wasEscalated
+          ? 'Submitted as a proposal to the top-level steward'
+          : getSuccessMessage(data.action)
+      );
 
       // Update in-place: remove if state no longer matches filter, otherwise update
-      if (!stateFilter || stateFilter === updatedSub.state) {
+      if (
+        (!stateFilter || stateFilter === updatedSub.state) &&
+        matchesActiveQueueFlags(updatedSub)
+      ) {
         const idx = submissions.findIndex(s => s.id === submissionId);
         if (idx !== -1) {
           submissions[idx] = updatedSub;
@@ -534,8 +581,7 @@
         // Reload notes since review creates a CRM note
         loadNotes(submissionId);
       } else {
-        submissions = submissions.filter(s => s.id !== submissionId);
-        totalCount = Math.max(0, totalCount - 1);
+        removeSubmissionFromPage(submissionId);
       }
     } catch (err) {
       showError('Failed to review submission: ' + (err.response?.data?.detail || err.message));
@@ -623,10 +669,14 @@
       const response = await stewardAPI.proposeSubmission(submissionId, data);
 
       // Update submission in-place with proposal data
-      const idx = submissions.findIndex(s => s.id === submissionId);
-      if (idx !== -1) {
-        submissions[idx] = response.data;
-        submissions = [...submissions];
+      if (!matchesActiveQueueFlags(response.data)) {
+        removeSubmissionFromPage(submissionId);
+      } else {
+        const idx = submissions.findIndex(s => s.id === submissionId);
+        if (idx !== -1) {
+          submissions[idx] = response.data;
+          submissions = [...submissions];
+        }
       }
       // Also reload notes since a proposal creates a CRM note
       loadNotes(submissionId);
@@ -692,8 +742,9 @@
     loadSubmissions();
   }
 
-  function applyQuickSearch(query) {
+  function applyQuickSearch(query, status) {
     searchQuery = query;
+    stateFilter = status;
     currentPage = 1;
     loadSubmissions();
   }
@@ -816,13 +867,33 @@
       <div>
         Total: <span class="font-semibold text-gray-900">{totalCount}</span> submissions
       </div>
-      <button
-        type="button"
-        onclick={() => applyQuickSearch('is:ai-reviewed assigned:unassigned')}
-        class="inline-flex items-center rounded-md border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-800 transition-colors hover:bg-sky-100"
-      >
-        AI-reviewed, unassigned
-      </button>
+      <div class="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onclick={() => applyQuickSearch('is:ai-reviewed assigned:unassigned', 'pending')}
+          class="inline-flex items-center rounded-md border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-800 transition-colors hover:bg-sky-100"
+        >
+          AI-reviewed, unassigned
+        </button>
+        {#if stewardTier >= 2}
+          <button
+            type="button"
+            onclick={() => applyQuickSearch('is:escalated', 'pending')}
+            class="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100"
+          >
+            Escalated
+          </button>
+        {/if}
+        {#if stewardTier >= 3}
+          <button
+            type="button"
+            onclick={() => applyQuickSearch('status:accepted is:interesting', 'accepted')}
+            class="inline-flex items-center rounded-md border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-800 transition-colors hover:bg-violet-100"
+          >
+            Apex queue
+          </button>
+        {/if}
+      </div>
     </div>
   </div>
 
@@ -1002,6 +1073,7 @@
             onAcceptedEditChange={handleAcceptedEditChange}
             onAcceptedUpdate={handleAcceptedUpdate}
             enableRubricReview={true}
+            {stewardTier}
           />
         </div>
       {/each}

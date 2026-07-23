@@ -283,6 +283,13 @@ export function searchToParams(parsed, options = {}) {
     params.is_interesting = false;
   }
 
+  // is:escalated / not:escalated → is_escalated filter
+  if (hasValue(filters.is, ['escalated'])) {
+    params.is_escalated = true;
+  } else if (hasValue(filters.not, ['escalated'])) {
+    params.is_escalated = false;
+  }
+
   // is:ai-reviewed / not:ai-reviewed → durable AI-analysis filter
   if (hasValue(filters.is, ['ai-reviewed', 'ai_reviewed'])) {
     params.has_ai_analysis = true;
