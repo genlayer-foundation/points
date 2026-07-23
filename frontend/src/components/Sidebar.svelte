@@ -6,7 +6,7 @@
   import { userStore } from '../lib/userStore.js';
   import { contributionsAPI, stewardAPI } from '../lib/api.js';
   import { stewardPermissions } from '../lib/stewardPermissions.js';
-  import { hasEarnedRole, journeyPath, rolePath } from '../lib/roleState.js';
+  import { hasRoleSectionAccess, journeyPath, rolePath } from '../lib/roleState.js';
   import { getAnalyticsContext, setConnectWalletIntent, trackEvent } from '../lib/analytics.js';
   import Avatar from './Avatar.svelte';
 
@@ -133,7 +133,7 @@
   // A signed-in user who has not earned this category's role: the role's
   // subsections are shown but locked.
   function isRoleLocked(category) {
-    return $authState.isAuthenticated && !hasEarnedRole($userStore.user, category);
+    return $authState.isAuthenticated && !hasRoleSectionAccess($userStore.user, category);
   }
 
   // Clicking a locked role subsection nudges the user to that role's funnel

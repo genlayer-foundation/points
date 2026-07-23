@@ -655,3 +655,4 @@ The project uses **context-aware serialization** to optimize API performance:
 - URL: `/admin/`
 - Requires superuser account
 - Models registered in `{app}/admin.py`
+- User records include a `can_view_role_sections` checkbox for read-only access to gated Builder, Validator, and Community portal views. It does not create role profiles, enable role actions, affect role metrics, or grant Steward access.

@@ -7,6 +7,8 @@
   import { contributionsAPI } from '../lib/api';
   import { visibleContributions } from '../lib/hiddenContributions.js';
   import { currentCategory } from '../stores/category.js';
+  import { userStore } from '../lib/userStore.js';
+  import { hasReadOnlyRoleSectionAccess } from '../lib/roleState.js';
   import { push } from 'svelte-spa-router';
   import { getCategoryButtonStyle, getCategoryGradientStyle } from '../lib/categoryPresentation.js';
 
@@ -64,6 +66,9 @@
   let recentSlider = $state(/** @type {HTMLElement | null} */ (null));
 
   let activeCategory = $derived($currentCategory || 'global');
+  let isRoleSectionReadOnly = $derived(
+    hasReadOnlyRoleSectionAccess($userStore.user, activeCategory)
+  );
   let pageConfig = $derived(categoryConfig[activeCategory] || categoryConfig.global);
   let gradientStyle = $derived(getCategoryGradientStyle(activeCategory, pageConfig.accentColor));
   let pageGradientStyle = $derived(
@@ -188,24 +193,30 @@
         </p>
       </div>
 
-      <button
-        type="button"
-        onclick={() => push('/submit-contribution')}
-        class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-black bg-black px-4 text-[13px] font-semibold text-white shadow-[0_8px_22px_rgba(31,42,68,0.12)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.16)] sm:w-auto"
-        style={submitButtonStyle}
-      >
-        Submit contribution
-        <img src="/assets/icons/arrow-right-line-white.svg" alt="" class="h-4 w-4" />
-      </button>
+      {#if isRoleSectionReadOnly}
+        <span class="inline-flex min-h-10 items-center justify-center rounded-full border border-[#cdddf8] bg-[#edf4ff] px-4 text-[12px] font-semibold text-[#245ca8]">
+          View-only access
+        </span>
+      {:else}
+        <button
+          type="button"
+          onclick={() => push('/submit-contribution')}
+          class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-black bg-black px-4 text-[13px] font-semibold text-white shadow-[0_8px_22px_rgba(31,42,68,0.12)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.16)] sm:w-auto"
+          style={submitButtonStyle}
+        >
+          Submit contribution
+          <img src="/assets/icons/arrow-right-line-white.svg" alt="" class="h-4 w-4" />
+        </button>
+      {/if}
     </header>
 
     {#if activeCategory === 'builder'}
       <StartupRequests />
     {/if}
 
-    <SocialTasksSection />
+    <SocialTasksSection readOnly={isRoleSectionReadOnly} />
 
-    <Missions />
+    <Missions readOnly={isRoleSectionReadOnly} />
 
     <ContributionTypeStats />
 

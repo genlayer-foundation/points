@@ -15,6 +15,8 @@ const ROUTE_BASE = {
   community: '/community',
 };
 
+const VIEWABLE_ROLE_CATEGORIES = new Set(['builder', 'validator', 'community']);
+
 export function rolePath(category) {
   return ROUTE_BASE[category] || '/';
 }
@@ -29,6 +31,30 @@ export function hasEarnedRole(user, category) {
   if (category === 'validator') return !!user.validator;
   if (category === 'community') return !!user.creator;
   return false;
+}
+
+// Admin-managed read access is deliberately separate from role membership.
+// The backend returns the flag to its owner only; keeping it out of
+// hasEarnedRole prevents funnels, submissions, points, and stats from treating
+// a viewer as a Builder, Validator, Creator, or Steward.
+/**
+ * @param {Record<string, any> | null | undefined} user
+ * @param {string} category
+ */
+export function hasRoleSectionAccess(user, category) {
+  if (hasEarnedRole(user, category)) return true;
+  return VIEWABLE_ROLE_CATEGORIES.has(category)
+    && user?.can_view_role_sections === true;
+}
+
+/**
+ * @param {Record<string, any> | null | undefined} user
+ * @param {string} category
+ */
+export function hasReadOnlyRoleSectionAccess(user, category) {
+  return VIEWABLE_ROLE_CATEGORIES.has(category)
+    && user?.can_view_role_sections === true
+    && !hasEarnedRole(user, category);
 }
 
 // "Started but not earned", from durable point-free `<role>-welcome` markers set

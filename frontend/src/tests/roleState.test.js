@@ -5,6 +5,8 @@ import {
   journeyPath,
   roleForCategory,
   hasAnyRoleOrJourney,
+  hasRoleSectionAccess,
+  hasReadOnlyRoleSectionAccess,
 } from '../lib/roleState.js';
 
 describe('roleState.roleFunnelState', () => {
@@ -61,6 +63,41 @@ describe('roleState path helpers', () => {
     expect(roleForCategory('community')).toBe('community');
     expect(roleForCategory('global')).toBe('community');
     expect(roleForCategory('steward')).toBe('community');
+  });
+});
+
+describe('roleState.hasRoleSectionAccess', () => {
+  it('allows users who actually hold the requested role', () => {
+    expect(hasRoleSectionAccess({ validator: {} }, 'validator')).toBe(true);
+    expect(hasRoleSectionAccess({ builder: {} }, 'builder')).toBe(true);
+  });
+
+  it('allows the admin-managed viewer across non-steward roles only', () => {
+    const viewer = { can_view_role_sections: true };
+
+    expect(hasRoleSectionAccess(viewer, 'validator')).toBe(true);
+    expect(hasRoleSectionAccess(viewer, 'builder')).toBe(true);
+    expect(hasRoleSectionAccess(viewer, 'community')).toBe(true);
+    expect(hasRoleSectionAccess(viewer, 'steward')).toBe(false);
+    expect(hasRoleSectionAccess(viewer, 'global')).toBe(false);
+  });
+
+  it('identifies categories where the viewer lacks the real role', () => {
+    const viewer = { can_view_role_sections: true, builder: {} };
+
+    expect(hasReadOnlyRoleSectionAccess(viewer, 'validator')).toBe(true);
+    expect(hasReadOnlyRoleSectionAccess(viewer, 'community')).toBe(true);
+    expect(hasReadOnlyRoleSectionAccess(viewer, 'builder')).toBe(false);
+    expect(hasReadOnlyRoleSectionAccess(viewer, 'steward')).toBe(false);
+  });
+
+  it('does not turn viewing access into an earned role', () => {
+    const viewer = { can_view_role_sections: true };
+
+    expect(roleFunnelState(true, viewer, 'validator')).toBe('none');
+    expect(roleFunnelState(true, viewer, 'builder')).toBe('none');
+    expect(roleFunnelState(true, viewer, 'community')).toBe('none');
+    expect(hasAnyRoleOrJourney(viewer)).toBe(false);
   });
 });
 

@@ -330,6 +330,10 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     def to_internal_value(self, data):
         if 'email' in data:
             raise serializers.ValidationError({'email': 'Use email verification to change email.'})
+        if 'can_view_role_sections' in data:
+            raise serializers.ValidationError({
+                'can_view_role_sections': 'Only an administrator can change role view access.'
+            })
         return super().to_internal_value(data)
 
     def validate_description(self, value):
@@ -530,6 +534,7 @@ class UserSerializer(serializers.ModelSerializer):
     email_verified_at = serializers.SerializerMethodField()
     is_banned = serializers.SerializerMethodField()
     ban_reason = serializers.SerializerMethodField()
+    can_view_role_sections = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -545,6 +550,8 @@ class UserSerializer(serializers.ModelSerializer):
                   'email', 'is_email_verified', 'email_verified_at',
                   # Ban status
                   'is_banned', 'ban_reason',
+                  # Admin-managed read-only access to non-steward role sections
+                  'can_view_role_sections',
                   # Social connections
                   'github_connection', 'twitter_connection', 'discord_connection',
                   # Referral fields
@@ -706,6 +713,17 @@ class UserSerializer(serializers.ModelSerializer):
         if self._can_view_private_user_data(obj):
             return obj.ban_reason
         return ''
+
+    def get_can_view_role_sections(self, obj):
+        """Expose the admin-managed viewer flag to its owner only."""
+        request = self.context.get('request')
+        request_user = getattr(request, 'user', None)
+        return bool(
+            request_user
+            and request_user.is_authenticated
+            and request_user.pk == obj.pk
+            and obj.can_view_role_sections
+        )
 
     def get_referral_code(self, obj):
         """Expose referral code only to the account owner or staff."""

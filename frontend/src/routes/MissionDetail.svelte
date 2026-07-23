@@ -5,6 +5,8 @@
   import { push } from 'svelte-spa-router';
   import { contributionsAPI } from '../lib/api';
   import { visibleContributions } from '../lib/hiddenContributions.js';
+  import { userStore } from '../lib/userStore.js';
+  import { hasReadOnlyRoleSectionAccess } from '../lib/roleState.js';
   import { parseMarkdown } from '../lib/markdownLoader.js';
   import PortalContributionCard from '../components/portal/PortalContributionCard.svelte';
   import { getCategoryButtonStyle, getCategoryGradientStyle } from '../lib/categoryPresentation.js';
@@ -53,6 +55,9 @@
   let contributionSlider = $state(/** @type {HTMLElement | null} */ (null));
 
   let category = $derived(contributionType?.category || 'global');
+  let isRoleSectionReadOnly = $derived(
+    hasReadOnlyRoleSectionAccess($userStore.user, category)
+  );
   let config = $derived(categoryConfig[category] || categoryConfig.global);
   let gradientStyle = $derived(getCategoryGradientStyle(category, config.accent));
   let submitButtonStyle = $derived(getCategoryButtonStyle(config.accent));
@@ -241,18 +246,24 @@
             </h1>
           </div>
 
-          <button
-            type="button"
-            onclick={() => !submissionClosed && push(`/submit-contribution?mission=${mission.id}`)}
-            disabled={submissionClosed}
-            class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-black bg-black px-4 text-[13px] font-semibold text-white shadow-[0_8px_22px_rgba(31,42,68,0.12)] transition sm:w-auto {submissionClosed ? 'cursor-not-allowed opacity-60' : 'hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.16)]'}"
-            style={submissionClosed ? '' : submitButtonStyle}
-          >
-            {submitButtonLabel}
-            {#if !submissionClosed}
-              <img src="/assets/icons/arrow-right-line-white.svg" alt="" class="h-4 w-4" />
-            {/if}
-          </button>
+          {#if isRoleSectionReadOnly}
+            <span class="inline-flex min-h-11 items-center justify-center rounded-full border border-[#cdddf8] bg-[#edf4ff] px-4 text-[12px] font-semibold text-[#245ca8]">
+              View-only access
+            </span>
+          {:else}
+            <button
+              type="button"
+              onclick={() => !submissionClosed && push(`/submit-contribution?mission=${mission.id}`)}
+              disabled={submissionClosed}
+              class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-black bg-black px-4 text-[13px] font-semibold text-white shadow-[0_8px_22px_rgba(31,42,68,0.12)] transition sm:w-auto {submissionClosed ? 'cursor-not-allowed opacity-60' : 'hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(31,42,68,0.16)]'}"
+              style={submissionClosed ? '' : submitButtonStyle}
+            >
+              {submitButtonLabel}
+              {#if !submissionClosed}
+                <img src="/assets/icons/arrow-right-line-white.svg" alt="" class="h-4 w-4" />
+              {/if}
+            </button>
+          {/if}
         </div>
 
         <div class="mt-7 grid grid-cols-2 gap-3 lg:grid-cols-4">
