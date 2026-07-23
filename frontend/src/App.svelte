@@ -193,10 +193,17 @@
       let user = null;
       try {
         user = await userStore.loadUser();
-      } catch {
-        // Permission could not be verified. Fail closed rather than rendering
-        // a gated route from stale or missing client state.
-        user = null;
+      } catch (error) {
+        const status = error?.response?.status;
+        if (status === 401 || status === 403) {
+          const stillAuthenticated = await verifyAuth({ force: true });
+          if (!stillAuthenticated) {
+            await requireAuthForRoute(detail);
+          }
+        }
+        // Network/5xx failures say nothing about role access. Abort this
+        // navigation without redirecting or rendering from stale client state.
+        return false;
       }
       if (hasRoleSectionAccess(user, category)) return true;
 
