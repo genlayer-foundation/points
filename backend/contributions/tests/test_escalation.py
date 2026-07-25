@@ -55,8 +55,33 @@ class EscalationReviewTests(APITestCase):
             threshold=None,
             multiplier=2,
         )
-        self.reward_type = ContributionType.objects.get(
+        reward_category, _ = Category.objects.get_or_create(
+            slug='builder',
+            defaults={
+                'name': 'Builder',
+                'description': 'Builder category',
+            },
+        )
+        self.reward_type, _ = ContributionType.objects.get_or_create(
             slug=REVIEWER_REWARD_TYPE_SLUG,
+            defaults={
+                'name': 'Project Review Reward',
+                'description': 'Reward for accurate Builder Project review proposals',
+                'category': reward_category,
+                'min_points': 0,
+                'max_points': 100,
+                'is_default': False,
+                'is_submittable': False,
+            },
+        )
+        GlobalLeaderboardMultiplier.objects.get_or_create(
+            contribution_type=self.reward_type,
+            defaults={
+                'multiplier_value': 1.0,
+                'valid_from': timezone.now() - timedelta(days=30),
+                'description': 'Default multiplier for project review rewards',
+                'notes': 'Created for reviewer points economy',
+            },
         )
         self.submitter = self.create_user(
             'escalation-submitter@example.com',
@@ -472,7 +497,10 @@ class EscalationReviewTests(APITestCase):
 
         response = self.review(submission, ai_user, action='reject')
 
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        submission.refresh_from_db()
+        self.assertEqual(submission.state, 'pending')
+        self.assertIsNone(submission.reviewed_by)
         self.assertFalse(
             self.decision_rewards(ai_user, submission, 'reject').exists()
         )
