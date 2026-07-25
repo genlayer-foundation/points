@@ -127,6 +127,7 @@ class SubmissionStateTransitionTest(TestCase):
             state='more_info_needed',
             reviewed_by=self.steward_user,
             reviewed_at=timezone.now(),
+            escalated_at=timezone.now(),
         )
         self.client.force_authenticate(user=self.owner)
         response = self.client.patch(
@@ -202,6 +203,7 @@ class SubmissionStateTransitionTest(TestCase):
             state='more_info_needed',
             reviewed_by=self.steward_user,
             reviewed_at=timezone.now(),
+            escalated_at=timezone.now(),
         )
         model_admin = SubmittedContributionAdmin(SubmittedContribution, AdminSite())
         request = SimpleNamespace(user=self.steward_user)
@@ -216,6 +218,28 @@ class SubmissionStateTransitionTest(TestCase):
         (t,) = self._transitions(submission, event='admin')
         self.assertEqual((t.from_state, t.to_state), ('more_info_needed', 'more_info_needed'))
         self.assertEqual(t.actor, self.steward_user)
+        submission.refresh_from_db()
+        self.assertIsNotNone(submission.escalated_at)
+
+    def test_admin_state_edit_clears_escalation_marker(self):
+        from types import SimpleNamespace
+        from django.contrib.admin.sites import AdminSite
+        from contributions.admin import SubmittedContributionAdmin
+
+        submission = self._make_submission(escalated_at=timezone.now())
+        submission.state = 'rejected'
+        model_admin = SubmittedContributionAdmin(SubmittedContribution, AdminSite())
+        request = SimpleNamespace(user=self.steward_user)
+        form = SimpleNamespace(
+            changed_data=['state'],
+            initial={'state': 'pending'},
+        )
+
+        model_admin.save_model(request, submission, form, change=True)
+
+        submission.refresh_from_db()
+        self.assertEqual(submission.state, 'rejected')
+        self.assertIsNone(submission.escalated_at)
 
     def test_gate_reject_logs_transition_with_ai_actor(self):
         submission = self._make_submission()

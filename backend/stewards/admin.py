@@ -14,7 +14,7 @@ class StewardInline(admin.StackedInline):
     model = Steward
     extra = 0  # Don't show empty rows
     max_num = 1  # Only one steward per user
-    fields = ('can_review_feature_candidates',)
+    fields = ('tier', 'can_review_feature_candidates')
     verbose_name = "Steward Information"
     verbose_name_plural = "Steward Information"
     can_delete = True  # Allow deletion through inline
@@ -30,15 +30,15 @@ class StewardPermissionInline(admin.TabularInline):
 
 @admin.register(Steward)
 class StewardAdmin(admin.ModelAdmin):
-    list_display = ('user', 'can_review_feature_candidates', 'permission_count', 'created_at', 'updated_at')
+    list_display = ('user', 'tier', 'can_review_feature_candidates', 'permission_count', 'created_at', 'updated_at')
     search_fields = ('user__email', 'user__name')
-    list_filter = ('can_review_feature_candidates', 'created_at', 'updated_at')
+    list_filter = ('tier', 'can_review_feature_candidates', 'created_at', 'updated_at')
     ordering = ('-created_at',)
     inlines = [StewardPermissionInline]
 
     fieldsets = (
         (None, {
-            'fields': ('user', 'can_review_feature_candidates')
+            'fields': ('user', 'tier', 'can_review_feature_candidates')
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),

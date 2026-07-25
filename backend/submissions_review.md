@@ -2,16 +2,30 @@
 
 ## Overview
 
-Two-tier review pipeline for GenLayer Testnet Program submissions:
-- **Tier 1**: Deterministic rules run via `review_submissions` management command (auto-reject)
-- **Tier 2**: External AI agent using the `/api/v1/ai-review/` API endpoints (proposals for human review)
+Submission review has two AI stages followed by a three-level human steward
+hierarchy. The AI stages keep their historical Tier 1 / Tier 2 names in code
+and operational tooling; steward tiers are a separate authorization model.
+
+- **AI gate (legacy Tier 1)**: deterministic rules run via the
+  `review_submissions` command and may auto-reject.
+- **AI proposal agent (legacy Tier 2)**: the external agent uses
+  `/api/v1/ai-review/` to create proposals for humans.
+- **Reviewer (steward tier 1)**: reviews AI-engaged submissions and can create
+  proposals; high-point accepts escalate instead of finalizing.
+- **Top-level steward (steward tier 2)**: sees the unrestricted queue, has the
+  full permission matrix, and finalizes escalated proposals.
+- **Apex steward (steward tier 3)**: has tier-2 powers and reviews accepted,
+  interesting submissions through the Apex queue.
 
 ## Architecture
 
-| Tier | Method | Auto-applies? | Human review? |
+| Stage | Method | Auto-applies? | Human review? |
 |------|--------|--------------|---------------|
-| **Tier 1** | Deterministic rules (management command) | Yes (reject only) | No |
-| **Tier 2** | External AI agent via API | No — creates proposals | Yes |
+| **AI gate** | Deterministic rules (management command) | Yes (reject only) | No |
+| **AI proposal** | External AI agent via API | No - creates proposals | Yes |
+| **Steward tier 1** | Portal review queue | Yes, below the type threshold | Yes |
+| **Steward tier 2** | Portal review queue | Yes | Yes |
+| **Steward tier 3** | Accepted + interesting queue | No separate decision | Yes |
 | **Auto-ban** | Post-batch check (management command) | Yes (ban user) | Appeal via in-app flow |
 
 ### AI Steward
@@ -84,7 +98,7 @@ The external AI agent accesses submissions via the `/api/v1/ai-review/` API endp
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/v1/ai-review/` | GET | List pending submissions (paginated, filterable); use `has_more_info_request=true` for submissions with recorded request blocks or `is_more_info_resubmitted=true` for audited resubmissions |
+| `/api/v1/ai-review/` | GET | List pending submissions, including appeals (paginated, filterable); use `has_more_info_request=true` for recorded request blocks or `is_more_info_resubmitted=true` for audited resubmissions |
 | `/api/v1/ai-review/{id}/` | GET | Submission detail with evidence and user history |
 | `/api/v1/ai-review/{id}/propose/` | POST | Submit a review proposal |
 | `/api/v1/ai-review/templates/` | GET | List review templates |
@@ -99,6 +113,10 @@ List and detail payloads distinguish `has_more_info_request`, backed by the
 same structured notes rendered in submission cards, from
 `is_more_info_resubmitted`, backed only by an append-only transition from
 `more_info_needed` to `pending`.
+
+Appeals and more-info resubmissions remain available to both AI stages. The
+deterministic gate records an appeal as gate-reviewed but never auto-rejects
+it, so an appeal always reaches a human reviewer.
 
 ### Project Rubric Proposals
 
@@ -117,6 +135,61 @@ Rubric proposal fields:
 - Sections: `genlayer_fit`, `contract_quality`, `engineering`, `frontend_ux`, each scored 0-5 when the gate passes. Section reasons are optional.
 - Extras: fixed checklist for `live_deployment`, `demo_video`, and `public_post`.
 - Overall reason: required internal explanation for the final steward.
+
+## Human Steward Hierarchy
+
+`Steward.tier` is `1` (Reviewer), `2` (Top-level steward), or `3` (Apex
+steward). Tier 2 and tier 3 stewards receive every action on every contribution
+type regardless of `StewardPermission` rows. A steward superuser has effective
+tier 3.
+
+Two fields on `ContributionType` control the hierarchy:
+
+- `requires_ai_review`: hides unengaged pending submissions from tier-1
+  reviewers, including propose-only reviewers. A submission becomes visible
+  after any active proposal, an AI proposal note, an AI `ReviewProposal`, an
+  appeal, or an audited more-info resubmission. Tier 2+ bypasses the gate.
+- `escalation_threshold_points`: when a tier-1 reviewer accepts at or above
+  `round(points * multiplier)` for the submission's contribution date, the
+  accept becomes a human proposal instead of creating a `Contribution`.
+  Blank disables escalation.
+
+Existing Builder-category types are backfilled once, and new types are created
+with AI review required and a 400-point escalation threshold when those values
+are not supplied explicitly. Administrators can opt individual types out
+afterward; later saves do not reapply the defaults. The threshold is evaluated
+against the final type chosen by the reviewer. Reject and
+request-more-info decisions never escalate.
+
+Every escalation reuses the normal `proposed_*` fields and records a human
+`ReviewProposal`; Builder Project escalations also update
+`ProjectMilestoneReview`, while standard-flow proposals store empty rubric
+fields. `SubmittedContribution.escalated_at` marks the active proposal, and an
+`escalated` `SubmissionStateTransition` provides durable history. Replacing or
+deciding the proposal clears the marker. A tier-1 reviewer can revise, reject,
+question, request more information, or accept below the threshold; another
+at-threshold accept remains a proposal.
+
+Escalated accepts defer the tier-1 reviewer's reward until a different steward
+finalizes the proposal. Matching Builder Project decisions start at 10 points
+and lose 2 points per rubric-section score point of disagreement; standard-flow
+decisions use a binary 10 points for a matching accept or 0 when the action
+changes. After either calculation, changing the proposed point award reduces
+the reward proportionally, down to 0. If a top-level steward questions an
+escalation, its original reviewer can revise it through their direct review
+permission even without a separate `propose` permission.
+
+Tier-1 direct decisions on threshold-enabled types earn 10 points immediately
+when the submission belongs to someone else. The award is granted once per
+reviewer, submission, and action, so an appeal cannot duplicate the same
+decision reward; reject, request-more-information, and below-threshold accept
+remain distinct actions. Escalated accepts, tier 2+ decisions, and bulk rejects
+do not receive this direct reward.
+
+Tier-1 stewards also cannot edit an already accepted award upward across the
+type threshold. The steward search grammar exposes `is:escalated` and
+`not:escalated`. Tier 2+ gets an Escalated queue shortcut; tier 3 gets an Apex
+shortcut equivalent to `status:accepted is:interesting`.
 
 ## Management Command Usage
 

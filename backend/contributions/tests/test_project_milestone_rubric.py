@@ -60,6 +60,8 @@ class ProjectMilestoneRubricHumanProposalTests(APITestCase):
             min_points=1,
             max_points=100,
             review_flow=ContributionType.REVIEW_FLOW_BUILDER_PROJECT,
+            requires_ai_review=False,
+            escalation_threshold_points=None,
         )
         self.standard_type = ContributionType.objects.create(
             name='Standard Builder',
@@ -67,6 +69,8 @@ class ProjectMilestoneRubricHumanProposalTests(APITestCase):
             category=self.category,
             min_points=1,
             max_points=10,
+            requires_ai_review=False,
+            escalation_threshold_points=None,
         )
         for contribution_type in [self.project_type, self.standard_type]:
             GlobalLeaderboardMultiplier.objects.create(
