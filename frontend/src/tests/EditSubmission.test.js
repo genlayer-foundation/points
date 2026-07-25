@@ -176,6 +176,18 @@ describe('EditSubmission', () => {
         playState: 'finished'
       }))
     });
+    Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+      configurable: true,
+      value: vi.fn(function showModal() {
+        this.setAttribute('open', '');
+      })
+    });
+    Object.defineProperty(HTMLDialogElement.prototype, 'close', {
+      configurable: true,
+      value: vi.fn(function close() {
+        this.removeAttribute('open');
+      })
+    });
     mocks.api.put.mockResolvedValue({ data: {} });
     mocks.api.delete.mockResolvedValue({ data: {} });
     mocks.getAllContributionTypes.mockResolvedValue({
@@ -229,7 +241,25 @@ describe('EditSubmission', () => {
       await screen.findByRole('heading', { name: 'Submission unavailable' })
     ).toBeTruthy();
     expect(screen.getByText('This submission can no longer be edited.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     expect(mocks.getAllContributionTypes).not.toHaveBeenCalled();
+  });
+
+  it('offers retry only for a transient submission load failure', async () => {
+    mocks.api.get
+      .mockRejectedValueOnce(new Error('Network unavailable'))
+      .mockResolvedValueOnce({ data: makeSubmission() });
+    render(EditSubmission, {
+      props: { params: { id: '42' } }
+    });
+
+    expect(
+      await screen.findByText("We couldn't load this submission. Please try again.")
+    ).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByRole('heading', { name: 'Edit submission' })).toBeTruthy();
+    expect(mocks.api.get).toHaveBeenCalledTimes(2);
   });
 
   it('pauses appealed submissions while preserving the option to remove them', async () => {
@@ -242,6 +272,18 @@ describe('EditSubmission', () => {
       await screen.findByRole('button', { name: 'Remove submission' })
     ).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Community' }).disabled).toBe(true);
+  });
+
+  it('shows initialization errors when contribution details cannot be rendered', async () => {
+    mocks.getAllContributionTypes.mockResolvedValue({ data: [] });
+    mocks.getContributionType.mockRejectedValue(new Error('Type unavailable'));
+    renderEditor();
+
+    expect(
+      await screen.findByText("This submission's contribution type could not be loaded.")
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Save changes' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Remove submission' })).toBeTruthy();
   });
 
   it('preserves evidence ids and an existing mission without requiring recaptcha', async () => {
@@ -305,5 +347,51 @@ describe('EditSubmission', () => {
       expect(mocks.api.delete).toHaveBeenCalledWith('/submissions/42/');
       expect(push).toHaveBeenCalledWith('/my-submissions');
     });
+  });
+
+  it('opens deletion as a modal and restores focus when cancellation closes it', async () => {
+    renderEditor();
+    await screen.findByRole('button', { name: 'Save changes' });
+
+    const removeButton = screen.getByRole('button', { name: 'Remove submission' });
+    removeButton.focus();
+    await fireEvent.click(removeButton);
+
+    const dialog = await screen.findByRole('alertdialog');
+    expect(HTMLDialogElement.prototype.showModal).toHaveBeenCalledTimes(1);
+    expect(dialog.hasAttribute('open')).toBe(true);
+    expect(document.activeElement).toBe(
+      within(dialog).getByRole('button', { name: 'Keep editing' })
+    );
+
+    await fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Keep editing' })
+    );
+
+    await waitFor(() => {
+      expect(HTMLDialogElement.prototype.close).toHaveBeenCalledTimes(1);
+      expect(document.activeElement).toBe(removeButton);
+    });
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
+  it('shows deletion errors while an appeal keeps edit details hidden', async () => {
+    mocks.api.delete.mockRejectedValueOnce({
+      response: { data: { detail: 'This submission could not be removed.' } }
+    });
+    renderEditor(makeSubmission({ has_appeal: true, state: 'pending' }));
+
+    await fireEvent.click(
+      await screen.findByRole('button', { name: 'Remove submission' })
+    );
+    const dialog = await screen.findByRole('alertdialog');
+    await fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Remove submission' })
+    );
+
+    expect(
+      await screen.findByText('This submission could not be removed.')
+    ).toBeTruthy();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
   });
 });

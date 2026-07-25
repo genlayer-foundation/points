@@ -151,7 +151,7 @@
   // Dedicated required-evidence slot (shown when the selected contribution
   // type declares required_evidence_url_types). Tracked separately so its
   // position and styling are distinct from optional extras.
-  let requiredEvidenceSlot = $state({ description: "", url: "", selectedType: null, error: "" });
+  let requiredEvidenceSlot = $state(emptyEvidenceSlot());
   // All evidence URL types loaded from any contribution type's accepted list
   let allEvidenceUrlTypes = $state([]);
   let recaptchaRetryTimeout = null;
@@ -2613,6 +2613,7 @@
         {/if}
       </div>
     {/if}
+    {/if}
 
     <!-- Error display -->
     {#if error && !error.includes("reCAPTCHA")}
@@ -2624,6 +2625,7 @@
       </div>
     {/if}
 
+    {#if canShowFormDetails && !appealLocked}
     <!-- Actions -->
     <div class="form-actions flex gap-[8px] items-center mt-2 pb-[60px]">
       <button

@@ -9,13 +9,15 @@
   let submission = $state(null);
   let loading = $state(true);
   let error = $state("");
-  let loadedSubmissionId = $state(null);
+  let canRetry = $state(false);
+  let loadedSubmissionId = null;
   let requestVersion = 0;
 
   async function loadSubmission(id) {
     const currentRequest = ++requestVersion;
     loading = true;
     error = "";
+    canRetry = false;
     submission = null;
 
     try {
@@ -36,6 +38,7 @@
         error = "You do not have permission to edit this submission.";
       } else {
         error = "We couldn't load this submission. Please try again.";
+        canRetry = true;
       }
     } finally {
       if (currentRequest === requestVersion) loading = false;
@@ -103,7 +106,7 @@
           {error}
         </p>
         <div class="mt-5 flex flex-col justify-center gap-2 sm:flex-row">
-          {#if error.includes("couldn't load")}
+          {#if canRetry}
             <button
               type="button"
               onclick={() => loadSubmission(params.id)}

@@ -1,6 +1,5 @@
 <script>
   import { tick } from "svelte";
-  import { fade, fly } from "svelte/transition";
 
   let {
     isOpen = false,
@@ -15,33 +14,64 @@
 
   /** @type {HTMLButtonElement | null} */
   let cancelButton = $state(null);
+  /** @type {HTMLDialogElement | null} */
+  let dialogElement = $state(null);
+  /** @type {HTMLElement | null} */
+  let previouslyFocusedElement = null;
 
   $effect(() => {
-    if (!isOpen) return;
-    tick().then(() => cancelButton?.focus());
+    const dialog = dialogElement;
+    if (!dialog) return;
+
+    if (isOpen) {
+      const focusTarget =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
+      tick().then(() => {
+        if (!isOpen || !dialog.isConnected) return;
+        if (!dialog.open) {
+          previouslyFocusedElement = focusTarget;
+          dialog.showModal();
+        }
+        cancelButton?.focus();
+      });
+    } else if (dialog.open) {
+      dialog.close();
+      restoreFocus();
+    }
   });
+
+  function restoreFocus() {
+    const focusTarget = previouslyFocusedElement;
+    previouslyFocusedElement = null;
+    tick().then(() => {
+      if (focusTarget?.isConnected) {
+        focusTarget.focus({ preventScroll: true });
+      }
+    });
+  }
 
   function handleCancel() {
     if (!loading) onCancel();
   }
 
-  /** @param {KeyboardEvent} event */
-  function handleKeydown(event) {
-    if (isOpen && event.key === "Escape") {
-      event.preventDefault();
-      handleCancel();
-    }
+  /** @param {Event} event */
+  function handleNativeCancel(event) {
+    event.preventDefault();
+    handleCancel();
   }
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
-
-{#if isOpen}
-  <div
-    class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 px-4 backdrop-blur-[2px]"
-    in:fade={{ duration: 150 }}
-    out:fade={{ duration: 120 }}
-  >
+<dialog
+  bind:this={dialogElement}
+  oncancel={handleNativeCancel}
+  role="alertdialog"
+  aria-labelledby="confirm-dialog-title"
+  aria-describedby="confirm-dialog-description"
+  class="confirm-dialog fixed inset-0 z-[80] m-0 h-full max-h-none w-full max-w-none overflow-y-auto border-0 bg-transparent p-4"
+>
+  {#if isOpen}
     <button
       type="button"
       class="absolute inset-0 cursor-default"
@@ -49,15 +79,9 @@
       onclick={handleCancel}
       disabled={loading}
     ></button>
-    <dialog
-      open
-      role="alertdialog"
-      aria-modal="true"
-      aria-labelledby="confirm-dialog-title"
-      aria-describedby="confirm-dialog-description"
-      class="relative m-0 w-full max-w-[420px] overflow-hidden rounded-[20px] border-0 bg-white p-0 text-left shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_24px_70px_rgba(0,0,0,0.18)]"
-      in:fly={{ y: 12, duration: 220 }}
-      out:fly={{ y: -8, duration: 120 }}
+    <div
+      class="dialog-card relative z-10 w-full max-w-[420px] overflow-hidden rounded-[20px] border-0 bg-white text-left shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_24px_70px_rgba(0,0,0,0.18)]"
+      role="document"
     >
       <div class="flex items-start gap-4 p-6 pb-5">
         <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] bg-red-50 text-red-600 shadow-[inset_0_0_0_1px_rgba(220,38,38,0.10)]">
@@ -102,6 +126,48 @@
           {/if}
         </button>
       </div>
-    </dialog>
-  </div>
-{/if}
+    </div>
+  {/if}
+</dialog>
+
+<style>
+  .confirm-dialog:not([open]) {
+    display: none;
+  }
+
+  .confirm-dialog[open] {
+    display: grid;
+    place-items: center;
+    overscroll-behavior: contain;
+  }
+
+  .confirm-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(2px);
+    animation: backdrop-enter 150ms ease-out;
+  }
+
+  .confirm-dialog[open] .dialog-card {
+    animation: dialog-enter 220ms ease-out;
+  }
+
+  @keyframes backdrop-enter {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes dialog-enter {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .confirm-dialog::backdrop,
+    .confirm-dialog[open] .dialog-card {
+      animation: none;
+    }
+  }
+</style>
