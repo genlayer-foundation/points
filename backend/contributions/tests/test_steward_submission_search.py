@@ -352,6 +352,90 @@ class StewardSubmissionSearchTest(TestCase):
         self.assertIn(str(ordinary_pending.id), result_ids)
         self.assertNotIn(str(requested.id), result_ids)
 
+    def test_can_filter_escalated_submissions_and_serialize_review_layer_fields(self):
+        self.contribution_type.requires_ai_review = True
+        self.contribution_type.escalation_threshold_points = 400
+        self.contribution_type.save(update_fields=[
+            'requires_ai_review',
+            'escalation_threshold_points',
+        ])
+        escalated_at = timezone.now()
+        escalated = SubmittedContribution.objects.create(
+            user=self.regular_user,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes='Escalated submission',
+            state='pending',
+            proposed_action='accept',
+            proposed_points=50,
+            proposed_by=self.steward_user,
+            proposed_at=escalated_at,
+            escalated_at=escalated_at,
+        )
+        ordinary = SubmittedContribution.objects.create(
+            user=self.regular_user,
+            contribution_type=self.contribution_type,
+            contribution_date=timezone.now(),
+            notes='Ordinary appealed submission',
+            state='pending',
+            has_appeal=True,
+        )
+
+        response = self.client.get('/api/v1/steward-submissions/', {
+            'state': 'pending',
+            'is_escalated': 'true',
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['results']), 1)
+        result = response.data['results'][0]
+        self.assertEqual(str(result['id']), str(escalated.id))
+        self.assertIsNotNone(result['escalated_at'])
+        self.assertTrue(result['contribution_type_details']['requires_ai_review'])
+        self.assertEqual(
+            result['contribution_type_details']['escalation_threshold_points'],
+            400,
+        )
+
+        response = self.client.get('/api/v1/steward-submissions/', {
+            'state': 'pending',
+            'is_escalated': 'false',
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        result_ids = {str(item['id']) for item in response.data['results']}
+        self.assertIn(str(ordinary.id), result_ids)
+        self.assertNotIn(str(escalated.id), result_ids)
+
+        type_response = self.client.get(
+            f'/api/v1/contribution-types/{self.contribution_type.id}/'
+        )
+        self.assertEqual(type_response.status_code, status.HTTP_200_OK)
+        self.assertTrue(type_response.data['requires_ai_review'])
+        self.assertEqual(type_response.data['escalation_threshold_points'], 400)
+
+    def test_user_serializer_exposes_effective_steward_tier(self):
+        self.steward.tier = Steward.TIER_TOP_LEVEL
+        self.steward.save(update_fields=['tier'])
+
+        response = self.client.get('/api/v1/users/me/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['steward_tier'], Steward.TIER_TOP_LEVEL)
+
+        self.steward_user.is_superuser = True
+        self.steward_user.save(update_fields=['is_superuser'])
+        response = self.client.get('/api/v1/users/me/')
+        self.assertEqual(response.data['steward_tier'], Steward.TIER_APEX)
+
+        self.client.force_authenticate(user=self.regular_user)
+        response = self.client.get('/api/v1/users/me/')
+        self.assertIsNone(response.data['steward_tier'])
+
+        response = self.client.get(
+            f'/api/v1/users/by-address/{self.steward_user.id}/'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data['steward_tier'])
+
     def test_invalid_steward_id_filters_do_not_error(self):
         pending = SubmittedContribution.objects.create(
             user=self.regular_user,

@@ -504,13 +504,16 @@ const routes = {
   - `clearUser()` - Clear on logout
 - **Auto-managed**: Loaded on login, cleared on logout
 - **Reactive**: Updates reflect immediately in all components using `$userStore`
+- **Steward hierarchy**: authenticated user payloads expose `steward_tier`; the submission queue defaults a missing tier to reviewer tier 1.
 
 ### Components
 
 #### Steward Review Components (`src/components/`)
 
 - **`SubmissionCard.svelte`** - Submitter-only card used by My Submissions. It shows submission details, evidence, staff responses, awarded contributions, editing, and appeals without exposing steward-only state.
-- **`StewardSubmissionCard.svelte`** - Dedicated steward workspace for review outcomes, proposals, rubric scoring, internal notes, accepted-contribution edits, and permission-aware submission behavior.
+- **`StewardSubmissionCard.svelte`** - Dedicated steward workspace for review outcomes, proposals, rubric scoring, internal notes, accepted-contribution edits, and permission-aware submission behavior. It marks `escalated_at` proposals and previews `escalation_threshold_points` conversion for reviewer-tier accepts.
+- **Contribution type review fields** - Contribution type payloads expose `requires_ai_review` and nullable `escalation_threshold_points`; the latter drives the card's advisory preview while the server remains authoritative.
+- **Steward submission search** - `is:escalated` / `not:escalated` map to the `is_escalated` API filter. Tier 2+ stewards get an Escalated queue chip; tier 3 stewards also get an Apex queue chip for `status:accepted is:interesting`.
 - **`AIReviewSummary.svelte`** - Compact AI-only proposal summary that exposes the proposed action, confidence, and expandable synthesis.
 - **`AIFeedbackDialog.svelte`** - Focused benchmark-feedback dialog for criterion, decision, and synthesis corrections with stale-write resolution.
 - **`lib/aiFeedback.js`** - Closed frontend vocabularies plus state hydration, payload derivation, and API-mirroring validation. It preserves accepted but currently non-rendered feedback fields when editing an existing record.

@@ -42,6 +42,7 @@ class Category(BaseModel):
     def __str__(self):
         return self.name
 
+
 def evidence_file_path(instance, filename):
     """Generate a unique file path for evidence files."""
     # Generate a unique path for each file based on user and timestamp
@@ -81,6 +82,43 @@ class ContributionType(BaseModel):
         (REVIEW_FLOW_STANDARD, 'Standard'),
         (REVIEW_FLOW_BUILDER_PROJECT, 'Builder Project'),
     ]
+    BUILDER_CATEGORY_SLUG = 'builder'
+    BUILDER_DEFAULT_ESCALATION_THRESHOLD_POINTS = 400
+    BUILDER_REVIEW_DEFAULT_FIELDS = frozenset({
+        'requires_ai_review',
+        'escalation_threshold_points',
+    })
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        explicit_review_fields = self.BUILDER_REVIEW_DEFAULT_FIELDS.intersection(
+            kwargs
+        )
+        object.__setattr__(
+            self,
+            '_explicit_builder_review_fields',
+            explicit_review_fields,
+        )
+        object.__setattr__(self, '_track_builder_review_assignments', False)
+        super().__init__(*args, **kwargs)
+        object.__setattr__(self, '_track_builder_review_assignments', True)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        # ModelForms assign cleaned values after constructing an empty model.
+        if (
+            name in self.BUILDER_REVIEW_DEFAULT_FIELDS
+            and getattr(self, '_track_builder_review_assignments', False)
+        ):
+            explicit_review_fields = getattr(
+                self,
+                '_explicit_builder_review_fields',
+                frozenset(),
+            )
+            object.__setattr__(
+                self,
+                '_explicit_builder_review_fields',
+                explicit_review_fields | {name},
+            )
+        super().__setattr__(name, value)
 
     name = models.CharField(max_length=100)
     slug = models.SlugField(max_length=100, unique=True, null=True, blank=True, help_text="Unique identifier for this contribution type")
@@ -125,6 +163,18 @@ class ContributionType(BaseModel):
             "Maximum submissions each user may create for this contribution "
             "type per Monday-Sunday UTC week. Every submission state counts. "
             "Leave blank for unlimited."
+        ),
+    )
+    requires_ai_review = models.BooleanField(
+        default=False,
+        help_text="Require AI review before tier-1 stewards can review pending submissions.",
+    )
+    escalation_threshold_points = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Escalate tier-1 accepts when rounded points after the multiplier "
+            "meet or exceed this value. Leave blank to disable escalation."
         ),
     )
     show_in_contributions = models.BooleanField(
@@ -241,6 +291,38 @@ class ContributionType(BaseModel):
         if submission_count is None:
             return False
         return submission_count >= self.max_submissions_per_user_per_week
+
+    def save(self, *args, **kwargs):
+        if self._state.adding and self.category_id:
+            explicit_review_fields = getattr(
+                self,
+                '_explicit_builder_review_fields',
+                frozenset(),
+            )
+            category = self._state.fields_cache.get('category')
+            category_slug = (
+                category.slug
+                if category is not None
+                else Category.objects.filter(pk=self.category_id)
+                .values_list('slug', flat=True)
+                .first()
+            )
+            if category_slug == self.BUILDER_CATEGORY_SLUG:
+                if (
+                    'requires_ai_review'
+                    not in explicit_review_fields
+                    and self.requires_ai_review is False
+                ):
+                    self.requires_ai_review = True
+                if (
+                    'escalation_threshold_points'
+                    not in explicit_review_fields
+                    and self.escalation_threshold_points is None
+                ):
+                    self.escalation_threshold_points = (
+                        self.BUILDER_DEFAULT_ESCALATION_THRESHOLD_POINTS
+                    )
+        super().save(*args, **kwargs)
         
     def clean(self):
         """Validate the contribution type data."""
@@ -914,6 +996,12 @@ class SubmittedContribution(BaseModel):
         blank=True,
         help_text="When the active proposal was questioned"
     )
+    escalated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="When the active proposal was escalated to a top-level steward.",
+    )
 
     # Link to actual contribution when accepted
     converted_contribution = models.ForeignKey(
@@ -1025,6 +1113,7 @@ class SubmissionStateTransition(BaseModel):
     EVENT_CANCELED = 'canceled'
     EVENT_APPEAL = 'appeal'
     EVENT_EVIDENCE_ADDED = 'evidence_added'
+    EVENT_ESCALATED = 'escalated'
     EVENT_ADMIN = 'admin'
     EVENT_CHOICES = [
         (EVENT_SUBMITTED, 'Submitted'),
@@ -1035,6 +1124,7 @@ class SubmissionStateTransition(BaseModel):
         (EVENT_CANCELED, 'Canceled by Submitter'),
         (EVENT_APPEAL, 'Appeal'),
         (EVENT_EVIDENCE_ADDED, 'Evidence Added'),
+        (EVENT_ESCALATED, 'Escalated'),
         (EVENT_ADMIN, 'Admin Edit'),
     ]
 

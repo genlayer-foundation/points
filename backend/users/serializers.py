@@ -503,6 +503,7 @@ class UserSerializer(serializers.ModelSerializer):
     validator = serializers.SerializerMethodField()
     builder = serializers.SerializerMethodField()
     steward = StewardSerializer(read_only=True)
+    steward_tier = serializers.SerializerMethodField()
     creator = CreatorSerializer(read_only=True)
     has_validator_waitlist = serializers.SerializerMethodField()
     has_builder_welcome = serializers.SerializerMethodField()
@@ -539,6 +540,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'name', 'address', 'visible', 'leaderboard_entry', 'validator', 'builder', 'steward',
+                  'steward_tier',
                   'creator', 'has_validator_waitlist', 'has_builder_welcome',
                   'has_validator_welcome', 'has_community_welcome',
                   'has_community_link_x', 'has_community_link_discord', 'has_community_link_github',
@@ -593,6 +595,15 @@ class UserSerializer(serializers.ModelSerializer):
         if use_light:
             return LightBuilderSerializer(obj.builder).data
         return BuilderSerializer(obj.builder, context=self.context).data
+
+    def get_steward_tier(self, obj):
+        if not self._can_view_private_user_data(obj):
+            return None
+        try:
+            steward = obj.steward
+        except Steward.DoesNotExist:
+            return None
+        return 3 if obj.is_superuser else steward.tier
 
     def get_leaderboard_entry(self, obj):
         """

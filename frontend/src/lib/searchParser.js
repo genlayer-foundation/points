@@ -12,8 +12,8 @@
  * - include:text (multiple allowed)
  * - has:url|evidence|proposal|appeal|more-info-request
  * - no:url|evidence|proposal|appeal|more-info-request
- * - is:interesting|appealed|ai-reviewed|more-info-resubmitted
- * - not:interesting|appealed|ai-reviewed|more-info-resubmitted
+ * - is:interesting|appealed|ai-reviewed|more-info-resubmitted|escalated
+ * - not:interesting|appealed|ai-reviewed|more-info-resubmitted|escalated
  * - min-contributions:number
  * - proposal-status:pending|questioned
  * - sort:created|-created|date|-date|reviewed|-reviewed|points|-points
