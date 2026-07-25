@@ -6,6 +6,8 @@
   import { getMissions } from "../../../lib/missionsStore.js";
   import { authState } from "../../../lib/auth.js";
   import { userStore } from "../../../lib/userStore";
+  import ConfirmDialog from "../../ConfirmDialog.svelte";
+  import { parseMarkdown } from "../../../lib/markdownLoader.js";
   import {
     getAnalyticsContext,
     getLifecycleDurationMs,
@@ -14,15 +16,23 @@
     trackEvent,
   } from "../../../lib/analytics.js";
 
-  // Props for routing/initialization state
-  let { missionId = null, initialTypeId = null } = $props();
+  // Passing a submission turns this into the canonical edit form so create
+  // and edit share category, evidence, mission, and validation behavior.
+  let {
+    missionId = null,
+    initialTypeId = null,
+    submission = null,
+  } = $props();
 
   let submitting = $state(false);
+  let deleting = $state(false);
+  let showDeleteDialog = $state(false);
   let error = $state("");
 
   let isValidator = $derived(!!$userStore.user?.validator);
   let isBuilder = $derived(!!$userStore.user?.builder);
   let isCreator = $derived(!!$userStore.user?.creator);
+  let editMode = $derived(Boolean(submission?.id));
 
   // reCAPTCHA state
   let recaptchaToken = $state("");
@@ -33,8 +43,8 @@
   let types = $state([]);
   let missions = $state([]);
   let loadingTypes = $state(true);
-  let selectedCategory = $state("builder"); // Default to builder
-  let canSubmitCurrentCategory = $derived.by(() => {
+  let selectedCategory = $state("builder");
+  let hasCurrentCategoryRole = $derived.by(() => {
     if (selectedCategory === "validator") return isValidator;
     if (selectedCategory === "builder") return isBuilder;
     if (selectedCategory === "community") return isCreator;
@@ -78,8 +88,47 @@
     };
   });
   let selectedType = $state(null);
+  let originalContributionTypeId = $derived(
+    submission?.contribution_type ?? null,
+  );
+  let keepsOriginalContributionType = $derived(
+    editMode &&
+    selectedType &&
+    String(selectedType.id) === String(originalContributionTypeId),
+  );
+  let hasLegacyCommunityEditAccess = $derived(
+    editMode &&
+    submission?.contribution_type_details?.category === "community",
+  );
+  let canAccessCurrentCategory = $derived(
+    hasCurrentCategoryRole ||
+    (
+      selectedCategory === "community" &&
+      hasLegacyCommunityEditAccess
+    ),
+  );
+  // The API intentionally lets a pre-Creator Community submission keep its
+  // existing type. Other category changes still require the live role.
+  let canSubmitCurrentCategory = $derived(
+    hasCurrentCategoryRole ||
+    (
+      keepsOriginalContributionType &&
+      selectedCategory === "community"
+    ),
+  );
   let selectedMission = $state(null);
   let selectedMissionData = $state(null);
+  let missionLocked = $derived(editMode && Boolean(selectedMission));
+  let appealLocked = $derived(
+    editMode && submission?.has_appeal && submission?.state === "pending",
+  );
+  let selectionLocked = $derived(missionLocked || appealLocked);
+  let latestMoreInfoRequest = $derived(
+    submission?.more_info_requests?.[0] || null,
+  );
+  let reviewFeedback = $derived(
+    latestMoreInfoRequest?.message || submission?.staff_reply || "",
+  );
   let acceptedProjects = $state([]);
   let loadingProjects = $state(false);
   let projectsError = $state(false);
@@ -102,144 +151,332 @@
   // Dedicated required-evidence slot (shown when the selected contribution
   // type declares required_evidence_url_types). Tracked separately so its
   // position and styling are distinct from optional extras.
-  let requiredEvidenceSlot = $state({ description: "", url: "", selectedType: null, error: "" });
+  let requiredEvidenceSlot = $state(emptyEvidenceSlot());
   // All evidence URL types loaded from any contribution type's accepted list
   let allEvidenceUrlTypes = $state([]);
+  let recaptchaRetryTimeout = null;
 
-  // Load types and missions
-  onMount(async () => {
-    try {
-      loadingTypes = true;
-      const typesResponse = await contributionsAPI.getAllContributionTypes();
-      const allTypes = typesResponse.data || [];
+  function emptyEvidenceSlot() {
+    return {
+      description: "",
+      url: "",
+      selectedType: null,
+      typeManuallySet: false,
+      error: "",
+    };
+  }
 
-      types = allTypes;
-
-      // Collect all unique evidence URL types from contribution types
-      const urlTypeMap = new Map();
-      for (const ct of allTypes) {
-        for (const ut of ct.accepted_evidence_url_types || []) {
-          if (!urlTypeMap.has(ut.slug)) urlTypeMap.set(ut.slug, ut);
+  function collectEvidenceUrlTypes(contributionTypes) {
+    const urlTypeMap = new Map();
+    for (const contributionType of contributionTypes) {
+      for (const urlType of contributionType.accepted_evidence_url_types || []) {
+        if (!urlTypeMap.has(urlType.slug)) {
+          urlTypeMap.set(urlType.slug, urlType);
         }
       }
-      allEvidenceUrlTypes = Array.from(urlTypeMap.values()).sort(
-        (a, b) => (a.order || 0) - (b.order || 0),
-      );
+    }
+    return Array.from(urlTypeMap.values()).sort(
+      (first, second) => (first.order || 0) - (second.order || 0),
+    );
+  }
 
-      // Load missions
-      try {
-        missions = await getMissions({ is_active: true });
-      } catch (err) {
-        missions = [];
+  function evidenceSlotFromItem(item) {
+    const declaredType = item?.url_type
+      ? allEvidenceUrlTypes.find(
+          (type) =>
+            String(type.id) === String(item.url_type.id) ||
+            type.slug === item.url_type.slug,
+        )
+      : null;
+    return {
+      ...(item?.id ? { id: item.id } : {}),
+      description: item?.description || "",
+      url: item?.url || "",
+      selectedType: declaredType || detectUrlType(item?.url || ""),
+      typeManuallySet: false,
+      error: "",
+    };
+  }
+
+  function evidenceMatchesRequiredType(slot, contributionType) {
+    const requiredTypes = contributionType?.required_evidence_url_types || [];
+    if (!slot?.selectedType || requiredTypes.length === 0) return false;
+    return requiredTypes.some(
+      (requiredType) =>
+        String(requiredType.id) === String(slot.selectedType.id) ||
+        requiredType.slug === slot.selectedType.slug,
+    );
+  }
+
+  function partitionEvidenceForType(contributionType, sourceItems = null) {
+    const slots = sourceItems
+      ? sourceItems.map(evidenceSlotFromItem)
+      : [
+          ...(requiredEvidenceSlot.id || requiredEvidenceSlot.url
+            ? [{ ...requiredEvidenceSlot }]
+            : []),
+          ...evidenceSlots.map((slot) => ({ ...slot })),
+        ].map((slot) => ({
+          ...slot,
+          selectedType: detectUrlType(slot.url) || slot.selectedType || null,
+          typeManuallySet: false,
+          error: "",
+        }));
+
+    const requiredIndex = slots.findIndex((slot) =>
+      evidenceMatchesRequiredType(slot, contributionType),
+    );
+    if (
+      contributionType?.required_evidence_url_types?.length &&
+      requiredIndex >= 0
+    ) {
+      requiredEvidenceSlot = slots[requiredIndex];
+      evidenceSlots = slots.filter((_, index) => index !== requiredIndex);
+    } else {
+      requiredEvidenceSlot = emptyEvidenceSlot();
+      evidenceSlots = slots;
+    }
+  }
+
+  // Load types and missions
+  onMount(() => {
+    let disposed = false;
+
+    async function initializeForm() {
+      if (editMode) {
+        selectedCategory =
+          submission.contribution_type_details?.category || "builder";
+        selectedMission =
+          submission.mission?.id ?? submission.mission ?? null;
+        selectedProject =
+          submission.project_contribution?.id ??
+          submission.project_contribution ??
+          "";
+        searchQuery =
+          submission.contribution_type_name ||
+          submission.contribution_type_details?.name ||
+          "";
+        formData = {
+          contribution_type: submission.contribution_type || "",
+          contribution_date:
+            submission.contribution_date?.split("T")[0] ||
+            new Date().toISOString().split("T")[0],
+          title: submission.title || "",
+          notes: submission.notes || "",
+        };
       }
 
-      await loadAcceptedProjects();
+      try {
+        loadingTypes = true;
+        const typesResponse = await contributionsAPI.getAllContributionTypes();
+        const allTypes = typesResponse.data || [];
 
-      // Handle pre-selection from URL params
-      if (missionId) {
-        // Load the specific mission and pre-select it
+        types = allTypes;
+
+        // Collect all unique evidence URL types from contribution types.
+        allEvidenceUrlTypes = collectEvidenceUrlTypes(allTypes);
+
+        // Load missions
         try {
-          const response = await contributionsAPI.getMission(missionId);
-          const mission = response.data;
-          if (mission) {
-            const parentType = types.find((t) => t.id === mission.contribution_type);
-            if (parentType) {
-              selectedCategory = parentType.category || "builder";
-              if (isTypeFull(parentType)) {
-                selectedType = null;
-                selectedMission = null;
-                selectedMissionData = null;
-                formData.contribution_type = "";
-                searchQuery = "";
-                showTypeDropdown = true;
-                error = typeLimitError(parentType);
-              } else if (isMissionSubmittable(mission)) {
-                selectedType = parentType;
-                selectedMission = mission.id;
-                selectedMissionData = mission;
-                formData.contribution_type = parentType.id;
-                searchQuery = mission.name;
-              } else {
-                selectedType = null;
-                selectedMission = null;
-                selectedMissionData = null;
-                formData.contribution_type = "";
-                searchQuery = "";
-                showTypeDropdown = true;
-                error = isMissionFull(mission)
-                  ? missionLimitError(mission)
-                  : "This mission is not currently accepting submissions.";
+          missions = await getMissions(
+            editMode ? { include_inactive: true } : { is_active: true },
+          );
+        } catch (err) {
+          missions = [];
+        }
+
+        await loadAcceptedProjects();
+
+        if (editMode) {
+          let currentType = types.find(
+            (type) =>
+              String(type.id) === String(submission.contribution_type),
+          );
+          if (!currentType) {
+            try {
+              const response = await contributionsAPI.getContributionType(
+                submission.contribution_type,
+              );
+              currentType = response.data;
+              if (currentType) {
+                types = [...types, currentType];
+                allEvidenceUrlTypes = collectEvidenceUrlTypes(types);
+              }
+            } catch (err) {
+              currentType = null;
+            }
+          }
+
+          if (!currentType) {
+            error = "This submission's contribution type could not be loaded.";
+          } else {
+            selectedType = currentType;
+            selectedCategory =
+              currentType.category ||
+              submission.contribution_type_details?.category ||
+              "builder";
+            formData.contribution_type = currentType.id;
+            searchQuery = currentType.name;
+            partitionEvidenceForType(
+              currentType,
+              submission.evidence_items || [],
+            );
+
+            if (selectedMission) {
+              selectedMissionData =
+                missions.find(
+                  (mission) =>
+                    String(mission.id) === String(selectedMission),
+                ) || null;
+              if (!selectedMissionData) {
+                try {
+                  const response = await contributionsAPI.getMission(
+                    selectedMission,
+                  );
+                  selectedMissionData = response.data || null;
+                } catch (err) {
+                  selectedMissionData = null;
+                }
+              }
+              if (selectedMissionData) {
+                searchQuery = selectedMissionData.name;
               }
             }
           }
-        } catch (err) {
-          console.error("Failed to load mission:", err);
-        }
-      } else if (initialTypeId) {
-        // Load the specific type and pre-select it
-        const type = types.find((t) => t.id === parseInt(initialTypeId));
-        if (type) {
-          selectedCategory = type.category || "builder";
-          searchQuery = type.name;
-          if (type.is_submittable && !isTypeFull(type)) {
-            selectedType = type;
-            formData.contribution_type = type.id;
-          } else if (isTypeFull(type)) {
-            selectedType = null;
-            formData.contribution_type = "";
-            searchQuery = "";
-            showTypeDropdown = true;
-            error = typeLimitError(type);
-          } else {
-            showTypeDropdown = true;
-          }
-        } else {
-          // Type not in submittable list, try fetching directly
+          // Handle pre-selection from URL params
+        } else if (missionId) {
+          // Load the specific mission and pre-select it
           try {
-            const response = await contributionsAPI.getContributionType(initialTypeId);
-            const type = response.data;
-            if (type) {
-              selectedCategory = type.category || "builder";
-              searchQuery = type.name;
-              if (type.is_submittable && !isTypeFull(type)) {
-                selectedType = type;
-                formData.contribution_type = type.id;
-              } else if (isTypeFull(type)) {
-                selectedType = null;
-                formData.contribution_type = "";
-                searchQuery = "";
-                showTypeDropdown = true;
-                error = typeLimitError(type);
-              } else {
-                showTypeDropdown = true;
+            const response = await contributionsAPI.getMission(missionId);
+            const mission = response.data;
+            if (mission) {
+              const parentType = types.find(
+                (type) => type.id === mission.contribution_type,
+              );
+              if (parentType) {
+                selectedCategory = parentType.category || "builder";
+                if (isTypeFull(parentType)) {
+                  selectedType = null;
+                  selectedMission = null;
+                  selectedMissionData = null;
+                  formData.contribution_type = "";
+                  searchQuery = "";
+                  showTypeDropdown = true;
+                  error = typeLimitError(parentType);
+                } else if (isMissionSubmittable(mission)) {
+                  selectedType = parentType;
+                  selectedMission = mission.id;
+                  selectedMissionData = mission;
+                  formData.contribution_type = parentType.id;
+                  searchQuery = mission.name;
+                } else {
+                  selectedType = null;
+                  selectedMission = null;
+                  selectedMissionData = null;
+                  formData.contribution_type = "";
+                  searchQuery = "";
+                  showTypeDropdown = true;
+                  error = isMissionFull(mission)
+                    ? missionLimitError(mission)
+                    : "This mission is not currently accepting submissions.";
+                }
               }
             }
           } catch (err) {
-            console.error("Failed to load contribution type:", err);
+            console.error("Failed to load mission:", err);
+          }
+        } else if (initialTypeId) {
+          // Load the specific type and pre-select it
+          const type = types.find(
+            (candidate) => candidate.id === parseInt(initialTypeId),
+          );
+          if (type) {
+            selectedCategory = type.category || "builder";
+            searchQuery = type.name;
+            if (type.is_submittable && !isTypeFull(type)) {
+              selectedType = type;
+              formData.contribution_type = type.id;
+            } else if (isTypeFull(type)) {
+              selectedType = null;
+              formData.contribution_type = "";
+              searchQuery = "";
+              showTypeDropdown = true;
+              error = typeLimitError(type);
+            } else {
+              showTypeDropdown = true;
+            }
+          } else {
+            // Type not in the catalog response, try fetching it directly.
+            try {
+              const response =
+                await contributionsAPI.getContributionType(initialTypeId);
+              const fetchedType = response.data;
+              if (fetchedType) {
+                if (
+                  !types.some(
+                    (candidate) =>
+                      String(candidate.id) === String(fetchedType.id),
+                  )
+                ) {
+                  types = [...types, fetchedType];
+                  allEvidenceUrlTypes = collectEvidenceUrlTypes(types);
+                }
+                selectedCategory = fetchedType.category || "builder";
+                searchQuery = fetchedType.name;
+                if (fetchedType.is_submittable && !isTypeFull(fetchedType)) {
+                  selectedType = fetchedType;
+                  formData.contribution_type = fetchedType.id;
+                } else if (isTypeFull(fetchedType)) {
+                  selectedType = null;
+                  formData.contribution_type = "";
+                  searchQuery = "";
+                  showTypeDropdown = true;
+                  error = typeLimitError(fetchedType);
+                } else {
+                  showTypeDropdown = true;
+                }
+              }
+            } catch (err) {
+              console.error("Failed to load contribution type:", err);
+            }
           }
         }
+      } catch (err) {
+        error = editMode
+          ? "Failed to load this submission's form."
+          : "Failed to load contribution categories.";
+        console.error(err);
+      } finally {
+        if (!disposed) loadingTypes = false;
       }
-    } catch (err) {
-      error = "Failed to load contribution categories.";
-      console.error(err);
-    } finally {
-      loadingTypes = false;
+
+      if (disposed) return;
+      trackEvent(
+        editMode ? "contribution_edit_view" : "contribution_form_view",
+        getAnalyticsContext({
+          surface: editMode ? "edit_form" : "form",
+          role_context: selectedCategory,
+          contribution_category: selectedCategory,
+        }),
+      );
+
+      if (!editMode) {
+        const checkRecaptcha = () => {
+          if (disposed || renderRecaptcha()) return;
+          recaptchaRetryTimeout = window.setTimeout(checkRecaptcha, 100);
+        };
+        checkRecaptcha();
+      }
     }
 
-    trackEvent("contribution_form_view", getAnalyticsContext({
-      surface: "form",
-      role_context: selectedCategory,
-      contribution_category: selectedCategory,
-    }));
-
-    // Initialize reCAPTCHA
-    const checkRecaptcha = () => {
-      if (renderRecaptcha()) return;
-      setTimeout(checkRecaptcha, 100);
-    };
-    checkRecaptcha();
+    initializeForm();
 
     return () => {
+      disposed = true;
+      if (recaptchaRetryTimeout !== null) {
+        window.clearTimeout(recaptchaRetryTimeout);
+        recaptchaRetryTimeout = null;
+      }
       if (recaptchaWidgetId !== null && window.grecaptcha) {
         try {
           window.grecaptcha.reset(recaptchaWidgetId);
@@ -393,7 +630,15 @@
   }
 
   function canSubmitTypeDirectly(type) {
-    return type.is_submittable && !isTypeFull(type);
+    return isOriginalType(type) || (type.is_submittable && !isTypeFull(type));
+  }
+
+  function isOriginalType(type) {
+    return Boolean(
+      editMode &&
+      type &&
+      String(type.id) === String(originalContributionTypeId),
+    );
   }
 
   function isMilestoneType(type) {
@@ -409,7 +654,9 @@
     loadingProjects = true;
     projectsError = false;
     try {
-      const response = await submissionsAPI.getAcceptedProjects();
+      const response = await submissionsAPI.getAcceptedProjects(
+        editMode ? submission.id : null,
+      );
       acceptedProjects = response.data || [];
     } catch (err) {
       // Keep failures distinct from "no highlighted projects" so a transient
@@ -423,9 +670,22 @@
   let selectedProjectData = $derived(
     acceptedProjects.find((project) => String(project.id) === String(selectedProject)) || null
   );
+  let selectedProjectIsOriginal = $derived(
+    editMode &&
+    submission?.project_contribution &&
+    String(
+      submission.project_contribution?.id ??
+      submission.project_contribution,
+    ) === String(selectedProject),
+  );
+  let selectedProjectVersion = $derived(
+    selectedProjectIsOriginal && submission?.milestone_version
+      ? submission.milestone_version
+      : selectedProjectData?.next_milestone_version || 1,
+  );
   let selectedProjectLabel = $derived(
     selectedProjectData
-      ? `${selectedProjectData.title} (next v${selectedProjectData.next_milestone_version || 1})`
+      ? `${selectedProjectData.title} (${selectedProjectIsOriginal ? "milestone" : "next"} v${selectedProjectVersion})`
       : "Select highlighted project..."
   );
   let selectedProjectIndex = $derived(
@@ -437,6 +697,7 @@
   }
 
   function activeMissionsForType(typeId) {
+    if (editMode) return [];
     const type = types.find((t) => String(t.id) === String(typeId));
     if (isTypeFull(type)) return [];
 
@@ -448,7 +709,19 @@
   }
 
   function typeCanBeSelected(type) {
-    return canSubmitTypeDirectly(type) || activeMissionsForType(type.id).length > 0;
+    if (
+      selectedCategory === "community" &&
+      hasLegacyCommunityEditAccess &&
+      !isCreator &&
+      !isOriginalType(type)
+    ) {
+      return false;
+    }
+    return (
+      isOriginalType(type) ||
+      canSubmitTypeDirectly(type) ||
+      activeMissionsForType(type.id).length > 0
+    );
   }
 
   // Master gate: should the form details (date/title/notes/evidence/submit) be shown?
@@ -486,6 +759,7 @@
       (t) => t.category === selectedCategory && typeCanBeSelected(t),
     );
     const categoryMissions = missions.filter((m) => {
+      if (editMode) return false;
       const mType = types.find((t) => String(t.id) === String(m.contribution_type));
       return mType && mType.category === selectedCategory && isMissionSubmittable(m);
     });
@@ -553,23 +827,28 @@
   });
 
   function selectCategory(cat) {
+    if (selectionLocked || loadingTypes) return;
     selectedCategory = cat;
     showTypeDropdown = false;
     showProjectDropdown = false;
   }
 
   function selectType(t) {
-    if (isTypeFull(t)) {
+    if (selectionLocked) return;
+    if (!isOriginalType(t) && isTypeFull(t)) {
       error = typeLimitError(t);
       return;
     }
 
-    if (!t.is_submittable) {
+    if (!isOriginalType(t) && !t.is_submittable) {
       searchQuery = t.name;
       showTypeDropdown = true;
       return;
     }
 
+    if (!selectedType || String(selectedType.id) !== String(t.id)) {
+      partitionEvidenceForType(t);
+    }
     selectedType = t;
     selectedMission = null;
     selectedMissionData = null;
@@ -582,9 +861,11 @@
   }
 
   function selectItem(item) {
+    if (selectionLocked) return;
     if (item.itemType === "type") {
       selectType(item.data);
     } else if (item.itemType === "mission") {
+      if (editMode) return;
       if (isTypeFull(item.parentType)) {
         error = typeLimitError(item.parentType);
         return;
@@ -594,6 +875,12 @@
           ? missionLimitError(item.data)
           : "This mission is not currently accepting submissions.";
         return;
+      }
+      if (
+        !selectedType ||
+        String(selectedType.id) !== String(item.parentType.id)
+      ) {
+        partitionEvidenceForType(item.parentType);
       }
       selectedType = item.parentType;
       selectedMission = item.data.id;
@@ -733,7 +1020,7 @@
   function addEvidenceSlot() {
     evidenceSlots = [
       ...evidenceSlots,
-      { id: Date.now(), description: "", url: "", selectedType: null, typeManuallySet: false, error: "" },
+      emptyEvidenceSlot(),
     ];
   }
 
@@ -793,13 +1080,6 @@
       ? selectedType.required_evidence_url_types
       : [],
   );
-
-  // Reset the required slot whenever the selected type changes so stale
-  // detection doesn't leak between contribution types
-  $effect(() => {
-    selectedType;
-    requiredEvidenceSlot = { description: "", url: "", selectedType: null, error: "" };
-  });
 
   // Human-readable list of required type names for labels/messages
   let requiredEvidenceLabel = $derived.by(() => {
@@ -1005,15 +1285,20 @@
   // Submission
   async function handleSubmit(e) {
     e.preventDefault();
-    trackEvent("contribution_submit_attempt", getAnalyticsContext({
-      surface: "form",
+    trackEvent(editMode ? "contribution_edit_attempt" : "contribution_submit_attempt", getAnalyticsContext({
+      surface: editMode ? "edit_form" : "form",
       role_context: selectedCategory,
       contribution_category: selectedCategory,
     }));
 
+    if (appealLocked) {
+      error = "Editing is paused while your appeal is under review.";
+      return;
+    }
+
     if (!formData.contribution_type) {
-      trackEvent("contribution_submit_error", getAnalyticsContext({
-        surface: "form",
+      trackEvent(editMode ? "contribution_edit_error" : "contribution_submit_error", getAnalyticsContext({
+        surface: editMode ? "edit_form" : "form",
         role_context: selectedCategory,
         contribution_category: selectedCategory,
         error_stage: "validation",
@@ -1095,22 +1380,28 @@
     // then optional extras
     const allEvidence = [];
     if (requiredEvidenceTypes.length > 0) {
-      allEvidence.push({
+      const requiredEvidence = {
         description:
           requiredEvidenceSlot.description?.trim() ||
           requiredEvidenceSlot.selectedType?.name ||
           "Required evidence",
         url: normalizeUrl(requiredEvidenceSlot.url),
-      });
+      };
+      if (requiredEvidenceSlot.id) {
+        requiredEvidence.id = requiredEvidenceSlot.id;
+      }
+      allEvidence.push(requiredEvidence);
     }
     for (const slot of filledSlots) {
-      allEvidence.push({
+      const evidence = {
         description:
           slot.description?.trim() ||
           slot.selectedType?.name ||
           "Evidence",
         url: normalizeUrl(slot.url),
-      });
+      };
+      if (slot.id) evidence.id = slot.id;
+      allEvidence.push(evidence);
     }
 
     // Milestones are reviewed from the linked project's repository, so
@@ -1121,8 +1412,8 @@
       return;
     }
 
-    const currentRecaptchaToken = getRecaptchaToken();
-    if (!currentRecaptchaToken) {
+    const currentRecaptchaToken = editMode ? "" : getRecaptchaToken();
+    if (!editMode && !currentRecaptchaToken) {
       error = "Please complete the reCAPTCHA verification";
       return;
     }
@@ -1131,7 +1422,7 @@
     error = "";
 
     try {
-      if (isTypeFull(selectedType)) {
+      if (!keepsOriginalContributionType && isTypeFull(selectedType)) {
         error = typeLimitError(selectedType);
         submitting = false;
         return;
@@ -1142,54 +1433,72 @@
         contribution_date: formData.contribution_date + "T00:00:00Z",
         title: formData.title,
         notes: formData.notes,
-        recaptcha: currentRecaptchaToken,
       };
+      if (!editMode) submissionData.recaptcha = currentRecaptchaToken;
 
       if (isMilestoneType(selectedType)) {
         submissionData.project_contribution = selectedProject;
+      } else if (editMode) {
+        submissionData.project_contribution = null;
       }
 
       // Include mission when selected from the URL preselection or dropdown.
       const missionToSubmit = selectedMission;
       if (missionToSubmit) {
-        if (isMissionFull(selectedMissionData)) {
+        if (!editMode && isMissionFull(selectedMissionData)) {
           error = missionLimitError(selectedMissionData);
           submitting = false;
           return;
         }
         submissionData.mission = missionToSubmit;
+      } else if (editMode) {
+        submissionData.mission = null;
       }
 
       // Send evidence inline with the submission (atomic creation)
       submissionData.evidence_items = allEvidence;
 
-      await api.post("/submissions/", submissionData);
-
-      const firstContribution = markLifecycleTime("first_contribution_submitted");
-      const successParams = {
-        surface: "form",
-        role_context: selectedCategory,
-        contribution_category: selectedCategory,
-        lifecycle_scope: "browser",
-        contribution_sequence: firstContribution ? "first_known" : "repeat_known",
-        time_from_first_contribution_ms: getLifecycleDurationMs("first_contribution_submitted"),
-        ...getLifecycleDurations(selectedCategory),
-      };
-      trackEvent("contribution_submit_success", getAnalyticsContext(successParams));
-      trackEvent("contribution_submitted", getAnalyticsContext(successParams));
-      if (firstContribution) {
-        trackEvent("first_contribution_submitted", getAnalyticsContext(successParams));
+      if (editMode) {
+        await api.put(`/submissions/${submission.id}/`, submissionData);
       } else {
-        trackEvent("repeat_contribution_submitted", getAnalyticsContext(successParams));
+        await api.post("/submissions/", submissionData);
+      }
+
+      if (editMode) {
+        trackEvent("contribution_edit_success", getAnalyticsContext({
+          surface: "edit_form",
+          role_context: selectedCategory,
+          contribution_category: selectedCategory,
+        }));
+      } else {
+        const firstContribution = markLifecycleTime("first_contribution_submitted");
+        const successParams = {
+          surface: "form",
+          role_context: selectedCategory,
+          contribution_category: selectedCategory,
+          lifecycle_scope: "browser",
+          contribution_sequence: firstContribution ? "first_known" : "repeat_known",
+          time_from_first_contribution_ms: getLifecycleDurationMs("first_contribution_submitted"),
+          ...getLifecycleDurations(selectedCategory),
+        };
+        trackEvent("contribution_submit_success", getAnalyticsContext(successParams));
+        trackEvent("contribution_submitted", getAnalyticsContext(successParams));
+        if (firstContribution) {
+          trackEvent("first_contribution_submitted", getAnalyticsContext(successParams));
+        } else {
+          trackEvent("repeat_contribution_submitted", getAnalyticsContext(successParams));
+        }
       }
       sessionStorage.setItem(
         "submissionUpdateSuccess",
-        "Your contribution has been submitted successfully and is pending review.",
+        editMode
+          ? "Your submission has been saved successfully."
+          : "Your contribution has been submitted successfully and is pending review.",
       );
       push("/my-submissions");
     } catch (err) {
-      trackEvent("contribution_submit_error", getAnalyticsContext({
-        surface: "form",
+      trackEvent(editMode ? "contribution_edit_error" : "contribution_submit_error", getAnalyticsContext({
+        surface: editMode ? "edit_form" : "form",
         role_context: selectedCategory,
         contribution_category: selectedCategory,
         error_stage: err.response?.status ? "backend" : "network",
@@ -1213,10 +1522,12 @@
         error =
           err.response?.data?.error ||
           err.response?.data?.detail ||
-          "Failed to submit contribution";
+          (editMode
+            ? "Failed to save submission"
+            : "Failed to submit contribution");
       }
 
-      if (recaptchaWidgetId !== null && window.grecaptcha) {
+      if (!editMode && recaptchaWidgetId !== null && window.grecaptcha) {
         try {
           window.grecaptcha.reset(recaptchaWidgetId);
           recaptchaToken = "";
@@ -1224,6 +1535,33 @@
       }
     } finally {
       submitting = false;
+    }
+  }
+
+  async function confirmDelete() {
+    if (!editMode || deleting) return;
+    deleting = true;
+    error = "";
+    try {
+      await api.delete(`/submissions/${submission.id}/`);
+      sessionStorage.setItem(
+        "submissionUpdateSuccess",
+        "Your submission has been removed.",
+      );
+      trackEvent("contribution_edit_removed", getAnalyticsContext({
+        surface: "edit_form",
+        role_context: selectedCategory,
+        contribution_category: selectedCategory,
+      }));
+      push("/my-submissions");
+    } catch (err) {
+      showDeleteDialog = false;
+      error =
+        err.response?.data?.error ||
+        err.response?.data?.detail ||
+        "Failed to remove submission";
+    } finally {
+      deleting = false;
     }
   }
 
@@ -1251,16 +1589,101 @@
 
 <div
   class="submit-form-shell content-stretch flex flex-col gap-[12px] items-start relative shrink-0 w-full"
-  style="max-width: 550px; margin: 0 auto;"
+  style="max-width: {editMode ? 620 : 550}px; margin: 0 auto;"
 >
-  <!-- Title -->
-  <h1
-    class="submit-page-title font-['F37_Lineca'] font-medium leading-[40px] text-[32px] text-black tracking-[-0.64px]"
-  >
-    Submit Contribution
-  </h1>
+  {#if editMode}
+    <header class="edit-page-header flex w-full flex-col gap-4 pb-2">
+      <button
+        type="button"
+        onclick={() => push("/my-submissions")}
+        class="edit-back-link group inline-flex min-h-10 w-fit items-center gap-2 rounded-full px-1 pr-3 font-['Switzer'] text-[13px] font-medium text-[#6b6b6b] transition-[color,scale] duration-150 ease-out hover:text-black active:scale-[0.96]"
+      >
+        <span class="flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.06)] transition-[box-shadow] duration-150 ease-out group-hover:shadow-[0_0_0_1px_rgba(0,0,0,0.1),0_2px_5px_rgba(0,0,0,0.08)]">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+        </span>
+        My submissions
+      </button>
 
-  <form onsubmit={handleSubmit} class="w-full flex flex-col gap-[20px]">
+      <div class="flex w-full flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div class="min-w-0">
+          <p class="mb-1 font-['Switzer'] text-[11px] font-semibold uppercase tracking-[0.16em] text-[#8a8a8a]">
+            Submission <span class="tabular-nums">#{submission.id}</span>
+          </p>
+          <h1
+            class="submit-page-title text-balance font-['F37_Lineca'] text-[36px] font-medium leading-[42px] tracking-[-0.72px] text-black"
+          >
+            Edit submission
+          </h1>
+          <p class="mt-2 max-w-[470px] text-pretty font-['Switzer'] text-[14px] leading-[21px] tracking-[0.14px] text-[#6b6b6b]">
+            Refine the details and evidence while this contribution is still under review.
+          </p>
+        </div>
+        <span class="inline-flex h-8 w-fit shrink-0 items-center rounded-full bg-[#fff7df] px-3 font-['Switzer'] text-[12px] font-semibold text-[#8a5d00] shadow-[inset_0_0_0_1px_rgba(138,93,0,0.12)]">
+          {appealLocked
+            ? "Appeal under review"
+            : submission.state === "more_info_needed"
+              ? "Update requested"
+              : "Pending review"}
+        </span>
+      </div>
+    </header>
+
+    {#if appealLocked}
+      <section class="review-feedback-card flex w-full items-start gap-3 rounded-[16px] bg-[#fff8e8] p-5 text-[#6f4d00] shadow-[0_0_0_1px_rgba(180,120,0,0.12),0_8px_24px_rgba(138,93,0,0.05)]">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-white shadow-[0_0_0_1px_rgba(138,93,0,0.10),0_2px_6px_rgba(138,93,0,0.06)]">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 6v6l4 2m5-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </span>
+        <div class="min-w-0">
+          <p class="font-['Switzer'] text-[13px] font-semibold">Editing is paused</p>
+          <p class="mt-1 text-pretty font-['Switzer'] text-[13px] leading-5 text-[#7c5a12]">
+            This submission stays unchanged while stewards review your appeal.
+            You can still remove it, or return when a steward requests more information.
+          </p>
+        </div>
+      </section>
+    {/if}
+
+    {#if reviewFeedback}
+      <section class="review-feedback-card w-full overflow-hidden rounded-[16px] bg-[#f3f7ff] shadow-[0_0_0_1px_rgba(37,99,235,0.10),0_8px_24px_rgba(37,99,235,0.06)]">
+        <div class="flex items-start gap-3 p-5">
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-white text-blue-600 shadow-[0_0_0_1px_rgba(37,99,235,0.10),0_2px_6px_rgba(37,99,235,0.08)]">
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a10.6 10.6 0 01-4.7-1.08L3 20l1.24-3.72A7.45 7.45 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+          </span>
+          <div class="min-w-0 flex-1">
+            <p class="font-['Switzer'] text-[13px] font-semibold text-blue-950">
+              {submission.state === "more_info_needed" ? "Changes requested" : "Steward feedback"}
+            </p>
+            {#if latestMoreInfoRequest?.user_name}
+              <p class="mt-0.5 font-['Switzer'] text-[11px] text-blue-700/70">
+                From {latestMoreInfoRequest.user_name}
+              </p>
+            {/if}
+            <div class="feedback-markdown mt-2 text-pretty font-['Switzer'] text-[14px] leading-[21px] text-blue-950/80">
+              {@html parseMarkdown(reviewFeedback)}
+            </div>
+          </div>
+        </div>
+      </section>
+    {/if}
+  {:else}
+    <h1
+      class="submit-page-title text-balance font-['F37_Lineca'] font-medium leading-[40px] text-[32px] text-black tracking-[-0.64px]"
+    >
+      Submit Contribution
+    </h1>
+  {/if}
+
+  <form
+    onsubmit={handleSubmit}
+    class="w-full flex flex-col gap-[20px]"
+    class:edit-form-content={editMode}
+  >
     <!-- 1. Contribution Type Panel -->
     <div
       class="submit-panel flex flex-col gap-[12px] items-start p-[24px] rounded-[16px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.02)] bg-white border border-[#f5f5f5] w-full"
@@ -1271,14 +1694,16 @@
         Contribution Type
       </h2>
 
-      <!-- Category Tabs (Builder / Validator) -->
+      <!-- Category Tabs -->
       <div
         class="category-tabs border border-[#f5f5f5] flex gap-[4px] items-start p-[4px] rounded-[24px] w-full bg-white"
       >
         <button
           type="button"
           onclick={() => selectCategory("builder")}
-          class="category-tab-button flex flex-[1_0_0] h-[40px] items-center justify-center p-[12px] rounded-[24px] transition-colors {selectedCategory ===
+          disabled={selectionLocked || loadingTypes}
+          aria-pressed={selectedCategory === "builder"}
+          class="category-tab-button flex flex-[1_0_0] h-[40px] items-center justify-center p-[12px] rounded-[24px] transition-[background-color,color,scale,opacity] duration-150 ease-out active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100 {selectedCategory ===
           'builder'
             ? 'bg-[#e99322] text-white'
             : 'bg-[#f5f5f5] text-[#1a1c1d] hover:bg-gray-200'}"
@@ -1291,7 +1716,9 @@
         <button
           type="button"
           onclick={() => selectCategory("validator")}
-          class="category-tab-button flex flex-[1_0_0] h-[40px] items-center justify-center p-[12px] rounded-[24px] transition-colors {selectedCategory ===
+          disabled={selectionLocked || loadingTypes}
+          aria-pressed={selectedCategory === "validator"}
+          class="category-tab-button flex flex-[1_0_0] h-[40px] items-center justify-center p-[12px] rounded-[24px] transition-[background-color,color,scale,opacity] duration-150 ease-out active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100 {selectedCategory ===
           'validator'
             ? 'bg-[#3b82f6] text-white'
             : 'bg-[#f5f5f5] text-[#1a1c1d] hover:bg-gray-200'}"
@@ -1304,7 +1731,9 @@
         <button
           type="button"
           onclick={() => selectCategory("community")}
-          class="category-tab-button flex flex-[1_0_0] h-[40px] items-center justify-center p-[12px] rounded-[24px] transition-colors {selectedCategory ===
+          disabled={selectionLocked || loadingTypes}
+          aria-pressed={selectedCategory === "community"}
+          class="category-tab-button flex flex-[1_0_0] h-[40px] items-center justify-center p-[12px] rounded-[24px] transition-[background-color,color,scale,opacity] duration-150 ease-out active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100 {selectedCategory ===
           'community'
             ? 'bg-[#9333ea] text-white'
             : 'bg-[#f5f5f5] text-[#1a1c1d] hover:bg-gray-200'}"
@@ -1316,7 +1745,18 @@
         </button>
       </div>
 
-      {#if !canSubmitCurrentCategory}
+      {#if missionLocked}
+        <div class="flex w-full items-start gap-2 rounded-[10px] bg-indigo-50 px-3 py-2.5 text-indigo-900 shadow-[inset_0_0_0_1px_rgba(79,70,229,0.10)]">
+          <svg class="mt-0.5 h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2h-1V9a4 4 0 00-8 0v2H6a2 2 0 00-2 2v6a2 2 0 002 2zm3-10V9a3 3 0 00-6 0v2h6z" />
+          </svg>
+          <p class="text-pretty font-['Switzer'] text-[12px] leading-[18px]">
+            This contribution type is locked to <strong>{selectedMissionData?.name || "its original mission"}</strong>.
+          </p>
+        </div>
+      {/if}
+
+      {#if !canAccessCurrentCategory}
         <div
           class="flex items-start gap-3 rounded-[8px] border {gatingTheme.border} {gatingTheme.bg} p-4"
         >
@@ -1380,14 +1820,14 @@
       {/if}
 
       <!-- Type Search/Dropdown Selection -->
-      {#if canSubmitCurrentCategory}
+      {#if canAccessCurrentCategory}
       <div class="relative w-full" bind:this={dropdownRef}>
         <div
           class="type-selector-control border {error && !formData.contribution_type
             ? 'border-red-400'
             : showTypeDropdown
               ? 'border-gray-400'
-              : 'border-[#f5f5f5]'} flex h-[44px] items-center p-[12px] rounded-[8px] w-full bg-white hover:border-gray-300 transition-colors"
+              : 'border-[#f5f5f5]'} flex h-[44px] items-center px-[8px] rounded-[8px] w-full bg-white hover:border-gray-300 transition-colors"
         >
           <svg
             class="w-4 h-4 text-gray-400 mr-2 flex-shrink-0"
@@ -1407,17 +1847,23 @@
             class="type-search-input flex-1 bg-transparent font-['Switzer'] font-medium text-[14px] tracking-[0.28px] text-black placeholder-[#6b6b6b] focus:outline-none"
             placeholder={loadingTypes
               ? "Loading..."
+              : selectionLocked
+                ? appealLocked
+                  ? "Editing paused"
+                  : "Locked to mission"
               : "Search contribution type or mission..."}
             bind:value={searchQuery}
             oninput={handleSearchInput}
             onfocus={handleSearchFocus}
             onblur={handleSearchBlur}
-            disabled={loadingTypes}
+            disabled={loadingTypes || selectionLocked}
           />
           <button
             type="button"
             onclick={() => (showTypeDropdown = !showTypeDropdown)}
-            class="flex-shrink-0 ml-1"
+            disabled={loadingTypes || selectionLocked}
+            aria-label={showTypeDropdown ? "Close contribution type menu" : "Open contribution type menu"}
+            class="ml-1 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full transition-[background-color,scale,opacity] duration-150 ease-out hover:bg-gray-100 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:active:scale-100"
           >
             <svg
               class="w-4 h-4 text-gray-500 transform transition-transform {showTypeDropdown
@@ -1623,7 +2069,7 @@
 
     </div>
 
-    {#if selectedType && isMilestoneType(selectedType)}
+    {#if selectedType && isMilestoneType(selectedType) && !appealLocked}
       <div
         class="submit-panel linked-project-panel relative z-20 flex flex-col gap-[12px] items-start p-[24px] rounded-[16px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.02)] bg-white border border-[#f5f5f5] w-full overflow-visible"
       >
@@ -1639,7 +2085,7 @@
           </div>
           {#if selectedProjectData}
             <span class="bg-indigo-100 text-indigo-700 text-[12px] px-2 py-1 rounded-full font-medium whitespace-nowrap">
-              v{selectedProjectData.next_milestone_version || 1}
+              v{selectedProjectVersion}
             </span>
           {/if}
         </div>
@@ -1678,7 +2124,7 @@
           >
             <button
               type="button"
-              class="project-dropdown-trigger flex h-[44px] w-full items-center justify-between gap-3 rounded-[8px] border border-[#f5f5f5] bg-white px-[12px] text-left font-['Switzer'] text-[14px] text-black tracking-[0.28px] transition-colors hover:border-gray-300 focus:outline-none focus:border-black"
+              class="project-dropdown-trigger flex h-[44px] w-full items-center justify-between gap-3 rounded-[8px] border border-[#f5f5f5] bg-white px-[12px] text-left font-['Switzer'] text-[14px] text-black tracking-[0.28px] transition-[border-color,box-shadow,scale] duration-150 ease-out hover:border-gray-300 focus:border-black focus:outline-none active:scale-[0.96]"
               aria-haspopup="listbox"
               aria-expanded={showProjectDropdown}
               aria-controls="project-dropdown-menu"
@@ -1714,7 +2160,7 @@
                 {#each acceptedProjects as project, index}
                   <button
                     type="button"
-                    class="project-dropdown-option flex w-full flex-col items-start border-b border-[#f5f5f5] p-[12px] text-left last:border-0 transition-colors hover:bg-gray-50 {String(project.id) === String(selectedProject) ? 'bg-[#f0f0ff]' : ''}"
+                    class="project-dropdown-option flex min-h-10 w-full flex-col items-start border-b border-[#f5f5f5] p-[12px] text-left last:border-0 transition-[background-color] duration-150 ease-out hover:bg-gray-50 {String(project.id) === String(selectedProject) ? 'bg-[#f0f0ff]' : ''}"
                     role="option"
                     aria-selected={String(project.id) === String(selectedProject)}
                     tabindex={focusedProjectIndex === index ? 0 : -1}
@@ -1726,7 +2172,11 @@
                       {project.title}
                     </span>
                     <span class="mt-1 font-['Switzer'] text-[12px] text-[#6b6b6b]">
-                      Next milestone v{project.next_milestone_version || 1}
+                      {#if editMode && submission?.project_contribution && String(submission.project_contribution?.id ?? submission.project_contribution) === String(project.id)}
+                        Current milestone v{submission.milestone_version || 1}
+                      {:else}
+                        Next milestone v{project.next_milestone_version || 1}
+                      {/if}
                     </span>
                     {#if project.github_url}
                       <span class="mt-0.5 max-w-full truncate font-['Switzer'] text-[11px] text-gray-400">
@@ -1745,7 +2195,9 @@
                 {selectedProjectData.title}
               </p>
               <p class="font-['Switzer'] text-[12px] text-[#6b6b6b] mt-1">
-                This submission will be saved as milestone v{selectedProjectData.next_milestone_version || 1}.
+                {selectedProjectIsOriginal
+                  ? `This submission remains milestone v${selectedProjectVersion}.`
+                  : `This submission will be saved as milestone v${selectedProjectVersion}.`}
               </p>
               {#if selectedProjectData.github_url}
                 <a
@@ -1807,7 +2259,7 @@
       </div>
     {/if}
 
-    {#if canShowFormDetails}
+    {#if canShowFormDetails && !appealLocked}
     <!-- 2. Contribution Details Panel -->
     <div
       class="submit-panel form-details-panel flex flex-col gap-[16px] items-start p-[24px] rounded-[16px] shadow-[0px_4px_20px_0px_rgba(0,0,0,0.02)] bg-white border border-[#f5f5f5] w-full"
@@ -1932,7 +2384,7 @@
         <button
           type="button"
           onclick={addEvidenceSlot}
-          class="add-evidence-button bg-[#1a1c1d] flex gap-[8px] h-[40px] items-center justify-center px-[16px] rounded-[20px] hover:bg-black transition-colors shrink-0"
+          class="add-evidence-button bg-[#1a1c1d] flex gap-[8px] h-[40px] items-center justify-center px-[16px] rounded-[20px] hover:bg-black transition-[background-color,scale] duration-150 ease-out active:scale-[0.96] shrink-0"
         >
           <svg
             class="w-4 h-4 text-white"
@@ -1972,10 +2424,12 @@
           </div>
           <div class="flex flex-col gap-1">
             <label
+              for="required-evidence-url"
               class="font-['Switzer'] text-[12px] font-semibold text-gray-500 uppercase tracking-widest pl-1"
               >URL Link</label
             >
             <input
+              id="required-evidence-url"
               type="url"
               bind:value={requiredEvidenceSlot.url}
               oninput={handleRequiredUrlInput}
@@ -2042,15 +2496,17 @@
         {:else}
           {#each evidenceSlots as slot, index}
             <div
-              class="evidence-slot-card border border-[#e0e0e0] rounded-[12px] p-[16px] bg-[#fcfcfc] flex flex-col gap-[12px] relative transition-all group"
+              class="evidence-slot-card border border-[#e0e0e0] rounded-[12px] p-[16px] bg-[#fcfcfc] flex flex-col gap-[12px] relative transition-[background-color,box-shadow] duration-150 ease-out group"
             >
               <!-- URL field (primary input) -->
               <div class="evidence-url-field flex flex-col gap-1 pr-[30px]">
                 <label
+                  for={`evidence-url-${index}`}
                   class="font-['Switzer'] text-[12px] font-semibold text-gray-500 uppercase tracking-widest pl-1"
                   >URL Link</label
                 >
                 <input
+                  id={`evidence-url-${index}`}
                   type="url"
                   bind:value={slot.url}
                   oninput={() => handleUrlInput(index)}
@@ -2110,8 +2566,9 @@
               <button
                 type="button"
                 onclick={() => removeEvidenceSlot(index)}
-                class="absolute top-[16px] right-[16px] w-[24px] h-[24px] flex justify-center items-center rounded-full text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                class="absolute right-[8px] top-[8px] flex h-10 w-10 items-center justify-center rounded-full text-red-400 transition-[background-color,color,scale] duration-150 ease-out hover:bg-red-50 hover:text-red-600 active:scale-[0.96]"
                 title="Remove evidence"
+                aria-label="Remove evidence"
               >
                 <svg
                   class="w-5 h-5"
@@ -2148,32 +2605,42 @@
       {/if}
     </div>
 
-    <!-- recaptcha -->
-    <div class="recaptcha-area w-full">
-      <div id="recaptcha-wrapper" class="flex justify-start"></div>
-      {#if error && error.includes("reCAPTCHA")}
-        <p class="text-red-500 text-[13px] mt-1 font-['Switzer']">{error}</p>
-      {/if}
-    </div>
+    {#if !editMode}
+      <div class="recaptcha-area w-full">
+        <div id="recaptcha-wrapper" class="flex justify-start"></div>
+        {#if error && error.includes("reCAPTCHA")}
+          <p class="text-red-500 text-[13px] mt-1 font-['Switzer']">{error}</p>
+        {/if}
+      </div>
+    {/if}
+    {/if}
 
     <!-- Error display -->
     {#if error && !error.includes("reCAPTCHA")}
-      <div class="w-full bg-red-50 border-l-4 border-red-500 p-4 rounded-md">
-        <p class="text-red-700 text-sm font-['Switzer']">{error}</p>
+      <div class="flex w-full items-start gap-3 rounded-[12px] bg-red-50 p-4 shadow-[inset_0_0_0_1px_rgba(220,38,38,0.12)]">
+        <svg class="mt-0.5 h-5 w-5 shrink-0 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-1.875a9 9 0 11-18 0 9 9 0 0118 0zM12 16.5h.008v.008H12V16.5z" />
+        </svg>
+        <p class="text-pretty text-sm leading-5 text-red-700 font-['Switzer']">{error}</p>
       </div>
     {/if}
 
+    {#if canShowFormDetails && !appealLocked}
     <!-- Actions -->
     <div class="form-actions flex gap-[8px] items-center mt-2 pb-[60px]">
       <button
         type="submit"
-        disabled={submitting || !canSubmitCurrentCategory || evidenceRequiredAccounts.length > 0 || hasEvidencePatternMismatch}
-        class="submit-action bg-[#9e4bf6] flex gap-[8px] h-[40px] items-center justify-center px-[20px] rounded-[20px] hover:bg-[#8b3ced] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        disabled={submitting || deleting || !canSubmitCurrentCategory || evidenceRequiredAccounts.length > 0 || hasEvidencePatternMismatch}
+        class="submit-action bg-[#9e4bf6] flex gap-[8px] h-[40px] items-center justify-center px-[20px] rounded-[20px] hover:bg-[#8b3ced] disabled:opacity-50 disabled:cursor-not-allowed transition-[background-color,scale,opacity] duration-150 ease-out active:scale-[0.96] disabled:active:scale-100"
       >
         <span
           class="font-['Switzer'] font-medium leading-[21px] text-[14px] text-white tracking-[0.28px]"
         >
-          {submitting ? "Submitting..." : "Submit Contribution"}
+          {#if submitting}
+            {editMode ? "Saving..." : "Submitting..."}
+          {:else}
+            {editMode ? "Save changes" : "Submit Contribution"}
+          {/if}
         </span>
         {#if !submitting}
           <svg
@@ -2182,21 +2649,20 @@
             viewBox="0 0 24 24"
             stroke="currentColor"
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M14 5l7 7m0 0l-7 7m7-7H3"
-            />
+            {#if editMode}
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            {:else}
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            {/if}
           </svg>
         {/if}
       </button>
 
       <button
         type="button"
-        onclick={() => push("/")}
-        disabled={submitting}
-        class="cancel-action bg-[#f5f5f5] flex h-[40px] items-center justify-center px-[20px] rounded-[20px] hover:bg-[#eaeaea] disabled:opacity-50 transition-colors"
+        onclick={() => push(editMode ? "/my-submissions" : "/")}
+        disabled={submitting || deleting}
+        class="cancel-action bg-[#f5f5f5] flex h-[40px] items-center justify-center px-[20px] rounded-[20px] hover:bg-[#eaeaea] disabled:opacity-50 transition-[background-color,scale,opacity] duration-150 ease-out active:scale-[0.96] disabled:active:scale-100"
       >
         <span
           class="font-['Switzer'] font-medium leading-[21px] text-[14px] text-[#1a1c1d] tracking-[0.28px]"
@@ -2204,12 +2670,121 @@
           Cancel
         </span>
       </button>
+
+      {#if editMode}
+        <button
+          type="button"
+          onclick={() => (showDeleteDialog = true)}
+          disabled={submitting || deleting}
+          class="remove-action flex h-[40px] items-center justify-center rounded-[20px] px-[16px] font-['Switzer'] text-[13px] font-medium text-red-600 transition-[background-color,color,scale,opacity] duration-150 ease-out hover:bg-red-50 hover:text-red-700 active:scale-[0.96] disabled:opacity-50 disabled:active:scale-100 sm:ml-auto"
+        >
+          Remove submission
+        </button>
+      {/if}
     </div>
+    {/if}
+
+    {#if editMode && !loadingTypes && (!canShowFormDetails || appealLocked)}
+      <div class="form-actions flex w-full items-center gap-2 pb-[60px] pt-1">
+        <button
+          type="button"
+          onclick={() => push("/my-submissions")}
+          disabled={deleting}
+          class="cancel-action flex h-10 items-center justify-center rounded-full bg-[#f5f5f5] px-5 font-['Switzer'] text-[14px] font-medium text-[#1a1c1d] transition-[background-color,scale,opacity] duration-150 ease-out hover:bg-[#eaeaea] active:scale-[0.96] disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onclick={() => (showDeleteDialog = true)}
+          disabled={deleting}
+          class="remove-action flex h-10 items-center justify-center rounded-full px-4 font-['Switzer'] text-[13px] font-medium text-red-600 transition-[background-color,color,scale,opacity] duration-150 ease-out hover:bg-red-50 hover:text-red-700 active:scale-[0.96] disabled:opacity-50 sm:ml-auto"
+        >
+          Remove submission
+        </button>
+      </div>
     {/if}
   </form>
 </div>
 
+<ConfirmDialog
+  isOpen={showDeleteDialog}
+  title="Remove submission?"
+  message="This submission will be marked as canceled and can no longer be edited."
+  confirmText="Remove submission"
+  cancelText="Keep editing"
+  loading={deleting}
+  onConfirm={confirmDelete}
+  onCancel={() => {
+    if (!deleting) showDeleteDialog = false;
+  }}
+/>
+
 <style>
+  .submit-form-shell {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .submit-panel {
+    border-color: rgba(0, 0, 0, 0.055);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.025),
+      0 8px 28px rgba(0, 0, 0, 0.035);
+  }
+
+  .edit-page-header,
+  .review-feedback-card,
+  .edit-form-content {
+    animation: edit-content-enter 320ms cubic-bezier(0.22, 1, 0.36, 1)
+      both;
+  }
+
+  .review-feedback-card {
+    animation-delay: 60ms;
+  }
+
+  .edit-form-content {
+    animation-delay: 110ms;
+  }
+
+  .feedback-markdown :global(p + p),
+  .feedback-markdown :global(ul),
+  .feedback-markdown :global(ol) {
+    margin-top: 0.5rem;
+  }
+
+  .feedback-markdown :global(ul),
+  .feedback-markdown :global(ol) {
+    padding-left: 1.1rem;
+  }
+
+  .feedback-markdown :global(ul) {
+    list-style: disc;
+  }
+
+  .feedback-markdown :global(ol) {
+    list-style: decimal;
+  }
+
+  .feedback-markdown :global(a) {
+    color: #1d4ed8;
+    text-decoration: underline;
+    text-decoration-color: rgba(29, 78, 216, 0.35);
+    text-underline-offset: 2px;
+  }
+
+  @keyframes edit-content-enter {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
   .project-dropdown-wrapper {
     isolation: isolate;
   }
@@ -2235,6 +2810,11 @@
       line-height: 32px;
       letter-spacing: 0 !important;
       overflow-wrap: anywhere;
+    }
+
+    .edit-page-header > div {
+      align-items: flex-start;
+      flex-direction: column;
     }
 
     .submit-panel {
@@ -2419,7 +2999,8 @@
     }
 
     .submit-action,
-    .cancel-action {
+    .cancel-action,
+    .remove-action {
       width: 100%;
       min-height: 42px;
     }
@@ -2428,6 +3009,14 @@
     .cancel-action span {
       letter-spacing: 0 !important;
       white-space: nowrap;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .edit-page-header,
+    .review-feedback-card,
+    .edit-form-content {
+      animation: none;
     }
   }
 </style>
