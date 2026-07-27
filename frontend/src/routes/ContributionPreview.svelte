@@ -1,5 +1,4 @@
 <script>
-  import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import { format } from '../lib/dates.js';
   import { contributionsAPI } from '../lib/api.js';
@@ -16,6 +15,7 @@
   let topContributors = $state([]);
   let loading = $state(true);
   let error = $state(null);
+  let loadVersion = 0;
 
   // Category color config matching portal design system
   const categoryConfig = {
@@ -91,11 +91,22 @@
     return `/contribution/${id}`;
   }
 
-  onMount(async () => {
+  /** @param {string | number} id */
+  async function loadContribution(id) {
+    const version = ++loadVersion;
+    contribution = null;
+    userContributions = [];
+    topContributors = [];
+    loading = true;
+    error = null;
+
     try {
-      const res = await contributionsAPI.getContribution(params.id);
-      contribution = res.data;
-      if (isHiddenWelcomeContribution(contribution)) {
+      const res = await contributionsAPI.getContribution(id);
+      if (version !== loadVersion) return;
+
+      const loadedContribution = res.data;
+      contribution = loadedContribution;
+      if (isHiddenWelcomeContribution(loadedContribution)) {
         error = 'Contribution not found';
         return;
       }
@@ -104,24 +115,26 @@
       const promises = [];
 
       // More from this user
-      if (contribution.user_details?.address) {
+      if (loadedContribution.user_details?.address) {
         promises.push(
           contributionsAPI.getContributions({
-            user_address: contribution.user_details.address,
+            user_address: loadedContribution.user_details.address,
             page_size: 7,
             exclude_onboarding: 'true',
           }).then(r => {
+            if (version !== loadVersion) return;
             const results = r.data?.results || r.data || [];
-            userContributions = visibleContributions(results).filter(c => c.id !== contribution.id).slice(0, 6);
+            userContributions = visibleContributions(results).filter(c => c.id !== loadedContribution.id).slice(0, 6);
           }).catch(() => {})
         );
       }
 
       // Top contributors in this category type
-      if (contribution.contribution_type_details?.id) {
+      if (loadedContribution.contribution_type_details?.id) {
         promises.push(
-          contributionsAPI.getContributionTypeTopContributors(contribution.contribution_type_details.id)
+          contributionsAPI.getContributionTypeTopContributors(loadedContribution.contribution_type_details.id)
             .then(r => {
+              if (version !== loadVersion) return;
               const results = Array.isArray(r.data) ? r.data : (r.data?.results || []);
               topContributors = results.slice(0, 3);
             }).catch(() => {})
@@ -130,10 +143,18 @@
 
       await Promise.all(promises);
     } catch (err) {
-      error = err.message || 'Failed to load contribution';
+      if (version === loadVersion) {
+        error = err instanceof Error ? err.message : 'Failed to load contribution';
+      }
     } finally {
-      loading = false;
+      if (version === loadVersion) {
+        loading = false;
+      }
     }
+  }
+
+  $effect(() => {
+    loadContribution(params.id);
   });
 </script>
 

@@ -410,7 +410,7 @@
         <p class="role-eyebrow">While you wait</p>
         <h2>Want to know more about being a validator?</h2>
         <p>
-          Reach out to <strong>@validator-lead</strong> on Discord to learn what we look for,
+          Reach out to <strong>@ras</strong> on Discord to learn what we look for,
           ask about timing, or make your case for an earlier spot.
         </p>
       </div>

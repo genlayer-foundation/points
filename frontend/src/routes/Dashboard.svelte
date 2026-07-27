@@ -22,6 +22,7 @@
   // State
   let statsData = $state([]);
   let leaderboardEntries = $state([]);
+  let builderPodiumEntries = $state([]);
   let communityPodiumEntries = $state([]);
   let newestMembers = $state([]);
   let trendingEntries = $state([]);
@@ -29,6 +30,7 @@
 
   let statsLoading = $state(true);
   let leaderboardLoading = $state(true);
+  let builderPodiumLoading = $state(true);
   let communityPodiumLoading = $state(true);
   let membersLoading = $state(true);
   let trendingLoading = $state(true);
@@ -59,7 +61,7 @@
       ? 'All-time XP and Community points'
       : isValidator
         ? 'All-time validator contributors'
-        : 'Curated builds from the last 30 days'
+        : 'All-time builder contributors'
   );
   let leaderboardPath = $derived(isBuilder ? '/builders/leaderboard' : isCommunity ? '/community/leaderboard' : '/validators/leaderboard');
   let podiumTitle = $derived(
@@ -73,10 +75,18 @@
         : "Who's contributing more to GenLayer over the last 30 days?"
   );
   let podiumEntries = $derived(
-    isCommunity ? communityPodiumEntries : leaderboardEntries.slice(0, 3)
+    isBuilder
+      ? builderPodiumEntries
+      : isCommunity
+        ? communityPodiumEntries
+        : leaderboardEntries.slice(0, 3)
   );
   let podiumLoading = $derived(
-    isCommunity ? communityPodiumLoading : leaderboardLoading
+    isBuilder
+      ? builderPodiumLoading
+      : isCommunity
+        ? communityPodiumLoading
+        : leaderboardLoading
   );
   let newestTitle = $derived(isBuilder ? 'Newest Builders' : isCommunity ? 'Newest Community Contributors' : 'Newest Validators');
   let newestPath = $derived(isBuilder ? '/builders/leaderboard' : isCommunity ? '/community/all-contributions' : '/validators/participants');
@@ -157,12 +167,14 @@
   function resetDashboardState() {
     statsData = [];
     leaderboardEntries = [];
+    builderPodiumEntries = [];
     communityPodiumEntries = [];
     newestMembers = [];
     trendingEntries = [];
     recentContributions = [];
     statsLoading = true;
     leaderboardLoading = true;
+    builderPodiumLoading = true;
     communityPodiumLoading = true;
     membersLoading = true;
     trendingLoading = true;
@@ -186,12 +198,9 @@
         if (requestId === dashboardRequestSequence) statsLoading = false;
       }),
 
-      // Top contributors. Community and Validator use their all-time
-      // leaderboards; Builder keeps its rolling 30-day view.
-      (cat === 'builder'
-          ? leaderboardAPI.getMonthlyLeaderboardByType(cat, 5, getLast30DaysParams())
-          : leaderboardAPI.getLeaderboard({ type: cat, order: 'asc', limit: 5 })
-      ).then(res => {
+      // The ranked list is all-time for every role. Time-bounded podiums are
+      // fetched separately so they do not change the five list entries.
+      leaderboardAPI.getLeaderboard({ type: cat, order: 'asc', limit: 5 }).then(res => {
         if (requestId !== dashboardRequestSequence) return;
         leaderboardEntries = Array.isArray(res.data) ? res.data : (res.data?.results ?? []);
         leaderboardLoading = false;
@@ -200,6 +209,20 @@
       }),
 
     ];
+
+    if (cat === 'builder') {
+      promises.push(
+        leaderboardAPI.getMonthlyLeaderboardByType(cat, 3, getLast30DaysParams()).then(res => {
+          if (requestId !== dashboardRequestSequence) return;
+          builderPodiumEntries = Array.isArray(res.data) ? res.data : (res.data?.results ?? []);
+          builderPodiumLoading = false;
+        }).catch(() => {
+          if (requestId === dashboardRequestSequence) builderPodiumLoading = false;
+        })
+      );
+    } else {
+      builderPodiumLoading = false;
+    }
 
     if (cat === 'community') {
       promises.push(
