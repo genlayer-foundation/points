@@ -521,7 +521,7 @@ const routes = {
 #### Generic UI Components (`src/components/ui/`)
 Reusable, data-driven display components that accept data via props. Used on Dashboard and can be reused on any page.
 
-- **Community Dashboard rankings**: `routes/Dashboard.svelte` intentionally uses two sources. “Top Community Contributors” reads the existing all-time Community leaderboard (effective Discord/MEE6 XP plus Community portal points), while its podium reads `/leaderboard/community-podium/` and shows only the top three users by points from accepted Community submissions. Builder and Validator dashboard ranking behavior is unchanged.
+- **Dashboard rankings**: `routes/Dashboard.svelte` intentionally uses separate list and podium sources. Builder “Top Contributors” reads the all-time Builder leaderboard, while its podium reads the rolling 30-day leaderboard. “Top Community Contributors” reads the all-time Community leaderboard (effective Discord/MEE6 XP plus Community portal points), while its podium reads `/leaderboard/community-podium/` and shows only the top three users by points from accepted Community submissions. Validator remains all-time for both.
 
 - **`SectionHeader.svelte`** - Reusable section header with title, subtitle, and "View all" link
   - Props: `title`, `subtitle`, `linkText="View all"`, `linkPath=""`, `showLink=true`, `showArrow=true`
