@@ -17,6 +17,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from .email_verification import email_fingerprint, encrypt_email, token_lookup_hash
 from .models import EmailVerificationToken, Nonce, PendingWalletSignup
+from .testing import login_wallet_session
 
 
 User = get_user_model()
@@ -33,10 +34,7 @@ class EthereumAuthResponseSecurityTests(TestCase):
         )
 
     def test_verify_auth_does_not_return_session_key(self):
-        session = self.client.session
-        session['authenticated'] = True
-        session['ethereum_address'] = self.user.address
-        session.save()
+        login_wallet_session(self.client, self.user, address=self.user.address)
 
         response = self.client.get('/api/auth/verify/')
 

@@ -20,6 +20,7 @@ from rest_framework.test import APIClient
 
 from creators.models import Creator
 from ethereum_auth.models import Nonce
+from ethereum_auth.testing import login_wallet_session
 from poaps.admin import PoapDistributionAdminForm, PoapDropAdmin, PoapDropAdminForm
 from poaps.models import PoapClaim, PoapDistribution, PoapDrop, PoapImportBatch
 from poaps.services import generate_mint_links, hash_secret
@@ -653,11 +654,9 @@ class PoapAPITest(TestCase):
             source=PoapClaim.SOURCE_LEGACY_IMPORT,
             legacy_wallet_address=account.address,
         )
-        session = self.client.session
-        session['ethereum_address'] = self.user.address
-        session['authenticated'] = True
-        session.save()
-        self.client.force_authenticate(user=self.user)
+        # A real session, so the claim that verify-wallet leaves it untouched is
+        # made against the same session shape production uses.
+        login_wallet_session(self.client, self.user, address=self.user.address)
 
         response = self.client.post(
             '/api/v1/poaps/verify-wallet/',
