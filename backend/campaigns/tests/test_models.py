@@ -43,6 +43,8 @@ class DestinationValidationTests(TestCase):
             'https://evil.example.com',
             '//evil.example.com',
             '/builders/../admin',
+            '/builders/%2e%2e/admin',
+            '/builders/%2E%2E/admin',
             '/admin',
             '/admin/login',
             '/api/v1/users',
@@ -74,6 +76,18 @@ class CampaignModelTests(TestCase):
         )
         with self.assertRaises(ValidationError):
             campaign.full_clean()
+
+    def test_tracking_key_immutable_once_links_exist(self):
+        link = make_link()
+        campaign = link.campaign
+        campaign.tracking_key = 'renamed_key'
+        with self.assertRaises(ValidationError):
+            campaign.full_clean()
+
+    def test_tracking_key_editable_while_campaign_has_no_links(self):
+        campaign = make_campaign(tracking_key='draft_key')
+        campaign.tracking_key = 'renamed_key'
+        campaign.full_clean()
 
 
 class CampaignLinkModelTests(TestCase):

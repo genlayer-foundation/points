@@ -33,11 +33,6 @@ def create_marketing_group(apps, schema_editor):
                 group.permissions.add(permission)
 
 
-def remove_marketing_group(apps, schema_editor):
-    Group = apps.get_model('auth', 'Group')
-    Group.objects.filter(name=MARKETING_GROUP_NAME).delete()
-
-
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -45,5 +40,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(create_marketing_group, remove_marketing_group),
+        # Reverse is a no-op: the forward path may have reused a pre-existing
+        # Marketing group, so rollback must not delete it (or its members).
+        migrations.RunPython(create_marketing_group, migrations.RunPython.noop),
     ]

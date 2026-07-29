@@ -28,14 +28,21 @@ class MarketingGroupTests(TestCase):
         self.client = Client()
         self.client.force_login(self.marketer)
 
-    def test_group_has_campaign_permissions_only(self):
-        codenames = set(self.group.permissions.values_list('codename', flat=True))
-        self.assertIn('add_marketingcampaign', codenames)
-        self.assertIn('change_campaignlink', codenames)
-        self.assertIn('view_campaignredirecthit', codenames)
-        self.assertIn('view_useracquisitionattribution', codenames)
-        self.assertNotIn('delete_marketingcampaign', codenames)
-        self.assertFalse(any('user' == c.split('_', 1)[1] for c in codenames))
+    def test_group_has_exactly_the_campaign_permissions(self):
+        granted = set(
+            self.group.permissions.values_list('content_type__app_label', 'codename')
+        )
+        expected = {
+            ('campaigns', 'add_marketingcampaign'),
+            ('campaigns', 'change_marketingcampaign'),
+            ('campaigns', 'view_marketingcampaign'),
+            ('campaigns', 'add_campaignlink'),
+            ('campaigns', 'change_campaignlink'),
+            ('campaigns', 'view_campaignlink'),
+            ('campaigns', 'view_campaignredirecthit'),
+            ('campaigns', 'view_useracquisitionattribution'),
+        }
+        self.assertEqual(granted, expected)
 
     def test_marketing_user_can_manage_campaigns(self):
         response = self.client.get('/admin/campaigns/marketingcampaign/')

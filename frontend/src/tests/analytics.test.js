@@ -338,6 +338,17 @@ describe('campaign acquisition attribution', () => {
     expect(analytics.getAcquisitionAttribution()).toBeNull();
   });
 
+  it('a utm_id-less landing never locks the first-touch slot', async () => {
+    window.history.pushState({}, '', '/?utm_source=x&utm_medium=social');
+    await loadAnalytics();
+    expect(localStorage.getItem('campaign_first_touch')).toBeNull();
+
+    // A later real campaign click must still become the first touch.
+    window.history.pushState({}, '', '/builders?utm_id=cl-real&utm_source=x&utm_medium=social');
+    const analytics = await loadAnalytics();
+    expect(analytics.getAcquisitionAttribution().utm_id).toBe('cl-real');
+  });
+
   it('never overwrites a valid first touch but refreshes the session touch', async () => {
     window.history.pushState({}, '', '/builders?utm_id=cl-first&utm_source=x&utm_medium=social');
     await loadAnalytics();

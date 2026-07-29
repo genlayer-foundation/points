@@ -496,6 +496,7 @@ const routes = {
   - `/api/auth/logout/`
 
 ### Analytics & Campaign Attribution (`src/lib/analytics.js`)
+
 - **GA capture (existing)**: allowlisted utm_*/click-id params from the landing URL persist in `sessionStorage['ga_landing_attribution']` (24h) and are re-attached to the templated `page_location` on every GA hit. All params are PII-sanitized (`sanitizeAnalyticsParams`).
 - **Structured campaign attribution (backend-facing)**: at module load, campaign params also produce a structured touch: `localStorage['campaign_first_touch']` (30 days, written once, never overwritten) and `sessionStorage['campaign_session_touch']` (refreshed per campaign landing). `getAcquisitionAttribution()` returns `{utm_id, landing_path, captured_at}` or null; `auth.js` attaches it as `attribution` to the `/api/auth/login/` payload (dynamic import to avoid a module cycle). The backend resolves the campaign server-side from the opaque utm_id and never trusts browser UTM text.
 - **URL cleanup**: `cleanTrackingParamsFromUrl(extraKeys)` removes only attribution params (+`ref`) from the visible URL via raw `replaceState`, preserving all other query params and the hash. Called once from App.svelte onMount, AFTER module-load capture; router stores are untouched so no duplicate page_view fires. The old ref-only cleanup that dropped the entire query string is gone.

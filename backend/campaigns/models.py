@@ -87,8 +87,10 @@ def validate_destination_path(path):
         raise ValidationError('Destination is too long.')
     if not path.startswith('/') or path.startswith('//'):
         raise ValidationError('Destination must be a relative portal path starting with "/".')
-    if any(ch in path for ch in ('#', '?', '@', '\\', ' ')) or '..' in path or ':' in path:
-        raise ValidationError('Destination must not include a scheme, host, query, fragment, or traversal.')
+    # '%' rejected so percent-encoded traversal (%2e%2e) cannot bypass the
+    # allowlist after URL normalization; portal paths never need encoding.
+    if any(ch in path for ch in ('#', '?', '@', '\\', ' ', '%')) or '..' in path or ':' in path:
+        raise ValidationError('Destination must not include a scheme, host, query, fragment, or encoded/traversal syntax.')
     if any(_matches_prefix(path, prefix) for prefix in RESERVED_DESTINATION_PREFIXES):
         raise ValidationError('Destination points at a reserved path.')
     # '/' allows only the portal root, never every path.
@@ -127,6 +129,19 @@ class MarketingCampaign(BaseModel):
     def clean(self):
         if self.tracking_key:
             self.tracking_key = self.tracking_key.strip().lower()
+        if self.pk:
+            persisted_key = (
+                MarketingCampaign.objects.filter(pk=self.pk)
+                .values_list('tracking_key', flat=True)
+                .first()
+            )
+            if persisted_key and persisted_key != self.tracking_key and self.links.exists():
+                raise ValidationError({
+                    'tracking_key': (
+                        'Published tracking keys are immutable once links exist; '
+                        'clone the campaign instead.'
+                    ),
+                })
         if self.starts_at and self.ends_at and self.ends_at <= self.starts_at:
             raise ValidationError({'ends_at': 'End must be after start.'})
 
@@ -223,6 +238,10 @@ class CampaignLink(BaseModel):
 class CampaignRedirectHit(models.Model):
     """One resolver request. These are redirect requests, not unique humans:
     link preview bots and scanners hit vanity URLs too (classified below).
+
+    Deliberately NOT a BaseModel: this is an append-only, purgeable log table
+    (occurred_at is its only meaningful timestamp), matching the ethereum_auth
+    log-model precedent.
 
     Privacy: never add raw IPs, full referrer URLs, full user agents, wallet
     addresses, or emails to this table.

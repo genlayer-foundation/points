@@ -213,15 +213,14 @@ function buildStructuredAttribution() {
     if (!canUseBrowser()) return null;
     const params = new URLSearchParams(window.location.search || '');
     const attribution = {};
-    let hasAny = false;
     for (const [param, key] of STRUCTURED_ATTRIBUTION_KEYS) {
       const value = params.get(param);
-      if (value) {
-        attribution[key] = value.slice(0, MAX_STRING_LENGTH);
-        hasAny = true;
-      }
+      if (value) attribution[key] = value.slice(0, MAX_STRING_LENGTH);
     }
-    if (!hasAny) return null;
+    // Only touches with the opaque link ID are stored: the backend resolves
+    // campaigns exclusively from utm_id, and a utm_id-less touch must never
+    // lock the 30-day first-touch slot against a later real campaign click.
+    if (typeof attribution.utm_id !== 'string' || !attribution.utm_id) return null;
     // Templated so a wallet-address landing path never reaches storage.
     attribution.landing_path = templateRoute(window.location.pathname);
     attribution.captured_at = new Date().toISOString();

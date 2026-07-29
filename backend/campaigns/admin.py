@@ -9,6 +9,9 @@ from .services import campaign_report
 class CampaignLinkInline(admin.TabularInline):
     model = CampaignLink
     extra = 1
+    # Deleting a link cascades away its redirect-hit history; pause with
+    # is_active instead.
+    can_delete = False
     fields = (
         'role', 'alias', 'destination_path',
         'utm_source', 'utm_medium', 'utm_content', 'utm_term',
@@ -79,8 +82,6 @@ class MarketingCampaignAdmin(admin.ModelAdmin):
                 instance.created_by = request.user
             instance.save()
         formset.save_m2m()
-        for obj in formset.deleted_objects:
-            obj.delete()
 
 
 @admin.register(CampaignLink)
@@ -113,9 +114,16 @@ class CampaignLinkAdmin(admin.ModelAdmin):
 
     def get_readonly_fields(self, request, obj=None):
         base = ('tracking_id', 'redirect_preview')
-        # Role and alias define the published URL; once a link is live they
-        # must not silently change meaning. Create a new link instead.
-        return base + ('role', 'alias') if obj else base
+        # Campaign, role, and alias define the published link's identity; once
+        # it is live they must not silently change meaning (moving a link
+        # between campaigns would also move its hit history). Create a new
+        # link instead.
+        return base + ('campaign', 'role', 'alias') if obj else base
+
+    def has_delete_permission(self, request, obj=None):
+        # Deleting a link cascades away its redirect-hit history; pause with
+        # is_active instead. Superuser escape hatch only.
+        return request.user.is_superuser
 
     @admin.display(description='Redirect target (preview)')
     def redirect_preview(self, obj):
