@@ -20,10 +20,14 @@ from social_tasks.models import SocialTask, SocialTaskCompletion
 from users.models import User
 from users.utils import truncate_address
 from validators.models import Validator
+from community_xp.cache import clear_community_caches
 
 
 class LeaderboardStatsTest(TestCase):
     def setUp(self):
+        # The community ranking/summary aggregates are cached briefly and
+        # LocMemCache is not reset between tests.
+        clear_community_caches()
         self.client = APIClient()
         self.viewer = User.objects.create_user(
             email='leaderboard-viewer@example.com',
