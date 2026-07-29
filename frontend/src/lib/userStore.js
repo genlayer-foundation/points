@@ -56,10 +56,21 @@ function createUserStore() {
           await previous.catch(() => {});
         }
 
+        // Superseded by clearUser() or a newer load while we were queued.
+        if (currentLoadToken !== token) {
+          return get({ subscribe }).user;
+        }
+
         update(state => ({ ...state, loading: true, error: null }));
 
         try {
           const userData = await getCurrentUser();
+          // A response that lands after logout or a wallet switch must not
+          // restore the previous account, nor start a TTL for data that never
+          // reached the store. clearUser() drops the token to invalidate it.
+          if (currentLoadToken !== token) {
+            return userData;
+          }
           // Only successful loads start the TTL; failures must never extend it.
           lastLoadedAt = Date.now();
           update(state => ({
@@ -73,14 +84,16 @@ function createUserStore() {
           // Only a definitive auth rejection means "no user". On network/5xx
           // failures keep any previously loaded user so role gating and journey
           // state don't reset while the backend is down.
-          const status = err.response?.status;
-          const unauthenticated = status === 401 || status === 403;
-          update(state => ({
-            ...state,
-            user: unauthenticated ? null : state.user,
-            loading: false,
-            error: err.message || 'Failed to load user data'
-          }));
+          if (currentLoadToken === token) {
+            const status = err.response?.status;
+            const unauthenticated = status === 401 || status === 403;
+            update(state => ({
+              ...state,
+              user: unauthenticated ? null : state.user,
+              loading: false,
+              error: err.message || 'Failed to load user data'
+            }));
+          }
           throw err;
         } finally {
           if (currentLoadToken === token) {

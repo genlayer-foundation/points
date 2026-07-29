@@ -298,6 +298,42 @@ describe('userStore', () => {
       nowSpy.mockRestore();
     });
 
+    it('discards a response that lands after clearUser', async () => {
+      // Logout and wallet switch both clear the store while a load may still
+      // be in flight; the old account must not reappear when it resolves.
+      let resolveLoad;
+      getCurrentUser.mockImplementationOnce(
+        () => new Promise((resolve) => { resolveLoad = resolve; })
+      );
+
+      const pending = userStore.loadUser();
+      userStore.clearUser();
+      resolveLoad(mockUser);
+      await pending;
+
+      expect(get(userStore).user).toBeNull();
+    });
+
+    it('does not let a post-clearUser response seed the cache', async () => {
+      let resolveLoad;
+      getCurrentUser.mockImplementationOnce(
+        () => new Promise((resolve) => { resolveLoad = resolve; })
+      );
+
+      const pending = userStore.loadUser();
+      userStore.clearUser();
+      resolveLoad(mockUser);
+      await pending;
+
+      // The discarded response must not have started a TTL, so the next read
+      // goes to the network instead of serving an account that was logged out.
+      getCurrentUser.mockResolvedValueOnce(mockUser);
+      await userStore.loadUser();
+
+      expect(getCurrentUser).toHaveBeenCalledTimes(2);
+      expect(get(userStore).user).toEqual(mockUser);
+    });
+
     it('a forced load does not settle for a request that predates it', async () => {
       // The forced caller has just mutated server state, so joining the
       // in-flight response would hand back pre-mutation data.
