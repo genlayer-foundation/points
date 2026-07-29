@@ -34,6 +34,7 @@ backend/
 ├── gen_tv/                # Gen TV livestream index
 ├── notifications/         # Portal notification system
 ├── service_accounts/      # Machine identities + scoped bearer tokens (AI review agent)
+├── campaigns/             # Marketing vanity links + campaign acquisition attribution
 ├── utils/                 # Shared utilities
 └── tally/                 # Django project settings (settings.py, urls.py)
 ```
@@ -119,6 +120,20 @@ backend/
 - **Permission**: `service_accounts.permissions.HasServiceAccountScope`; views declare `required_scopes = {'<action>': '<scope>', '*': '<default>'}`.
 - **Issue a token**: Django admin Service account change page -> "Issue token", or `python manage.py issue_service_account_token <account> --scopes <scope>... [--expires-days N]`; plaintext is shown exactly once. Rotate = issue new + revoke old (admin action on Service account tokens); kill switch = deactivate the account.
 - **Tests**: `service_accounts/tests/`; test helper `service_accounts.testing.service_account_auth_headers()` returns client auth kwargs.
+
+### Campaigns (Marketing Vanity Links + Attribution)
+
+- **App**: `campaigns/`. Marketing creates campaigns and role links in Django admin; no deploy per campaign. Public URL contract: `{FRONTEND_URL}/join/<builders|validators|community>/<alias>`, reverse-proxied by an Amplify rule (`amplify.yml`, before the SPA catch-all) to `GET /campaigns/redirect/<role>/<alias>`.
+- **Models** (`campaigns/models.py`):
+  - `MarketingCampaign` - name, unique `tracking_key` (published as utm_campaign, readonly after create), date window, `is_active`, `created_by`.
+  - `CampaignLink` - FK campaign, server-generated immutable `tracking_id` (published as utm_id), role, alias (UNIQUE role+alias, locked after create), `destination_path` (validated relative portal path: allowlist + reserved-prefix rejection in `validate_destination_path`, re-run by the resolver so corrupt data fails closed), required utm_source/utm_medium, optional content/term, optional window overrides. `redirect_target` builds the UTM query from stored fields only.
+  - `CampaignRedirectHit` - append-only resolver request log with UA bot classification (`services.classify_user_agent`, substring list). Privacy: never store IPs, full referrers, full UAs, wallets, emails. Retention via `python manage.py purge_campaign_hits [--days N] [--dry-run]` (default `CAMPAIGN_HIT_RETENTION_DAYS=90`).
+  - `UserAcquisitionAttribution` - write-once first-touch signup attribution (OneToOne user). Keeps immutable snapshot columns (campaign_key/source/medium/...) alongside the SET_NULL link FK so history survives campaign edits/deletes.
+- **Resolver** (`campaigns/views.py:campaign_redirect`): anonymous GET/HEAD, throttle scope `campaign_redirect` (120/min), 302 + `Cache-Control: no-store` (never 301), 404 unknown/inactive/future, 410 expired, hit-log failure never blocks the redirect. Forwards ONLY allowlisted ad click IDs (`CLICK_ID_FORWARD_PARAMS`: gclid/gbraid/wbraid/fbclid/twclid/msclkid/ttclid, length-capped) from the request onto the destination; never a request-supplied destination.
+- **Attribution flow** (mirrors the referral_code pattern): frontend sends `attribution: {utm_id, landing_path, captured_at}` in the `/api/auth/login/` body → `services.apply_pending_attribution` resolves the link server-side (never trusts browser UTM text; unknown/expired IDs silently ignored; first touch never overwritten; expired pending reuse resets stale data; window `CAMPAIGN_ATTRIBUTION_WINDOW_DAYS=30`) and writes `PendingWalletSignup.acquisition_*` → email confirm calls `services.record_user_acquisition` inside the signup transaction (internally savepointed: an attribution failure can never abort user creation). Attribution must never make signup fail.
+- **Activation reporting**: `services.campaign_report(campaign)` returns Portal-DB-only funnel counts (redirect hits human/bot, attributed wallet connects, signups, distinct-user activations: builder = first builder-category SubmittedContribution any state, validator = `validator-waitlist` Contribution, community = completion of a `SocialTask` with `counts_as_activation=True`). Rendered on the campaign admin change page; a future internal-dashboard staff API should wrap this same service.
+- **Admin**: `Marketing` group (data migration `campaigns/0002`) gets add/change/view on campaigns/links + view on hits/attributions; members need `is_staff` set manually. Hits and attributions are read-only in admin.
+- **Tests**: `campaigns/tests/` (models, resolver, attribution incl. SIWE login + email-confirm integration, reporting, admin permissions).
 
 ### Node Upgrade (Sub-app)
 - **Models**: `contributions/node_upgrade/models.py`
@@ -510,6 +525,9 @@ GET    /api/v1/notifications/              (requires auth, ?unread=true ?categor
 GET    /api/v1/notifications/unread-count/ (requires auth)
 POST   /api/v1/notifications/{id}/mark-read/   (requires auth)
 POST   /api/v1/notifications/mark-all-read/    (requires auth)
+
+# Campaign vanity links (public; proxied from portal /join/<role>/<alias> by Amplify)
+GET    /campaigns/redirect/{role}/{alias}  (anonymous, 302 with UTMs, throttled 120/min)
 ```
 
 ### Leaderboard monthly date ranges
@@ -556,6 +574,8 @@ Located in `.env` file:
 - `GRAFANA_ASIMOV_LABEL` / `GRAFANA_BRADBURY_LABEL` - Override the `network` label values Grafana queries use per testnet (defaults: `asimov-phase5`, `bradbury-phase1`)
 - `NODE_VERSION_SHAME_GRACE_DAYS` - Grace period (days) after a target's `target_date` before a node still behind it is version-shamed, applied globally (default `3`)
 - `NODE_VERSION_MIN_OPERATORS_FOR_AUTO_TARGET` - Minimum distinct operators that must be observed running a new stable node version before the Grafana sync auto-creates it as the fleet-wide upgrade target (default `1`: the first adopter creates the target; raise it to require corroboration if version spoofing ever becomes a concern)
+- `CAMPAIGN_HIT_RETENTION_DAYS` - Retention window for detailed campaign redirect hits, used as the default of `purge_campaign_hits` (default `90`)
+- `CAMPAIGN_ATTRIBUTION_WINDOW_DAYS` - Maximum age of a browser-captured campaign first touch accepted for signup attribution (default `30`)
 - `SORSA_API_BASE_URL` - Sorsa API base URL (default `https://api.sorsa.io/v3`); used for Twitter follow verification in social_tasks and X follower counts in overview metrics.
 - `SORSA_API_KEY` - Sorsa API key sent in the `ApiKey` header (secret, required). Store in AWS SSM (`/tally/{env}/sorsa_api_key`) for production.
 - Note: the Sorsa request timeout and follow endpoint path are intentionally code constants in `social_tasks/sorsa_client.py`, not env vars. Changing the endpoint requires a code deploy anyway because the response parser lives in the same file.

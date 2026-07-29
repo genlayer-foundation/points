@@ -84,6 +84,7 @@ INSTALLED_APPS = [
     'social_tasks',
     'notifications.apps.NotificationsConfig',
     'service_accounts',
+    'campaigns',
 ]
 
 MIDDLEWARE = [
@@ -227,6 +228,9 @@ REST_FRAMEWORK = {
         'existing_email_resend': '10/hour',
         'existing_email_confirm': '30/hour',
         'community_post_verify': '10/hour',
+        # Public campaign vanity-link resolver: generous for NAT'd event
+        # traffic, bounds floods.
+        'campaign_redirect': '120/minute',
     },
     'PAGE_SIZE': 10,
 }
@@ -356,6 +360,10 @@ EMAIL_VERIFICATION_TOKEN_TTL_SECONDS = int(os.environ.get('EMAIL_VERIFICATION_TO
 EMAIL_VERIFICATION_MAX_ATTEMPTS = int(os.environ.get('EMAIL_VERIFICATION_MAX_ATTEMPTS', '5') or '5')
 EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS = int(os.environ.get('EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS', '60') or '60')
 PENDING_WALLET_SIGNUP_TTL_SECONDS = int(os.environ.get('PENDING_WALLET_SIGNUP_TTL_SECONDS', '1800') or '1800')
+
+# Marketing campaign vanity links (campaigns app).
+CAMPAIGN_HIT_RETENTION_DAYS = int(os.environ.get('CAMPAIGN_HIT_RETENTION_DAYS', '90') or '90')
+CAMPAIGN_ATTRIBUTION_WINDOW_DAYS = int(os.environ.get('CAMPAIGN_ATTRIBUTION_WINDOW_DAYS', '30') or '30')
 EMAIL_VERIFICATION_HMAC_KEY = os.environ.get('EMAIL_VERIFICATION_HMAC_KEY', SECRET_KEY)
 EMAIL_VERIFICATION_ENCRYPTION_KEY = os.environ.get('EMAIL_VERIFICATION_ENCRYPTION_KEY', '')
 

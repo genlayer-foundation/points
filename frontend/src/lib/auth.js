@@ -346,6 +346,18 @@ export async function signInWithEthereum(provider = null, walletName = 'wallet',
       loginData.referral_code = referralCode;
     }
 
+    // Attach campaign attribution (opaque utm_id + landing metadata) so a
+    // brand-new wallet's pending signup can be attributed server-side. Not
+    // cleared on success: first touch is immutable and the backend ignores
+    // repeats. Dynamic import to avoid a module cycle (analytics -> auth).
+    try {
+      const { getAcquisitionAttribution } = await import('./analytics.js');
+      const attribution = getAcquisitionAttribution();
+      if (attribution) {
+        loginData.attribution = attribution;
+      }
+    } catch {}
+
     const response = await authAxios.post(API_ENDPOINTS.LOGIN, loginData);
 
     // Clear referral code from localStorage after successful login

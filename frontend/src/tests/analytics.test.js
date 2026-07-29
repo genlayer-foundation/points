@@ -291,3 +291,145 @@ describe('analytics helper', () => {
     expect(context).not.toHaveProperty('address');
   });
 });
+
+describe('campaign acquisition attribution', () => {
+  beforeEach(() => {
+    stores.reset();
+    vi.unstubAllEnvs();
+    document.head.innerHTML = '';
+    window.dataLayer = undefined;
+    window.gtag = undefined;
+    window.history.pushState({}, '', '/');
+    sessionStorage.clear();
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
+
+  it('captures a structured first touch from a campaign landing', async () => {
+    window.history.pushState({}, '', '/builders?utm_id=cl-abc123&utm_source=x&utm_medium=organic_social&utm_campaign=ethcc&foo=bar');
+    const analytics = await loadAnalytics();
+
+    expect(analytics.getAcquisitionAttribution()).toEqual({
+      utm_id: 'cl-abc123',
+      landing_path: '/builders',
+      captured_at: expect.any(String),
+    });
+    const firstTouch = JSON.parse(localStorage.getItem('campaign_first_touch'));
+    expect(firstTouch).toMatchObject({
+      utm_id: 'cl-abc123',
+      source: 'x',
+      medium: 'organic_social',
+      campaign: 'ethcc',
+    });
+    expect(firstTouch).not.toHaveProperty('foo');
+  });
+
+  it('returns null without campaign params and requires utm_id', async () => {
+    let analytics = await loadAnalytics();
+    expect(analytics.getAcquisitionAttribution()).toBeNull();
+
+    // UTMs without the opaque link ID cannot be resolved by the backend.
+    window.history.pushState({}, '', '/?utm_source=x&utm_medium=social');
+    analytics = await loadAnalytics();
+    expect(analytics.getAcquisitionAttribution()).toBeNull();
+  });
+
+  it('never overwrites a valid first touch but refreshes the session touch', async () => {
+    window.history.pushState({}, '', '/builders?utm_id=cl-first&utm_source=x&utm_medium=social');
+    await loadAnalytics();
+
+    window.history.pushState({}, '', '/community?utm_id=cl-second&utm_source=discord&utm_medium=social');
+    const analytics = await loadAnalytics();
+
+    expect(analytics.getAcquisitionAttribution().utm_id).toBe('cl-first');
+    expect(JSON.parse(sessionStorage.getItem('campaign_session_touch')).utm_id).toBe('cl-second');
+  });
+
+  it('expires the first touch after 30 days and falls back to the session touch', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+    window.history.pushState({}, '', '/builders?utm_id=cl-old&utm_source=x&utm_medium=social');
+    await loadAnalytics();
+
+    vi.setSystemTime(new Date('2026-02-05T00:00:00Z'));
+    sessionStorage.clear();
+    window.history.pushState({}, '', '/');
+    const analytics = await loadAnalytics();
+
+    expect(analytics.getAcquisitionAttribution()).toBeNull();
+    expect(localStorage.getItem('campaign_first_touch')).toBeNull();
+  });
+
+  it('templates wallet-address landing paths before storing them', async () => {
+    window.history.pushState({}, '', '/participant/0x1234567890abcdef1234567890abcdef12345678?utm_id=cl-abc&utm_source=x&utm_medium=social');
+    const analytics = await loadAnalytics();
+
+    expect(analytics.getAcquisitionAttribution().landing_path).toBe('/participant/:address');
+  });
+
+  it('cleans only attribution params from the visible URL', async () => {
+    window.history.pushState(
+      {}, '',
+      '/verify-email?utm_id=cl-abc&utm_source=x&gclid=g1&ref=ABCD1234&code=oauth-code&state=oauth-state#section',
+    );
+    const analytics = await loadAnalytics();
+
+    expect(analytics.cleanTrackingParamsFromUrl(['ref'])).toBe(true);
+    expect(window.location.pathname).toBe('/verify-email');
+    expect(window.location.search).toBe('?code=oauth-code&state=oauth-state');
+    expect(window.location.hash).toBe('#section');
+  });
+
+  it('cleanup is a no-op when nothing needs removing', async () => {
+    window.history.pushState({}, '', '/builders?page=2');
+    const analytics = await loadAnalytics();
+
+    expect(analytics.cleanTrackingParamsFromUrl(['ref'])).toBe(false);
+    expect(window.location.search).toBe('?page=2');
+  });
+
+  it('page_location still carries campaign params after URL cleanup', async () => {
+    vi.stubEnv('VITE_GOOGLE_ANALYTICS_ID', 'G-TEST123');
+    window.history.pushState({}, '', '/builders?utm_source=x&utm_medium=social');
+    const analytics = await loadAnalytics();
+
+    analytics.cleanTrackingParamsFromUrl(['ref']);
+    analytics.trackPageView('/builders');
+
+    const pageView = dataLayerCalls().find((call) => call[0] === 'event' && call[1] === 'page_view');
+    expect(pageView[2].page_location).toBe(
+      `${window.location.origin}/builders?utm_source=x&utm_medium=social`
+    );
+  });
+
+  it('trackSignUp fires sign_up only for created:true and clears the stored touch', async () => {
+    vi.stubEnv('VITE_GOOGLE_ANALYTICS_ID', 'G-TEST123');
+    window.history.pushState({}, '', '/builders?utm_id=cl-abc&utm_source=x&utm_medium=social');
+    const analytics = await loadAnalytics();
+
+    expect(analytics.trackSignUp({ authenticated: true, created: false })).toBe(false);
+    expect(analytics.trackSignUp(undefined)).toBe(false);
+    expect(analytics.getAcquisitionAttribution()).not.toBeNull();
+    expect(dataLayerCalls().filter((call) => call[1] === 'sign_up')).toHaveLength(0);
+
+    expect(analytics.trackSignUp(
+      { authenticated: true, created: true },
+      { selected_role: 'builder', surface: 'profile_completion' },
+    )).toBe(true);
+
+    const signUps = dataLayerCalls().filter((call) => call[0] === 'event' && call[1] === 'sign_up');
+    expect(signUps).toHaveLength(1);
+    expect(signUps[0][2]).toMatchObject({
+      method: 'siwe_email',
+      selected_role: 'builder',
+      surface: 'profile_completion',
+    });
+    // The converted touch is cleared so a later wallet in this browser does
+    // not inherit this campaign.
+    expect(analytics.getAcquisitionAttribution()).toBeNull();
+  });
+});

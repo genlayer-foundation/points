@@ -25,6 +25,8 @@ from utils.throttling import (
 )
 from siwe import SiweMessage, VerificationError
 
+from campaigns.services import apply_pending_attribution
+
 from .email_verification import EmailVerificationService, TurnstileVerifier
 from .models import Nonce, PendingWalletSignup
 from .authentication import CsrfExemptSessionAuthentication
@@ -243,6 +245,8 @@ def login(request):
             if not request.session.session_key:
                 request.session.create()
             expires_at = timezone.now() + timedelta(seconds=settings.PENDING_WALLET_SIGNUP_TTL_SECONDS)
+            previous_pending = PendingWalletSignup.objects.filter(address=ethereum_address).first()
+            had_active_pending = previous_pending.is_active() if previous_pending else False
             pending, _ = PendingWalletSignup.objects.update_or_create(
                 address=ethereum_address,
                 defaults={
@@ -252,6 +256,16 @@ def login(request):
                     'expires_at': expires_at,
                 },
             )
+            try:
+                # First-touch campaign attribution; a reused expired pending row
+                # must not keep its stale acquisition. Must never fail signup.
+                apply_pending_attribution(
+                    pending,
+                    request.data.get('attribution'),
+                    reset=not had_active_pending,
+                )
+            except Exception:
+                logger.exception('Campaign attribution capture failed')
             request.session['pending_wallet_signup_id'] = pending.id
             request.session['pending_wallet_address'] = ethereum_address
             request.session['authenticated'] = False
