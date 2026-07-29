@@ -218,9 +218,12 @@ function buildStructuredAttribution() {
       if (value) attribution[key] = value.slice(0, MAX_STRING_LENGTH);
     }
     // Only touches with the opaque link ID are stored: the backend resolves
-    // campaigns exclusively from utm_id, and a utm_id-less touch must never
-    // lock the 30-day first-touch slot against a later real campaign click.
-    if (typeof attribution.utm_id !== 'string' || !attribution.utm_id) return null;
+    // campaigns exclusively from utm_id, and a utm_id-less (or whitespace)
+    // touch must never lock the 30-day first-touch slot against a later real
+    // campaign click.
+    const utmId = resolvableUtmId(attribution);
+    if (!utmId) return null;
+    attribution.utm_id = utmId;
     // Templated so a wallet-address landing path never reaches storage.
     attribution.landing_path = templateRoute(window.location.pathname);
     attribution.captured_at = new Date().toISOString();
@@ -228,6 +231,10 @@ function buildStructuredAttribution() {
   } catch {
     return null;
   }
+}
+
+function resolvableUtmId(touch) {
+  return typeof touch?.utm_id === 'string' ? touch.utm_id.trim() : '';
 }
 
 function readStoredTouch(storage, key, ttlMs) {
@@ -265,12 +272,16 @@ captureStructuredAttribution();
 export function getAcquisitionAttribution() {
   try {
     if (!canUseBrowser()) return null;
-    const touch =
-      readStoredTouch(localStorage, FIRST_TOUCH_KEY, FIRST_TOUCH_TTL_MS) ||
-      readStoredTouch(sessionStorage, SESSION_TOUCH_KEY, ATTRIBUTION_TTL_MS);
-    if (!touch || typeof touch.utm_id !== 'string' || !touch.utm_id) return null;
+    // A stored first touch without a resolvable ID (legacy or hand-edited)
+    // must fall through to the session touch instead of shadowing it.
+    const firstTouch = readStoredTouch(localStorage, FIRST_TOUCH_KEY, FIRST_TOUCH_TTL_MS);
+    const touch = resolvableUtmId(firstTouch)
+      ? firstTouch
+      : readStoredTouch(sessionStorage, SESSION_TOUCH_KEY, ATTRIBUTION_TTL_MS);
+    const utmId = resolvableUtmId(touch);
+    if (!utmId) return null;
     return {
-      utm_id: touch.utm_id,
+      utm_id: utmId,
       landing_path: typeof touch.landing_path === 'string' ? touch.landing_path : '/',
       captured_at: touch.captured_at,
     };

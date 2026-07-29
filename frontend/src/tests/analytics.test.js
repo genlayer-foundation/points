@@ -343,6 +343,11 @@ describe('campaign acquisition attribution', () => {
     await loadAnalytics();
     expect(localStorage.getItem('campaign_first_touch')).toBeNull();
 
+    // Whitespace-only utm_id is just as unresolvable.
+    window.history.pushState({}, '', '/?utm_id=%20&utm_source=x&utm_medium=social');
+    await loadAnalytics();
+    expect(localStorage.getItem('campaign_first_touch')).toBeNull();
+
     // A later real campaign click must still become the first touch.
     window.history.pushState({}, '', '/builders?utm_id=cl-real&utm_source=x&utm_medium=social');
     const analytics = await loadAnalytics();
