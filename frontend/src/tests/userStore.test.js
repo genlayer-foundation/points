@@ -273,21 +273,52 @@ describe('userStore', () => {
     });
 
     it('does not extend the TTL after a 5xx, and keeps the known user', async () => {
+      const nowSpy = vi.spyOn(Date, 'now');
+      const start = 1_000_000;
+
       getCurrentUser.mockResolvedValueOnce(mockUser);
+      nowSpy.mockReturnValue(start);
       await userStore.loadUser();
 
       const serverError = new Error('boom');
       serverError.response = { status: 500 };
       getCurrentUser.mockRejectedValueOnce(serverError);
+      nowSpy.mockReturnValue(start + 20_000);
       await expect(userStore.loadUser({ force: true })).rejects.toThrow('boom');
       expect(get(userStore).user).toEqual(mockUser);
 
-      // The failure must not have refreshed the timestamp, so the next
-      // uncached read goes back to the network rather than serving stale data
-      // off a TTL the failure extended.
+      // Past the original TTL but still inside one measured from the failure.
+      // An UNFORCED read is the only thing that can catch a failure wrongly
+      // refreshing the timestamp; a forced read would hit the network anyway.
       getCurrentUser.mockResolvedValueOnce(mockUser);
-      await userStore.loadUser({ force: true });
+      nowSpy.mockReturnValue(start + userStore.USER_CACHE_TTL_MS + 1_000);
+      await userStore.loadUser();
+
       expect(getCurrentUser).toHaveBeenCalledTimes(3);
+      nowSpy.mockRestore();
+    });
+
+    it('a forced load does not settle for a request that predates it', async () => {
+      // The forced caller has just mutated server state, so joining the
+      // in-flight response would hand back pre-mutation data.
+      let resolveFirst;
+      getCurrentUser.mockImplementationOnce(
+        () => new Promise((resolve) => { resolveFirst = resolve; })
+      );
+      const stale = { ...mockUser, name: 'Stale' };
+      const fresh = { ...mockUser, name: 'Fresh' };
+
+      const backgroundLoad = userStore.loadUser();
+      const forcedLoad = userStore.loadUser({ force: true });
+
+      getCurrentUser.mockResolvedValueOnce(fresh);
+      resolveFirst(stale);
+
+      await expect(backgroundLoad).resolves.toEqual(stale);
+      await expect(forcedLoad).resolves.toEqual(fresh);
+      expect(getCurrentUser).toHaveBeenCalledTimes(2);
+      // The newer response must be the one left in the store.
+      expect(get(userStore).user).toEqual(fresh);
     });
 
     it('clears the cache on 401 so the next load refetches', async () => {

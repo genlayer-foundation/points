@@ -110,13 +110,16 @@ function createNotificationStore() {
     const request = notificationsAPI
       .unreadCount()
       .then((response) => {
-        notePollResult(true);
+        // Record the outcome only for the current, unsuperseded request: a
+        // stale failure would otherwise re-arm backoff after reset() or after a
+        // newer success had already cleared it.
         if (requestEpoch !== epoch || requestUnreadVersion !== unreadWriteVersion) return;
+        notePollResult(true);
         update((state) => ({ ...state, unreadCount: response.data?.count || 0 }));
       })
       .catch((error) => {
-        notePollResult(false);
         if (requestEpoch !== epoch || requestUnreadVersion !== unreadWriteVersion) return;
+        notePollResult(false);
         update((state) => ({ ...state, error }));
       })
       .finally(() => {

@@ -386,7 +386,7 @@ if DEBUG:
 # Production logs only 5xx, so slow-but-successful requests were invisible.
 # Requests at or above this duration emit one sanitized WARNING. Tunable
 # without a deploy.
-SLOW_REQUEST_LOG_MS = int(os.environ.get('SLOW_REQUEST_LOG_MS', 1000))
+SLOW_REQUEST_LOG_MS = int(os.environ.get('SLOW_REQUEST_LOG_MS', '1000'))
 
 # Session settings
 SESSION_COOKIE_HTTPONLY = True

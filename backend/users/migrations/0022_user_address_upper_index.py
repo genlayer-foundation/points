@@ -19,10 +19,37 @@ from django.db import migrations, models
 INDEX_NAME = 'users_user_address_upper_idx'
 
 
+def _index_is_invalid(schema_editor):
+    """
+    True when the index exists but is marked invalid.
+
+    An interrupted CREATE INDEX CONCURRENTLY leaves the index in the catalog
+    with indisvalid = false. The planner ignores it, but it still carries write
+    overhead, and a retried CREATE INDEX CONCURRENTLY IF NOT EXISTS silently
+    skips rather than rebuilding it, so the lookups would stay unindexed.
+    """
+    with schema_editor.connection.cursor() as cursor:
+        cursor.execute(
+            'SELECT indisvalid FROM pg_index WHERE indexrelid = to_regclass(%s)',
+            [INDEX_NAME],
+        )
+        row = cursor.fetchone()
+    return row is not None and row[0] is False
+
+
 def create_index(apps, schema_editor):
-    concurrently = 'CONCURRENTLY ' if schema_editor.connection.vendor == 'postgresql' else ''
+    if schema_editor.connection.vendor != 'postgresql':
+        schema_editor.execute(
+            f'CREATE INDEX IF NOT EXISTS {INDEX_NAME} ON users_user (UPPER(address))'
+        )
+        return
+
+    if _index_is_invalid(schema_editor):
+        # Clear the leftover first; IF NOT EXISTS would skip over it.
+        schema_editor.execute(f'DROP INDEX CONCURRENTLY IF EXISTS {INDEX_NAME}')
+
     schema_editor.execute(
-        f'CREATE INDEX {concurrently}IF NOT EXISTS {INDEX_NAME} '
+        f'CREATE INDEX CONCURRENTLY IF NOT EXISTS {INDEX_NAME} '
         'ON users_user (UPPER(address))'
     )
 

@@ -55,9 +55,9 @@
     closePanel();
   }
 
-  // Route changes and auth-store emissions only refresh the badge. The list
-  // body is fetched when the panel actually opens (toggleOpen), so navigating
-  // with the bell closed costs one request instead of two.
+  // Route changes and auth-store emissions only refresh the unread count. The
+  // list body is fetched when the panel actually opens (toggleOpen), so
+  // navigating with the bell closed costs one request instead of two.
   $effect(() => {
     void $location;
     if ($authState.isAuthenticated) {

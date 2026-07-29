@@ -11,6 +11,9 @@ function createUserStore() {
     error: null
   });
   let loadUserPromise = null;
+  // Identifies the newest queued load, so a superseded one cannot clear the
+  // in-flight handle out from under it.
+  let currentLoadToken = null;
   // Every role-gated navigation calls loadUser(), and in-flight coalescing only
   // covers overlapping calls, so sequential navigation used to refetch every
   // time. Route guards are a UX gate, not a security boundary (the backend
@@ -25,7 +28,8 @@ function createUserStore() {
 
     // Load user data from API
     async loadUser({ force = false } = {}) {
-      if (loadUserPromise) {
+      // Unforced callers share whatever is already in flight.
+      if (!force && loadUserPromise) {
         return loadUserPromise;
       }
 
@@ -38,9 +42,22 @@ function createUserStore() {
         return state.user;
       }
 
-      update(state => ({ ...state, loading: true, error: null }));
+      // A forced caller has just changed server state (login, wallet switch,
+      // profile edit, role change), so it must not settle for a response to a
+      // request that started before that change. Queue behind any in-flight
+      // load instead of joining it; sequencing also keeps the older response
+      // from landing after the newer one.
+      const previous = loadUserPromise;
+      const token = {};
+      currentLoadToken = token;
 
-      loadUserPromise = (async () => {
+      const request = (async () => {
+        if (previous) {
+          await previous.catch(() => {});
+        }
+
+        update(state => ({ ...state, loading: true, error: null }));
+
         try {
           const userData = await getCurrentUser();
           // Only successful loads start the TTL; failures must never extend it.
@@ -66,11 +83,14 @@ function createUserStore() {
           }));
           throw err;
         } finally {
-          loadUserPromise = null;
+          if (currentLoadToken === token) {
+            loadUserPromise = null;
+          }
         }
       })();
 
-      return loadUserPromise;
+      loadUserPromise = request;
+      return request;
     },
     
     // Update user data (partial update)
@@ -94,6 +114,8 @@ function createUserStore() {
     // Clear user data (on logout)
     clearUser() {
       lastLoadedAt = 0;
+      currentLoadToken = null;
+      loadUserPromise = null;
       set({
         user: null,
         loading: false,
