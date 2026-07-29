@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { API_BASE_URL } from './config.js';
-import { attachCsrfToken } from './csrf.js';
+import { attachCsrfToken, clearCsrfToken, isCsrfFailure } from './csrf.js';
 
 const INVALID_QUERY_VALUES = new Set(['undefined', 'null']);
 const METRICS_CACHE_TTL_MS = 30 * 1000;
@@ -118,8 +118,15 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 403 || error.response?.status === 401) {
-      // If we get an auth error, verify auth status
+    if (isCsrfFailure(error)) {
+      // Drop the stale token so the next attempt fetches a fresh one. The
+      // request is NOT retried: POAP claims and other non-idempotent mutations
+      // share this instance and must never be replayed automatically.
+      clearCsrfToken();
+    } else if (error.response?.status === 403 || error.response?.status === 401) {
+      // DRF answers 403 (not 401) for an expired session, because the first
+      // authenticator in the chain supplies no authenticate_header. Both codes
+      // therefore have to trigger a re-verify.
       import('./auth.js').then(({ verifyAuth }) => {
         verifyAuth({ force: true });
       });

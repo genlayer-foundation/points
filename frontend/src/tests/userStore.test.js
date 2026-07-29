@@ -233,4 +233,76 @@ describe('userStore', () => {
       unsubscribe();
     });
   });
+
+  // Every role-gated navigation calls loadUser(). In-flight coalescing only
+  // covers overlapping calls, so without a TTL each navigation refetched.
+  describe('success-cache TTL', () => {
+    const mockUser = { id: 1, name: 'Cached User', address: '0xabc' };
+
+    it('serves sequential loads from cache within the TTL', async () => {
+      getCurrentUser.mockResolvedValue(mockUser);
+
+      await userStore.loadUser();
+      const second = await userStore.loadUser();
+      await userStore.loadUser();
+
+      expect(getCurrentUser).toHaveBeenCalledTimes(1);
+      expect(second).toEqual(mockUser);
+    });
+
+    it('refetches once the TTL has elapsed', async () => {
+      getCurrentUser.mockResolvedValue(mockUser);
+      const nowSpy = vi.spyOn(Date, 'now');
+
+      nowSpy.mockReturnValue(1_000_000);
+      await userStore.loadUser();
+      nowSpy.mockReturnValue(1_000_000 + userStore.USER_CACHE_TTL_MS + 1);
+      await userStore.loadUser();
+
+      expect(getCurrentUser).toHaveBeenCalledTimes(2);
+      nowSpy.mockRestore();
+    });
+
+    it('always refetches with force', async () => {
+      getCurrentUser.mockResolvedValue(mockUser);
+
+      await userStore.loadUser();
+      await userStore.loadUser({ force: true });
+
+      expect(getCurrentUser).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not extend the TTL after a 5xx, and keeps the known user', async () => {
+      getCurrentUser.mockResolvedValueOnce(mockUser);
+      await userStore.loadUser();
+
+      const serverError = new Error('boom');
+      serverError.response = { status: 500 };
+      getCurrentUser.mockRejectedValueOnce(serverError);
+      await expect(userStore.loadUser({ force: true })).rejects.toThrow('boom');
+      expect(get(userStore).user).toEqual(mockUser);
+
+      // The failure must not have refreshed the timestamp, so the next
+      // uncached read goes back to the network rather than serving stale data
+      // off a TTL the failure extended.
+      getCurrentUser.mockResolvedValueOnce(mockUser);
+      await userStore.loadUser({ force: true });
+      expect(getCurrentUser).toHaveBeenCalledTimes(3);
+    });
+
+    it('clears the cache on 401 so the next load refetches', async () => {
+      getCurrentUser.mockResolvedValueOnce(mockUser);
+      await userStore.loadUser();
+
+      const authError = new Error('unauthenticated');
+      authError.response = { status: 401 };
+      getCurrentUser.mockRejectedValueOnce(authError);
+      await expect(userStore.loadUser({ force: true })).rejects.toThrow('unauthenticated');
+      expect(get(userStore).user).toBeNull();
+
+      getCurrentUser.mockResolvedValueOnce(mockUser);
+      await userStore.loadUser();
+      expect(getCurrentUser).toHaveBeenCalledTimes(3);
+    });
+  });
 });

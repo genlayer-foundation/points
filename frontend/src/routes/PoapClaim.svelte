@@ -125,7 +125,7 @@
     status = 'checking';
     message = 'Checking claim access...';
     try {
-      const user = await userStore.loadUser();
+      const user = await userStore.loadUser({ force: true });
       if (destroyed) return;
       if (!$authState.isAuthenticated) {
         status = 'auth';

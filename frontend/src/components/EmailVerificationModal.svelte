@@ -248,7 +248,7 @@
       verified = true;
       userStore.updateUser(updated);
       try {
-        onVerified(await userStore.loadUser());
+        onVerified(await userStore.loadUser({ force: true }));
       } catch {
         onVerified(updated);
       }

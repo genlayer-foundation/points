@@ -104,7 +104,7 @@
 
       let currentUser = userStore.getUser();
       try {
-        currentUser = currentUser || await userStore.loadUser();
+        currentUser = currentUser || await userStore.loadUser({ force: true });
       } catch {}
       modalEmail = currentUser?.email || '';
       modalDestination = state.address ? `/participant/${state.address}` : '/';
@@ -140,7 +140,7 @@
         }
       } else {
         await confirmEmailVerification(token);
-        await userStore.loadUser();
+        await userStore.loadUser({ force: true });
         destination = '/profile';
       }
 

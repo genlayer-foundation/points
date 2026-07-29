@@ -115,4 +115,73 @@ describe('auth session refresh', () => {
     await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
     expect(mocks.post).toHaveBeenCalledTimes(1);
   });
+
+  // resetModules() re-imports auth.js, which registers another visibilitychange
+  // listener on the shared document, so earlier tests leave listeners behind.
+  // These assertions therefore measure growth across flips, not absolute counts.
+  it('throttles the visibility refresh so tab flipping is not one request per flip', async () => {
+    const { authState } = await importAuth();
+    mocks.post.mockResolvedValue({ data: {} });
+    authState.setAuthenticated(true, '0x123');
+
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(1000);
+    const afterFirstFlip = mocks.post.mock.calls.length;
+    expect(afterFirstFlip).toBeGreaterThan(0);
+
+    for (let flip = 0; flip < 4; flip += 1) {
+      setDocumentHidden(true);
+      document.dispatchEvent(new Event('visibilitychange'));
+      setDocumentHidden(false);
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.advanceTimersByTimeAsync(1000);
+    }
+
+    expect(mocks.post.mock.calls.length).toBe(afterFirstFlip);
+  });
+
+  it('catches up on visibility once the throttle window has passed', async () => {
+    const { authState } = await importAuth();
+    mocks.post.mockResolvedValue({ data: {} });
+    authState.setAuthenticated(true, '0x123');
+
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(0);
+    const afterFirstFlip = mocks.post.mock.calls.length;
+    expect(afterFirstFlip).toBeGreaterThan(0);
+
+    await vi.advanceTimersByTimeAsync(61 * 1000);
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(mocks.post.mock.calls.length).toBeGreaterThan(afterFirstFlip);
+  });
+
+  it('does not re-verify immediately after a 5xx', async () => {
+    const { verifyAuth } = await importAuth();
+    const serverError = new Error('boom');
+    serverError.response = { status: 500 };
+    mocks.get.mockRejectedValue(serverError);
+
+    await verifyAuth({ force: true });
+    await verifyAuth({ force: true });
+    await verifyAuth({ force: true });
+
+    // One attempt, then the cooldown absorbs the rest.
+    expect(mocks.get).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(31 * 1000);
+    await verifyAuth({ force: true });
+    expect(mocks.get).toHaveBeenCalledTimes(2);
+  });
+
+  it('still logs out on a definitive rejection', async () => {
+    const { verifyAuth, authState } = await importAuth();
+    const authError = new Error('gone');
+    authError.response = { status: 403 };
+    mocks.get.mockRejectedValue(authError);
+
+    await expect(verifyAuth({ force: true })).resolves.toBe(false);
+    expect(authState.get().isAuthenticated).toBe(false);
+  });
 });

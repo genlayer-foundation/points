@@ -37,9 +37,26 @@ function createNotificationStore() {
   // Local read mutations supersede item lists that started loading before
   // those mutations completed.
   let itemWriteVersion = 0;
+  // Failed polls back off so a degraded backend is not hammered at a fixed
+  // rate by every open tab. Reset on the first success.
+  let pollFailures = 0;
+  let skipPollUntil = 0;
+
+  const POLL_BACKOFF_STEPS = [0, 60000, 180000, 240000];
+
+  function notePollResult(ok) {
+    if (ok) {
+      pollFailures = 0;
+      skipPollUntil = 0;
+      return;
+    }
+    pollFailures = Math.min(pollFailures + 1, POLL_BACKOFF_STEPS.length - 1);
+    skipPollUntil = Date.now() + POLL_BACKOFF_STEPS[pollFailures];
+  }
 
   function pollUnreadCountIfVisible() {
     if (document.hidden || !authState.get().isAuthenticated) return;
+    if (Date.now() < skipPollUntil) return;
     loadUnreadCount();
   }
 
@@ -93,10 +110,12 @@ function createNotificationStore() {
     const request = notificationsAPI
       .unreadCount()
       .then((response) => {
+        notePollResult(true);
         if (requestEpoch !== epoch || requestUnreadVersion !== unreadWriteVersion) return;
         update((state) => ({ ...state, unreadCount: response.data?.count || 0 }));
       })
       .catch((error) => {
+        notePollResult(false);
         if (requestEpoch !== epoch || requestUnreadVersion !== unreadWriteVersion) return;
         update((state) => ({ ...state, error }));
       })
@@ -139,6 +158,9 @@ function createNotificationStore() {
       ...state,
       items: state.items.map((item) => (item.id === id ? updated : item))
     }));
+    // Refetch rather than decrement locally: a count request can observe the
+    // server-side mark-read before this POST resolves, and a blind decrement
+    // would then subtract it twice.
     await loadUnreadCount({ force: true });
 
     return updated;
@@ -163,6 +185,8 @@ function createNotificationStore() {
     unreadWriteVersion += 1;
     inflightLatest = null;
     inflightCount = null;
+    pollFailures = 0;
+    skipPollUntil = 0;
     set({ items: [], unreadCount: 0, loading: false, error: null });
   }
 

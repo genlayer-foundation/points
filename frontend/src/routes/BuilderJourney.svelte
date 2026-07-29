@@ -650,7 +650,7 @@
     completing = true;
     try {
       await journeyAPI.completeBuilderJourney();
-      await userStore.loadUser();
+      await userStore.loadUser({ force: true });
       markLifecycleTime('role_unlocked:builder');
       trackEvent('builder_role_claim_success', getAnalyticsContext(claimParams));
       trackEvent('journey_completed', getAnalyticsContext({
