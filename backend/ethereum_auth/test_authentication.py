@@ -339,6 +339,38 @@ class VerifyAndRefreshContractTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['message'], 'Session refreshed successfully.')
 
+    def test_pending_signup_does_not_report_the_previous_account(self):
+        """
+        Starting a signup with an unregistered wallet sets authenticated=False
+        but leaves the previous Django login and address in the session, so the
+        wallet-session flag has to stay part of the gate. Otherwise DRF's
+        SessionAuthentication resolves the old user and verify reports them as
+        signed in, hiding the pending-signup branch from the client.
+        """
+        login_wallet_session(self.client, self.user, address=self.user.address)
+
+        session = self.client.session
+        session['authenticated'] = False
+        session['pending_wallet_address'] = '0x' + 'a' * 40
+        session.save()
+
+        response = self.client.get(VERIFY_URL)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data['authenticated'])
+        self.assertIsNone(response.data['user_id'])
+
+    def test_pending_signup_session_is_not_refreshed(self):
+        login_wallet_session(self.client, self.user, address=self.user.address)
+
+        session = self.client.session
+        session['authenticated'] = False
+        session.save()
+
+        response = self.client.post(REFRESH_URL)
+
+        self.assertEqual(response.status_code, 401)
+
     def test_refresh_rejects_session_without_django_auth_id(self):
         session = self.client.session
         session['authenticated'] = True

@@ -3,7 +3,7 @@ import axios from 'axios';
 import { writable } from 'svelte/store';
 import { userStore } from './userStore';
 import { API_BASE_URL } from './config.js';
-import { attachCsrfToken, clearCsrfToken } from './csrf.js';
+import { attachCsrfToken, clearCsrfToken, isCsrfFailure } from './csrf.js';
 import { detectCategoryFromRoute } from '../stores/category.js';
 import { roleForCategory } from './roleState.js';
 
@@ -135,6 +135,20 @@ authAxios.interceptors.request.use(
     return attachCsrfToken(config);
   },
   (error) => Promise.reject(error)
+);
+
+// Mirrors the api.js interceptor. Without it a token rotated by another tab
+// would keep being sent from this one: the auth endpoints are the only callers
+// here, so nothing else would ever clear it and session refresh would fail
+// every five minutes until reload. Not retried, for the same reason as api.js.
+authAxios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (isCsrfFailure(error)) {
+      clearCsrfToken();
+    }
+    return Promise.reject(error);
+  }
 );
 
 // Authentication API endpoints (relative to base URL, not api/v1)
@@ -387,7 +401,7 @@ export async function signInWithEthereum(provider = null, walletName = 'wallet',
     // Load user data into the store
     let userData = null;
     try {
-      userData = await userStore.loadUser();
+      userData = await userStore.loadUser({ force: true });
     } catch (err) {
       // Silently handle user data load failure
     }
@@ -601,7 +615,7 @@ export async function confirmPendingSignupEmail(credential) {
     clearCsrfToken();
     authState.setAuthenticated(true, response.data.address);
     try {
-      await userStore.loadUser();
+      await userStore.loadUser({ force: true });
     } catch (err) {
       // Silently handle user data load failure
     }
