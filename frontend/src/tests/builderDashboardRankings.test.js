@@ -73,6 +73,11 @@ describe('Builder dashboard rankings', () => {
       );
     });
 
+    const [, , { start_date, end_date }] = getMonthlyLeaderboardMock.mock.calls[0];
+    expect(Date.parse(end_date) - Date.parse(start_date)).toBe(
+      29 * 24 * 60 * 60 * 1000
+    );
+
     expect(screen.getByText('All-time builder contributors')).toBeDefined();
     expect(screen.getByText('Last 30 Days Podium')).toBeDefined();
 

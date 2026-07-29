@@ -30,6 +30,14 @@ function contribution(id, title) {
   };
 }
 
+function deferred() {
+  let resolve;
+  const promise = new Promise((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 describe('ContributionPreview', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -66,5 +74,40 @@ describe('ContributionPreview', () => {
       expect(contributionsAPI.getContribution).toHaveBeenCalledWith('2');
       expect(screen.getByRole('heading', { name: 'Second contribution' })).toBeDefined();
     });
+  });
+
+  it('ignores an older contribution response that resolves last', async () => {
+    const firstRequest = deferred();
+    const secondRequest = deferred();
+    getContributionMock.mockImplementation((id) =>
+      id === '1' ? firstRequest.promise : secondRequest.promise
+    );
+
+    const { rerender } = /** @type {any} */ (renderWithEffects(ContributionPreview, {
+      props: { params: { id: '1' } },
+    }));
+
+    await waitFor(() => {
+      expect(getContributionMock).toHaveBeenCalledWith('1');
+    });
+
+    await rerender({ params: { id: '2' } });
+
+    await waitFor(() => {
+      expect(getContributionMock).toHaveBeenCalledWith('2');
+    });
+
+    secondRequest.resolve({ data: contribution(2, 'Second contribution') });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Second contribution' })).toBeDefined();
+    });
+
+    firstRequest.resolve({ data: contribution(1, 'First contribution') });
+    await firstRequest.promise;
+    await Promise.resolve();
+
+    expect(screen.getByRole('heading', { name: 'Second contribution' })).toBeDefined();
+    expect(screen.queryByRole('heading', { name: 'First contribution' })).toBeNull();
   });
 });
