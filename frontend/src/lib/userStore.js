@@ -21,6 +21,15 @@ function createUserStore() {
   // Pass { force: true } wherever state must be re-read immediately.
   let lastLoadedAt = 0;
 
+  // Callers that write the store directly are holding authoritative
+  // post-mutation state (a profile save, a role join, a claim) or clearing the
+  // session, so a read that started earlier must not land on top of it. Loads
+  // started afterwards take a fresh token and are unaffected.
+  function invalidateInFlightLoad() {
+    currentLoadToken = null;
+    loadUserPromise = null;
+  }
+
   return {
     subscribe,
 
@@ -108,14 +117,16 @@ function createUserStore() {
     
     // Update user data (partial update)
     updateUser(updates) {
+      invalidateInFlightLoad();
       update(state => ({
         ...state,
         user: state.user ? { ...state.user, ...updates } : null
       }));
     },
-    
+
     // Set full user data
     setUser(userData) {
+      invalidateInFlightLoad();
       lastLoadedAt = Date.now();
       update(state => ({
         ...state,
@@ -127,8 +138,7 @@ function createUserStore() {
     // Clear user data (on logout)
     clearUser() {
       lastLoadedAt = 0;
-      currentLoadToken = null;
-      loadUserPromise = null;
+      invalidateInFlightLoad();
       set({
         user: null,
         loading: false,

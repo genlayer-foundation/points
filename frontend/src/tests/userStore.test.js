@@ -334,6 +334,40 @@ describe('userStore', () => {
       expect(get(userStore).user).toEqual(mockUser);
     });
 
+    it('a late response does not overwrite setUser', async () => {
+      // setUser carries the server's post-mutation user (profile save, role
+      // join, claim), so a read that started before it must not win.
+      let resolveLoad;
+      getCurrentUser.mockImplementationOnce(
+        () => new Promise((resolve) => { resolveLoad = resolve; })
+      );
+      const saved = { ...mockUser, name: 'Saved' };
+      const stale = { ...mockUser, name: 'Stale' };
+
+      const pending = userStore.loadUser();
+      userStore.setUser(saved);
+      resolveLoad(stale);
+      await pending;
+
+      expect(get(userStore).user).toEqual(saved);
+    });
+
+    it('a late response does not overwrite updateUser', async () => {
+      let resolveLoad;
+      getCurrentUser.mockImplementationOnce(
+        () => new Promise((resolve) => { resolveLoad = resolve; })
+      );
+      userStore.setUser({ ...mockUser, name: 'Before' });
+
+      // setUser seeds the TTL, so force past it to get a real request in flight.
+      const pending = userStore.loadUser({ force: true });
+      userStore.updateUser({ name: 'Merged' });
+      resolveLoad({ ...mockUser, name: 'Stale' });
+      await pending;
+
+      expect(get(userStore).user.name).toBe('Merged');
+    });
+
     it('a forced load does not settle for a request that predates it', async () => {
       // The forced caller has just mutated server state, so joining the
       // in-flight response would hand back pre-mutation data.
