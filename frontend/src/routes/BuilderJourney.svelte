@@ -262,7 +262,7 @@
       .startBuilderJourney()
       .then((res) => {
         if (res.data?.user) userStore.updateUser(res.data.user);
-        else userStore.loadUser?.({ force: true });
+        else userStore.loadUser?.({ force: true })?.catch(() => {});
         markFunnelTime('journey_start:builder');
         markLifecycleTime('first_journey_start:builder');
         trackEvent('journey_started', getAnalyticsContext({
@@ -605,7 +605,7 @@
 
   function handleGithubLinked(updatedUser) {
     if (updatedUser) userStore.updateUser(updatedUser);
-    else userStore.loadUser?.({ force: true });
+    else userStore.loadUser?.({ force: true })?.catch(() => {});
   }
 
   function handleTaskCompleted(result) {
@@ -619,7 +619,7 @@
         : task
     );
     loadTasks({ showLoading: false });
-    userStore.loadUser?.({ force: true });
+    userStore.loadUser?.({ force: true })?.catch(() => {});
   }
 
   function triggerWalletConnect() {

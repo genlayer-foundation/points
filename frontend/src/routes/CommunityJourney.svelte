@@ -174,7 +174,7 @@
           time_from_wallet_auth_success_ms: getFunnelDurationMs('wallet_auth_success'),
           time_from_profile_completion_ms: getFunnelDurationMs('profile_completion'),
         }));
-        userStore.loadUser?.({ force: true });
+        userStore.loadUser?.({ force: true })?.catch(() => {});
       })
       .catch((err) => {
         trackEvent('journey_start_error', getAnalyticsContext({
@@ -379,7 +379,7 @@
         : task
     );
     loadJourney({ showLoading: false });
-    userStore.loadUser?.({ force: true });
+    userStore.loadUser?.({ force: true })?.catch(() => {});
   }
 
   async function copyShareText() {

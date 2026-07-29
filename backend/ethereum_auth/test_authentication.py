@@ -7,12 +7,16 @@ the only index on users_user.address is case-sensitive. These tests pin the new
 behaviour and the query shape.
 """
 
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.db import connection
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 from rest_framework.test import APIClient
 
+from .models import PendingWalletSignup
 from .testing import login_wallet_session
 
 
@@ -349,9 +353,17 @@ class VerifyAndRefreshContractTests(TestCase):
         """
         login_wallet_session(self.client, self.user, address=self.user.address)
 
+        pending_address = '0x' + 'a' * 40
         session = self.client.session
+        pending = PendingWalletSignup.objects.create(
+            address=pending_address,
+            session_key=session.session_key or '',
+            status=PendingWalletSignup.STATUS_PENDING,
+            expires_at=timezone.now() + timedelta(minutes=10),
+        )
         session['authenticated'] = False
-        session['pending_wallet_address'] = '0x' + 'a' * 40
+        session['pending_wallet_signup_id'] = pending.id
+        session['pending_wallet_address'] = pending_address
         session.save()
 
         response = self.client.get(VERIFY_URL)
@@ -359,6 +371,10 @@ class VerifyAndRefreshContractTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.data['authenticated'])
         self.assertIsNone(response.data['user_id'])
+        # The point of the flag: the client needs the pending-signup branch,
+        # which never runs if the previous account reads as still signed in.
+        self.assertTrue(response.data['pending_signup'])
+        self.assertEqual(response.data['address'], pending_address)
 
     def test_pending_signup_session_is_not_refreshed(self):
         login_wallet_session(self.client, self.user, address=self.user.address)
