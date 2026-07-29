@@ -44,3 +44,11 @@ class ExistingEmailConfirmRateThrottle(UserRateThrottle):
 
 class CommunityPostVerificationRateThrottle(UserRateThrottle):
     scope = 'community_post_verify'
+
+
+class CampaignRedirectRateThrottle(AnonRateThrottle):
+    """
+    Per-IP throttle for the public campaign vanity-link resolver. Generous
+    enough for NAT'd event traffic; bounds pathological resolver floods.
+    """
+    scope = 'campaign_redirect'

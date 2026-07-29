@@ -13,6 +13,7 @@
     markFunnelTime,
     templateRoute,
     trackEvent,
+    trackSignUp,
   } from '../lib/analytics.js';
   import { showError } from '../lib/toastStore.js';
   import Turnstile from './Turnstile.svelte';
@@ -390,6 +391,12 @@
             return;
           }
           const response = await confirmPendingSignupEmail(code);
+          // Registration conversion: fires only when the account was actually
+          // created (never for returning logins or retries).
+          trackSignUp(response.data, {
+            selected_role: response.data?.selected_role || targetRole,
+            surface: 'profile_completion',
+          });
           await finishProfileCompletion(response.data?.selected_role || targetRole);
           return;
         }

@@ -4,6 +4,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Marketing can create campaign links like portal.genlayer.foundation/join/builders/ethcc from the admin panel without a deployment; each link tracks visits, signups, and role activations per campaign, campaign traffic reaches Google Analytics with clean final URLs, and new accounts are attributed to the campaign that brought them (810bdc32)
+
 - Notification bodies in the navbar dropdown now stop at 120 characters with an ellipsis while keeping their formatting and links (b4815f48)
 
 - Builder submissions now pass through AI review before standard steward review, high-point acceptances are escalated as proposals to top-level stewards, and apex stewards have a focused queue for accepted contributions marked interesting. Appeals and more-information resubmissions remain visible to both AI review stages.

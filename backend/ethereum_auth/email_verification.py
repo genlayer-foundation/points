@@ -222,6 +222,10 @@ class EmailVerificationService:
                 self.preflight.validate(email, pending_signup=token_pending_signup)
                 self._release_unverified_email_claims(email)
                 user = self._create_user_from_pending_signup(token_pending_signup, email)
+                # Same transaction as user creation; internally savepointed so
+                # an attribution failure can never abort the signup.
+                from campaigns.services import record_user_acquisition
+                record_user_acquisition(user, token_pending_signup)
                 token.user = user
                 token.save(update_fields=['user', 'updated_at'])
                 token_pending_signup.mark_consumed()
