@@ -282,7 +282,7 @@
     }
     // Joined server-side. The user refresh and success-banner write are both
     // best-effort and must not block (or undo) the success redirect.
-    userStore.loadUser?.()?.catch(() => {});
+    userStore.loadUser?.({ force: true })?.catch(() => {});
     markLifecycleTime('validator_waitlist_joined');
     trackEvent('validator_waitlist_joined', getAnalyticsContext({
       role_context: 'validator',

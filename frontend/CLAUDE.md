@@ -294,7 +294,9 @@ frontend/src/
 - **Notifications**: `src/components/NotificationCenter.svelte`
   - Bell icon button in the navbar, left of the search bar on desktop, before the auth button on mobile; only when authenticated
   - Unread badge, dropdown with latest notifications, mark-all-read, "View all" linking to `/notifications`. Dropdown body previews retain sanitized markdown formatting and links while being capped at 120 characters and visually clamped to two lines; the full notifications page retains rich markdown.
-  - Polls unread count every 60s while the tab is visible; the desktop/mobile instances share one refcounted timer and visibility listener, and returning to the tab refreshes immediately. Clicking a notification marks it read (non-blocking) and follows its `link_url` (internal routes push in-app, http(s) opens a new tab)
+  - Polls unread count every 60s while the tab is visible; the desktop/mobile instances share one refcounted timer and visibility listener, and returning to the tab refreshes immediately. Failed polls back off (60s → 180s → 240s, reset on the first success) so a degraded backend is not hammered at a fixed rate by every open tab. Clicking a notification marks it read (non-blocking) and follows its `link_url` (internal routes push in-app, http(s) opens a new tab)
+  - **Route changes only refresh the unread count, never the list.** The `$effect` tracks `$location` and `$authState`, so it reruns on every navigation and every auth-store emission; calling `loadLatest()` there cost a list request plus a redundant unread-count on each one, doubled by the two mounted instances. `loadLatest()` now runs only when the panel is opened. Guard: `src/tests/notificationCenterRequests.test.js` (renders the component; `notificationPolling.test.js` only exercises the store).
+  - `markRead` deliberately refetches the count instead of decrementing locally: a count request can observe the server-side mark-read before the POST resolves, and a blind decrement would then subtract it twice (pinned by `notificationPolling.test.js`). `markAllRead` is local because it sets the count to zero outright.
   - Full feed page: `src/routes/Notifications.svelte` (All/Unread filter pills, load-more pagination). Bodies render as sanitized image-free markdown via `parseUserMarkdown()` (no `<img>`, so private campaign opens can't ping external tracking pixels); rows are `div[role=button]` so markdown links stay clickable, inline anchor clicks don't also trigger the row's `link_url` redirect, and rows without a `link_url` show a default cursor (pure announcements)
   - Shared utils: `src/lib/notificationUtils.js` (`asList` payload normalization, `notificationBodyPreview` compact dropdown copy, `followNotificationLink` link handling) and `src/lib/relativeTime.js` for compact timestamps
 - **Sidebar**: `src/components/Sidebar.svelte`
@@ -494,6 +496,18 @@ const routes = {
   - `/api/auth/login/`
   - `/api/auth/verify/`
   - `/api/auth/logout/`
+- **Verify cooldown**: a 5xx/network verify failure deliberately leaves `hasVerified` unset (so the session is never dropped on a transient error), which used to mean every subsequent `verifyAuth()` re-hit a degraded backend. A 30s cooldown now absorbs the repeats. A definitive `<500` rejection clears the cooldown and still logs out immediately.
+- **Refresh throttle**: `refreshSession()` runs on a 5-minute interval AND on `visibilitychange`. The visibility path is throttled to once per 60s, so flipping between tabs no longer produces one `POST /auth/refresh/` per flip.
+
+### CSRF (`src/lib/csrf.js`)
+
+In production the SPA (Amplify) and the API are on different hosts and `CSRF_COOKIE_DOMAIN` is unset, so the CSRF cookie is host-only on the API and `document.cookie` can never read it. Every unsafe request therefore used to fetch `/api/csrf/` (the in-flight promise is cleared in `.finally()`, so only literally simultaneous requests shared one).
+
+- `attachCsrfToken(config)` - adds `X-CSRFToken` to unsafe methods only. Token order: readable cookie (same-origin dev, where Django rotates it for us) → in-memory cache → network.
+- **The cached token is in module memory only. Never `localStorage`, `sessionStorage`, or any persistent browser storage.**
+- `clearCsrfToken()` - must be called from every path that rotates the server-side token: login and `signup_email_confirm` (Django cycles the token inside `login()`), logout (`session.flush()`), and wallet switch (which goes through logout + sign-in). Session refresh does NOT rotate it.
+- `isCsrfFailure(error)` - distinguishes a real CSRF rejection from an authorization 403 by the `CSRF Failed` detail prefix DRF's `enforce_csrf` produces. Both are 403.
+- The `api.js` response interceptor clears the cached token on a real CSRF failure and **does not retry**: POAP claims and other non-idempotent mutations share that axios instance. The 401/403 → `verifyAuth({force:true})` branch must stay: DRF answers **403, not 401**, for an expired session, because the first authenticator in the chain supplies no `authenticate_header`.
 
 ### Analytics & Campaign Attribution (`src/lib/analytics.js`)
 
@@ -506,12 +520,14 @@ const routes = {
 ### User Store (`src/lib/userStore.js`)
 - **Central store for logged-in user data**
 - **Key Functions**:
-  - `loadUser()` - Fetch user data from API
+  - `loadUser({ force } = {})` - Fetch user data from API
   - `updateUser(updates)` - Partial update of user data
   - `setUser(userData)` - Set full user data
   - `clearUser()` - Clear on logout
 - **Auto-managed**: Loaded on login, cleared on logout
 - **Reactive**: Updates reflect immediately in all components using `$userStore`
+- **30s success-cache TTL** (`USER_CACHE_TTL_MS`): `requireRoleForRoute` calls `loadUser()` on every one of the ~20 role-gated navigations, and in-flight coalescing only covers overlapping calls, so sequential navigation used to refetch `/users/me/` every time. Route guards are a UX gate, not the security boundary (the backend enforces permissions on every request), so a short cache is safe; a role change takes up to 30s to reflect in client-side gating while the backend refuses the data immediately. Only successful loads start the TTL; failures never extend it, and `clearUser()` resets it. **Every other call site passes `{ force: true }`** so its behavior is unchanged: login, wallet switch, profile update, email confirm, journey completion, and the 401/403 recovery path. `performVerification` forwards its own `force` flag, so a forced verify re-reads the profile.
+- **In-flight responses are token-guarded.** A forced load does not join an in-flight request (the caller forced it because it just changed server state, so an earlier response would be pre-change); it queues behind that request and issues its own. Every store write, including `lastLoadedAt`, is gated on the load still being the current one. `clearUser()`, `setUser()` and `updateUser()` all drop the token first, because each writes state that is newer than any read already in flight: a session change, or the server's own post-mutation user from a profile save, role join or claim. Without that gate a `/users/me/` response arriving late restores the previous account after logout, or reverts a just-saved profile, which is the same hazard `notificationStore`'s `epoch` counter exists to prevent. A load started *after* one of those writes takes a fresh token and is unaffected.
 - **Steward hierarchy**: authenticated user payloads expose `steward_tier`; the submission queue defaults a missing tier to reviewer tier 1.
 
 ### Components

@@ -244,7 +244,7 @@
 
   $effect(() => {
     if ($authState.isAuthenticated && !$userStore.user && !$userStore.loading) {
-      userStore.loadUser().catch(() => {});
+      userStore.loadUser({ force: true }).catch(() => {});
     }
   });
 </script>

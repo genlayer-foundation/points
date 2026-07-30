@@ -31,6 +31,7 @@ from social_connections.serializers import DiscordConnectionSerializer
 from social_connections.models import DiscordConnection
 from social_tasks.models import SocialTask, SocialTaskCompletion
 from users.models import User
+from community_xp.cache import clear_community_caches
 
 
 class FakeMee6Client:
@@ -78,6 +79,9 @@ def mee6_player(discord_id, xp, rank=1, username='discord-user'):
 @override_settings(DISCORD_GUILD_ID='guild-1')
 class Mee6SyncTest(TestCase):
     def setUp(self):
+        # The community ranking/summary aggregates are cached briefly and
+        # LocMemCache is not reset between tests.
+        clear_community_caches()
         self.api_client = APIClient()
         self.community_category, _ = Category.objects.get_or_create(
             slug='community',

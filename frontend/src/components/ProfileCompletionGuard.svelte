@@ -346,7 +346,7 @@
     }
 
     // Reload user data to ensure we have the latest.
-    await userStore.loadUser();
+    await userStore.loadUser({ force: true });
 
     try { sessionStorage.removeItem('onboardingRole'); } catch {}
     push(journeyPath(targetRole));

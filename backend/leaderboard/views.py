@@ -12,6 +12,11 @@ from .models import (
     recalculate_all_leaderboards,
 )
 from .serializers import GlobalLeaderboardMultiplierSerializer, LeaderboardEntrySerializer
+from community_xp.cache import (
+    COMMUNITY_RANKING_CACHE_KEY,
+    COMMUNITY_STATS_SUMMARY_CACHE_KEY,
+    cached_or_compute,
+)
 from contributions.models import Contribution, SubmittedContribution
 from users.utils import is_full_address, truncate_address, user_lookup_kwargs
 
@@ -400,24 +405,31 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
         def get_validators():
             return Validator.objects.filter(user__visible=True)
 
+        def compute_effective_community_summary():
+            from community_xp.utils import (
+                effective_community_ranking_queryset,
+                get_community_member_user_ids,
+            )
+
+            score_queryset = effective_community_ranking_queryset(visible_only=True)
+            member_user_ids = get_community_member_user_ids(visible_only=True)
+            return {
+                'member_user_ids': member_user_ids,
+                'total_points': score_queryset.aggregate(
+                    total=Sum('total_points')
+                )['total'] or 0,
+                'member_count': len(member_user_ids),
+            }
+
         def get_effective_community_summary():
+            # Memoized per request, then cached briefly across requests: this
+            # summary takes no request input and is returned for every ?type=,
+            # so validator and builder stats pay for it too.
             nonlocal effective_community_summary
             if effective_community_summary is None:
-                from community_xp.utils import (
-                    effective_community_ranking_queryset,
-                    get_community_member_user_ids,
-                )
-
-                score_queryset = effective_community_ranking_queryset(visible_only=True)
-                effective_community_summary = {
-                    'member_user_ids': get_community_member_user_ids(visible_only=True),
-                    'total_points': score_queryset.aggregate(
-                        total=Sum('total_points')
-                    )['total'] or 0,
-                    'user_ids': set(score_queryset.values_list('id', flat=True)),
-                }
-                effective_community_summary['member_count'] = len(
-                    effective_community_summary['member_user_ids']
+                effective_community_summary = cached_or_compute(
+                    COMMUNITY_STATS_SUMMARY_CACHE_KEY,
+                    compute_effective_community_summary,
                 )
             return effective_community_summary
 
@@ -549,12 +561,6 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             created_at__gte=last_month
         ).count()
 
-        community_contribs = Contribution.objects.filter(
-            user__visible=True,
-            contribution_type__category__slug='community',
-        ).exclude(
-            contribution_type__slug__in=ONBOARDING_CONTRIBUTION_TYPE_SLUGS
-        )
         community_summary = get_effective_community_summary()
         community_member_count = community_summary['member_count']
         from community_xp.utils import get_community_member_user_ids
@@ -850,15 +856,24 @@ class LeaderboardViewSet(viewsets.ReadOnlyModelViewSet):
             offset = 0
         offset = max(offset, 0)
 
-        member_user_ids = get_community_member_user_ids(visible_only=True)
-        ranking_snapshot = list(
-            build_effective_community_ranking_queryset(
-                user_ids=member_user_ids,
-                visible_only=True,
+        def compute_ranking_snapshot():
+            member_user_ids = get_community_member_user_ids(visible_only=True)
+            return list(
+                build_effective_community_ranking_queryset(
+                    user_ids=member_user_ids,
+                    visible_only=True,
+                )
+                .filter(total_points__gte=COMMUNITY_RANKING_MIN_POINTS)
+                .order_by('-total_points', 'community_sort_name', 'id')
+                .values_list('id', 'total_points')
             )
-            .filter(total_points__gte=COMMUNITY_RANKING_MIN_POINTS)
-            .order_by('-total_points', 'community_sort_name', 'id')
-            .values_list('id', 'total_points')
+
+        # Shared across every caller: no request parameters, no personalization.
+        # Search, user_rank, profile_context and hydration all derive from it
+        # per request and stay live.
+        ranking_snapshot = cached_or_compute(
+            COMMUNITY_RANKING_CACHE_KEY,
+            compute_ranking_snapshot,
         )
         ranked_user_ids = [user_id for user_id, _ in ranking_snapshot]
         rank_by_user_id = {

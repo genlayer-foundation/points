@@ -320,17 +320,19 @@ def verify_auth(request):
     ethereum_address = request.session.get('ethereum_address')
     authenticated = request.session.get('authenticated', False)
 
-    if authenticated and ethereum_address:
-        try:
-            user = User.objects.get(address__iexact=ethereum_address)
-            return Response({
-                'authenticated': True,
-                'address': ethereum_address,
-                'user_id': user.id
-            })
-        except User.DoesNotExist:
-            pass
-    
+    # request.user is resolved by EthereumAuthentication, so this reuses that
+    # lookup instead of querying the user a second time. The wallet-session
+    # flag stays part of the gate: starting a signup with an unregistered
+    # wallet sets it to False while leaving the previous Django login and
+    # address in place, and that session must read as unauthenticated so the
+    # pending-signup branch below runs.
+    if authenticated and ethereum_address and request.user.is_authenticated:
+        return Response({
+            'authenticated': True,
+            'address': ethereum_address,
+            'user_id': request.user.id
+        })
+
     pending = get_pending_signup_from_session(request)
     return Response({
         'authenticated': False,
@@ -357,8 +359,11 @@ def refresh_session(request):
     """
     ethereum_address = request.session.get('ethereum_address')
     authenticated = request.session.get('authenticated', False)
-    
-    if authenticated and ethereum_address:
+
+    # Gate on the resolved user as well as the session flag, so a session the
+    # authenticator rejects stops rolling its own expiry forward every 5
+    # minutes, and a session mid-signup with a new wallet is not extended.
+    if authenticated and ethereum_address and request.user.is_authenticated:
         # Simply touching the session extends its lifetime
         request.session.modified = True
         return Response({'message': 'Session refreshed successfully.'})

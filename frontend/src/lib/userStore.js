@@ -1,6 +1,8 @@
 import { writable, get } from 'svelte/store';
 import { getCurrentUser } from './api';
 
+const USER_CACHE_TTL_MS = 30 * 1000;
+
 // Create the user store
 function createUserStore() {
   const { subscribe, set, update } = writable({
@@ -9,21 +11,77 @@ function createUserStore() {
     error: null
   });
   let loadUserPromise = null;
+  // Identifies the newest queued load, so a superseded one cannot clear the
+  // in-flight handle out from under it.
+  let currentLoadToken = null;
+  // Every role-gated navigation calls loadUser(), and in-flight coalescing only
+  // covers overlapping calls, so sequential navigation used to refetch every
+  // time. Route guards are a UX gate, not a security boundary (the backend
+  // enforces permissions on every request), so a short success cache is safe.
+  // Pass { force: true } wherever state must be re-read immediately.
+  let lastLoadedAt = 0;
+
+  // Callers that write the store directly are holding authoritative
+  // post-mutation state (a profile save, a role join, a claim) or clearing the
+  // session, so a read that started earlier must not land on top of it. Loads
+  // started afterwards take a fresh token and are unaffected.
+  function invalidateInFlightLoad() {
+    currentLoadToken = null;
+    loadUserPromise = null;
+  }
 
   return {
     subscribe,
-    
+
+    USER_CACHE_TTL_MS,
+
     // Load user data from API
-    async loadUser() {
-      if (loadUserPromise) {
+    async loadUser({ force = false } = {}) {
+      // Unforced callers share whatever is already in flight.
+      if (!force && loadUserPromise) {
         return loadUserPromise;
       }
 
-      update(state => ({ ...state, loading: true, error: null }));
+      const state = get({ subscribe });
+      if (
+        !force
+        && state.user
+        && Date.now() - lastLoadedAt < USER_CACHE_TTL_MS
+      ) {
+        return state.user;
+      }
 
-      loadUserPromise = (async () => {
+      // A forced caller has just changed server state (login, wallet switch,
+      // profile edit, role change), so it must not settle for a response to a
+      // request that started before that change. Queue behind any in-flight
+      // load instead of joining it; sequencing also keeps the older response
+      // from landing after the newer one.
+      const previous = loadUserPromise;
+      const token = {};
+      currentLoadToken = token;
+
+      const request = (async () => {
+        if (previous) {
+          await previous.catch(() => {});
+        }
+
+        // Superseded by clearUser() or a newer load while we were queued.
+        if (currentLoadToken !== token) {
+          return get({ subscribe }).user;
+        }
+
+        update(state => ({ ...state, loading: true, error: null }));
+
         try {
           const userData = await getCurrentUser();
+          // A response that lands after logout or a wallet switch must not
+          // restore the previous account, nor start a TTL for data that never
+          // reached the store. clearUser() drops the token to invalidate it.
+          if (currentLoadToken !== token) {
+            return userData;
+          }
+          // Only successful loads start the TTL; failures must never extend it.
+          lastLoadedAt = Date.now();
           update(state => ({
             ...state,
             user: userData,
@@ -35,42 +93,52 @@ function createUserStore() {
           // Only a definitive auth rejection means "no user". On network/5xx
           // failures keep any previously loaded user so role gating and journey
           // state don't reset while the backend is down.
-          const status = err.response?.status;
-          const unauthenticated = status === 401 || status === 403;
-          update(state => ({
-            ...state,
-            user: unauthenticated ? null : state.user,
-            loading: false,
-            error: err.message || 'Failed to load user data'
-          }));
+          if (currentLoadToken === token) {
+            const status = err.response?.status;
+            const unauthenticated = status === 401 || status === 403;
+            update(state => ({
+              ...state,
+              user: unauthenticated ? null : state.user,
+              loading: false,
+              error: err.message || 'Failed to load user data'
+            }));
+          }
           throw err;
         } finally {
-          loadUserPromise = null;
+          if (currentLoadToken === token) {
+            loadUserPromise = null;
+          }
         }
       })();
 
-      return loadUserPromise;
+      loadUserPromise = request;
+      return request;
     },
     
     // Update user data (partial update)
     updateUser(updates) {
+      invalidateInFlightLoad();
       update(state => ({
         ...state,
         user: state.user ? { ...state.user, ...updates } : null
       }));
     },
-    
+
     // Set full user data
     setUser(userData) {
+      invalidateInFlightLoad();
+      lastLoadedAt = Date.now();
       update(state => ({
         ...state,
         user: userData,
         error: null
       }));
     },
-    
+
     // Clear user data (on logout)
     clearUser() {
+      lastLoadedAt = 0;
+      invalidateInFlightLoad();
       set({
         user: null,
         loading: false,

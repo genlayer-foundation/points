@@ -3,7 +3,7 @@ import axios from 'axios';
 import { writable } from 'svelte/store';
 import { userStore } from './userStore';
 import { API_BASE_URL } from './config.js';
-import { attachCsrfToken } from './csrf.js';
+import { attachCsrfToken, clearCsrfToken, isCsrfFailure } from './csrf.js';
 import { detectCategoryFromRoute } from '../stores/category.js';
 import { roleForCategory } from './roleState.js';
 
@@ -135,6 +135,20 @@ authAxios.interceptors.request.use(
     return attachCsrfToken(config);
   },
   (error) => Promise.reject(error)
+);
+
+// Mirrors the api.js interceptor. Without it a token rotated by another tab
+// would keep being sent from this one: the auth endpoints are the only callers
+// here, so nothing else would ever clear it and session refresh would fail
+// every five minutes until reload. Not retried, for the same reason as api.js.
+authAxios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (isCsrfFailure(error)) {
+      clearCsrfToken();
+    }
+    return Promise.reject(error);
+  }
 );
 
 // Authentication API endpoints (relative to base URL, not api/v1)
@@ -360,6 +374,9 @@ export async function signInWithEthereum(provider = null, walletName = 'wallet',
 
     const response = await authAxios.post(API_ENDPOINTS.LOGIN, loginData);
 
+    // Django cycles the CSRF token inside login(), so the cached one is stale.
+    clearCsrfToken();
+
     // Clear referral code from localStorage after successful login
     if (referralCode) {
       localStorage.removeItem('referral_code');
@@ -384,7 +401,7 @@ export async function signInWithEthereum(provider = null, walletName = 'wallet',
     // Load user data into the store
     let userData = null;
     try {
-      userData = await userStore.loadUser();
+      userData = await userStore.loadUser({ force: true });
     } catch (err) {
       // Silently handle user data load failure
     }
@@ -429,6 +446,13 @@ export async function signInWithEthereum(provider = null, walletName = 'wallet',
 // Track verification promise to prevent duplicate calls
 let verificationInProgress = null;
 let refreshSessionPromise = null;
+// Set after a 5xx/network verify failure; see verifyAuth.
+let verifyCooldownUntil = 0;
+const VERIFY_FAILURE_COOLDOWN_MS = 30 * 1000;
+// Guards the visibilitychange refresh so tab flipping cannot produce one
+// POST /auth/refresh/ per flip on top of the 5-minute interval.
+let lastRefreshAt = 0;
+const REFRESH_MIN_INTERVAL_MS = 60 * 1000;
 
 /**
  * Verify authentication status.
@@ -450,8 +474,15 @@ export async function verifyAuth(options = {}) {
     return Promise.resolve(state.isAuthenticated);
   }
 
+  // A backend that just failed to answer will very likely fail again. Without
+  // this, a brownout turns every 401/403-triggered verify into an unthrottled
+  // retry, because the 5xx branch deliberately leaves hasVerified unset.
+  if (Date.now() < verifyCooldownUntil) {
+    return Promise.resolve(state.isAuthenticated);
+  }
+
   // Start new verification
-  verificationInProgress = performVerification();
+  verificationInProgress = performVerification({ force });
   
   try {
     const result = await verificationInProgress;
@@ -461,9 +492,10 @@ export async function verifyAuth(options = {}) {
   }
 }
 
-async function performVerification() {
+async function performVerification({ force = false } = {}) {
   try {
     const response = await authAxios.get(API_ENDPOINTS.VERIFY);
+    verifyCooldownUntil = 0;
     const isAuthenticated = response.data.authenticated;
     const address = response.data.address || null;
 
@@ -479,7 +511,9 @@ async function performVerification() {
       restoreProvider();
 
       try {
-        await userStore.loadUser();
+        // A forced verify means something changed (login, wallet switch, an
+        // auth rejection), so re-read the profile rather than trusting the TTL.
+        await userStore.loadUser({ force });
       } catch (err) {
         // Silently handle user data load failure
       }
@@ -492,6 +526,7 @@ async function performVerification() {
     const status = error.response?.status;
     if (status && status < 500) {
       // Definitive rejection: the session is gone.
+      verifyCooldownUntil = 0;
       authState.setAuthenticated(false, null);
       userStore.clearUser();
       return false;
@@ -499,6 +534,7 @@ async function performVerification() {
     // Network error / 5xx: the backend couldn't answer, which says nothing
     // about the session. Keep the current state (often restored from
     // localStorage) and leave hasVerified unset so a later call retries.
+    verifyCooldownUntil = Date.now() + VERIFY_FAILURE_COOLDOWN_MS;
     return authState.get().isAuthenticated;
   }
 }
@@ -513,6 +549,8 @@ export async function logout() {
   } catch (error) {
     // Silently handle logout errors
   } finally {
+    // session.flush() invalidates the CSRF token along with the session.
+    clearCsrfToken();
     // Detach wallet listeners: while logged out nothing should react to
     // wallet events. Stale listeners on the SDK provider otherwise fire
     // during the NEXT connect attempt (the SDK re-emits chainChanged /
@@ -543,6 +581,7 @@ export async function refreshSession() {
   refreshSessionPromise = (async () => {
     try {
       await authAxios.post(API_ENDPOINTS.REFRESH);
+      lastRefreshAt = Date.now();
       return true;
     } catch (error) {
       // If refresh fails, verify auth state again
@@ -572,9 +611,11 @@ function verificationPayload(credential) {
 export async function confirmPendingSignupEmail(credential) {
   const response = await authAxios.post(API_ENDPOINTS.SIGNUP_EMAIL_CONFIRM, verificationPayload(credential));
   if (response.data?.authenticated) {
+    // This path also calls Django login(), which cycles the CSRF token.
+    clearCsrfToken();
     authState.setAuthenticated(true, response.data.address);
     try {
-      await userStore.loadUser();
+      await userStore.loadUser({ force: true });
     } catch (err) {
       // Silently handle user data load failure
     }
@@ -765,11 +806,12 @@ if (typeof window !== 'undefined') {
   }, 5 * 60 * 1000); // Refresh every 5 minutes
 
   // The interval skips hidden tabs, so catch up as soon as the tab is visible
-  // again instead of waiting for the next tick.
+  // again instead of waiting for the next tick. Throttled, so flipping between
+  // tabs does not fire one refresh per flip.
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && authState.get().isAuthenticated) {
-      refreshSession().catch(() => {});
-    }
+    if (document.hidden || !authState.get().isAuthenticated) return;
+    if (Date.now() - lastRefreshAt < REFRESH_MIN_INTERVAL_MS) return;
+    refreshSession().catch(() => {});
   });
 }
 

@@ -3,7 +3,8 @@ API Layer Logging Middleware.
 
 Logs HTTP requests/responses for the [API] layer with smart trace breakdown.
 - DEBUG=true: Logs all requests; shows breakdown for slow requests (>100ms)
-- DEBUG=false: Logs only 5xx errors with breakdown
+- DEBUG=false: Logs 5xx errors with breakdown, plus one warning per request
+  slower than settings.SLOW_REQUEST_LOG_MS
 """
 import re
 import time
@@ -122,6 +123,12 @@ class APILoggingMiddleware:
             logger.error(log_message)
         elif settings.DEBUG:
             logger.debug(log_message)
+        elif duration_ms >= settings.SLOW_REQUEST_LOG_MS:
+            # Without this, production logs only 5xx, so a flood of slow-but-
+            # successful requests leaves no trace at all. One warning per slow
+            # request; the message carries method, redacted path, status and
+            # duration, and never a query string or body.
+            logger.warning(log_message)
 
         # Clear request tracking
         clear_correlation_id()

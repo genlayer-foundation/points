@@ -233,4 +233,177 @@ describe('userStore', () => {
       unsubscribe();
     });
   });
+
+  // Every role-gated navigation calls loadUser(). In-flight coalescing only
+  // covers overlapping calls, so without a TTL each navigation refetched.
+  describe('success-cache TTL', () => {
+    const mockUser = { id: 1, name: 'Cached User', address: '0xabc' };
+
+    it('serves sequential loads from cache within the TTL', async () => {
+      getCurrentUser.mockResolvedValue(mockUser);
+
+      await userStore.loadUser();
+      const second = await userStore.loadUser();
+      await userStore.loadUser();
+
+      expect(getCurrentUser).toHaveBeenCalledTimes(1);
+      expect(second).toEqual(mockUser);
+    });
+
+    it('refetches once the TTL has elapsed', async () => {
+      getCurrentUser.mockResolvedValue(mockUser);
+      const nowSpy = vi.spyOn(Date, 'now');
+
+      nowSpy.mockReturnValue(1_000_000);
+      await userStore.loadUser();
+      nowSpy.mockReturnValue(1_000_000 + userStore.USER_CACHE_TTL_MS + 1);
+      await userStore.loadUser();
+
+      expect(getCurrentUser).toHaveBeenCalledTimes(2);
+      nowSpy.mockRestore();
+    });
+
+    it('always refetches with force', async () => {
+      getCurrentUser.mockResolvedValue(mockUser);
+
+      await userStore.loadUser();
+      await userStore.loadUser({ force: true });
+
+      expect(getCurrentUser).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not extend the TTL after a 5xx, and keeps the known user', async () => {
+      const nowSpy = vi.spyOn(Date, 'now');
+      const start = 1_000_000;
+
+      getCurrentUser.mockResolvedValueOnce(mockUser);
+      nowSpy.mockReturnValue(start);
+      await userStore.loadUser();
+
+      const serverError = new Error('boom');
+      serverError.response = { status: 500 };
+      getCurrentUser.mockRejectedValueOnce(serverError);
+      nowSpy.mockReturnValue(start + 20_000);
+      await expect(userStore.loadUser({ force: true })).rejects.toThrow('boom');
+      expect(get(userStore).user).toEqual(mockUser);
+
+      // Past the original TTL but still inside one measured from the failure.
+      // An UNFORCED read is the only thing that can catch a failure wrongly
+      // refreshing the timestamp; a forced read would hit the network anyway.
+      getCurrentUser.mockResolvedValueOnce(mockUser);
+      nowSpy.mockReturnValue(start + userStore.USER_CACHE_TTL_MS + 1_000);
+      await userStore.loadUser();
+
+      expect(getCurrentUser).toHaveBeenCalledTimes(3);
+      nowSpy.mockRestore();
+    });
+
+    it('discards a response that lands after clearUser', async () => {
+      // Logout and wallet switch both clear the store while a load may still
+      // be in flight; the old account must not reappear when it resolves.
+      let resolveLoad;
+      getCurrentUser.mockImplementationOnce(
+        () => new Promise((resolve) => { resolveLoad = resolve; })
+      );
+
+      const pending = userStore.loadUser();
+      userStore.clearUser();
+      resolveLoad(mockUser);
+      await pending;
+
+      expect(get(userStore).user).toBeNull();
+    });
+
+    it('does not let a post-clearUser response seed the cache', async () => {
+      let resolveLoad;
+      getCurrentUser.mockImplementationOnce(
+        () => new Promise((resolve) => { resolveLoad = resolve; })
+      );
+
+      const pending = userStore.loadUser();
+      userStore.clearUser();
+      resolveLoad(mockUser);
+      await pending;
+
+      // The discarded response must not have started a TTL, so the next read
+      // goes to the network instead of serving an account that was logged out.
+      getCurrentUser.mockResolvedValueOnce(mockUser);
+      await userStore.loadUser();
+
+      expect(getCurrentUser).toHaveBeenCalledTimes(2);
+      expect(get(userStore).user).toEqual(mockUser);
+    });
+
+    it('a late response does not overwrite setUser', async () => {
+      // setUser carries the server's post-mutation user (profile save, role
+      // join, claim), so a read that started before it must not win.
+      let resolveLoad;
+      getCurrentUser.mockImplementationOnce(
+        () => new Promise((resolve) => { resolveLoad = resolve; })
+      );
+      const saved = { ...mockUser, name: 'Saved' };
+      const stale = { ...mockUser, name: 'Stale' };
+
+      const pending = userStore.loadUser();
+      userStore.setUser(saved);
+      resolveLoad(stale);
+      await pending;
+
+      expect(get(userStore).user).toEqual(saved);
+    });
+
+    it('a late response does not overwrite updateUser', async () => {
+      let resolveLoad;
+      getCurrentUser.mockImplementationOnce(
+        () => new Promise((resolve) => { resolveLoad = resolve; })
+      );
+      userStore.setUser({ ...mockUser, name: 'Before' });
+
+      // setUser seeds the TTL, so force past it to get a real request in flight.
+      const pending = userStore.loadUser({ force: true });
+      userStore.updateUser({ name: 'Merged' });
+      resolveLoad({ ...mockUser, name: 'Stale' });
+      await pending;
+
+      expect(get(userStore).user.name).toBe('Merged');
+    });
+
+    it('a forced load does not settle for a request that predates it', async () => {
+      // The forced caller has just mutated server state, so joining the
+      // in-flight response would hand back pre-mutation data.
+      let resolveFirst;
+      getCurrentUser.mockImplementationOnce(
+        () => new Promise((resolve) => { resolveFirst = resolve; })
+      );
+      const stale = { ...mockUser, name: 'Stale' };
+      const fresh = { ...mockUser, name: 'Fresh' };
+
+      const backgroundLoad = userStore.loadUser();
+      const forcedLoad = userStore.loadUser({ force: true });
+
+      getCurrentUser.mockResolvedValueOnce(fresh);
+      resolveFirst(stale);
+
+      await expect(backgroundLoad).resolves.toEqual(stale);
+      await expect(forcedLoad).resolves.toEqual(fresh);
+      expect(getCurrentUser).toHaveBeenCalledTimes(2);
+      // The newer response must be the one left in the store.
+      expect(get(userStore).user).toEqual(fresh);
+    });
+
+    it('clears the cache on 401 so the next load refetches', async () => {
+      getCurrentUser.mockResolvedValueOnce(mockUser);
+      await userStore.loadUser();
+
+      const authError = new Error('unauthenticated');
+      authError.response = { status: 401 };
+      getCurrentUser.mockRejectedValueOnce(authError);
+      await expect(userStore.loadUser({ force: true })).rejects.toThrow('unauthenticated');
+      expect(get(userStore).user).toBeNull();
+
+      getCurrentUser.mockResolvedValueOnce(mockUser);
+      await userStore.loadUser();
+      expect(getCurrentUser).toHaveBeenCalledTimes(3);
+    });
+  });
 });

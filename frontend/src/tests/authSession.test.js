@@ -1,10 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({
-  get: vi.fn(),
-  post: vi.fn(),
-  requestUse: vi.fn(),
-}));
+const mocks = vi.hoisted(() => {
+  const store = {
+    get: vi.fn(),
+    post: vi.fn(),
+    requestUse: vi.fn(),
+    clearCsrfToken: vi.fn(),
+    isCsrfFailure: vi.fn(),
+    // Captured at registration: importAuth() runs vi.clearAllMocks(), which
+    // would otherwise wipe the recorded interceptor arguments.
+    capturedResponseRejected: null,
+  };
+  store.responseUse = vi.fn((onFulfilled, onRejected) => {
+    store.capturedResponseRejected = onRejected;
+  });
+  return store;
+});
 
 vi.mock('axios', () => ({
   default: {
@@ -13,6 +24,7 @@ vi.mock('axios', () => ({
       post: mocks.post,
       interceptors: {
         request: { use: mocks.requestUse },
+        response: { use: mocks.responseUse },
       },
     })),
   },
@@ -24,6 +36,8 @@ vi.mock('../lib/config.js', () => ({
 
 vi.mock('../lib/csrf.js', () => ({
   attachCsrfToken: vi.fn((config) => config),
+  clearCsrfToken: mocks.clearCsrfToken,
+  isCsrfFailure: mocks.isCsrfFailure,
 }));
 
 vi.mock('../lib/userStore.js', () => ({
@@ -114,5 +128,101 @@ describe('auth session refresh', () => {
     setDocumentHidden(false);
     await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
     expect(mocks.post).toHaveBeenCalledTimes(1);
+  });
+
+  // resetModules() re-imports auth.js, which registers another visibilitychange
+  // listener on the shared document, so earlier tests leave listeners behind.
+  // These assertions therefore measure growth across flips, not absolute counts.
+  it('throttles the visibility refresh so tab flipping is not one request per flip', async () => {
+    const { authState } = await importAuth();
+    mocks.post.mockResolvedValue({ data: {} });
+    authState.setAuthenticated(true, '0x123');
+
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(1000);
+    const afterFirstFlip = mocks.post.mock.calls.length;
+    expect(afterFirstFlip).toBeGreaterThan(0);
+
+    for (let flip = 0; flip < 4; flip += 1) {
+      setDocumentHidden(true);
+      document.dispatchEvent(new Event('visibilitychange'));
+      setDocumentHidden(false);
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.advanceTimersByTimeAsync(1000);
+    }
+
+    expect(mocks.post.mock.calls.length).toBe(afterFirstFlip);
+  });
+
+  it('catches up on visibility once the throttle window has passed', async () => {
+    const { authState } = await importAuth();
+    mocks.post.mockResolvedValue({ data: {} });
+    authState.setAuthenticated(true, '0x123');
+
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(0);
+    const afterFirstFlip = mocks.post.mock.calls.length;
+    expect(afterFirstFlip).toBeGreaterThan(0);
+
+    await vi.advanceTimersByTimeAsync(61 * 1000);
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(mocks.post.mock.calls.length).toBeGreaterThan(afterFirstFlip);
+  });
+
+  it('does not re-verify immediately after a 5xx', async () => {
+    const { verifyAuth } = await importAuth();
+    const serverError = new Error('boom');
+    serverError.response = { status: 500 };
+    mocks.get.mockRejectedValue(serverError);
+
+    await verifyAuth({ force: true });
+    await verifyAuth({ force: true });
+    await verifyAuth({ force: true });
+
+    // One attempt, then the cooldown absorbs the rest.
+    expect(mocks.get).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(31 * 1000);
+    await verifyAuth({ force: true });
+    expect(mocks.get).toHaveBeenCalledTimes(2);
+  });
+
+  // The auth endpoints are the only callers on authAxios, so if a CSRF failure
+  // there did not clear the cached token nothing else ever would, and the
+  // 5-minute session refresh would keep failing until the tab reloaded.
+  it('clears the cached CSRF token when an auth request is rejected for CSRF', async () => {
+    await importAuth();
+    const onRejected = mocks.capturedResponseRejected;
+    const csrfError = { response: { status: 403, data: { detail: 'CSRF Failed: x' } } };
+    mocks.isCsrfFailure.mockReturnValue(true);
+
+    await expect(onRejected(csrfError)).rejects.toBe(csrfError);
+
+    expect(mocks.clearCsrfToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves the cached CSRF token alone for a permission rejection', async () => {
+    await importAuth();
+    const onRejected = mocks.capturedResponseRejected;
+    const permissionError = {
+      response: { status: 403, data: { detail: 'You do not have permission.' } },
+    };
+    mocks.isCsrfFailure.mockReturnValue(false);
+
+    await expect(onRejected(permissionError)).rejects.toBe(permissionError);
+
+    expect(mocks.clearCsrfToken).not.toHaveBeenCalled();
+  });
+
+  it('still logs out on a definitive rejection', async () => {
+    const { verifyAuth, authState } = await importAuth();
+    const authError = new Error('gone');
+    authError.response = { status: 403 };
+    mocks.get.mockRejectedValue(authError);
+
+    await expect(verifyAuth({ force: true })).resolves.toBe(false);
+    expect(authState.get().isAuthenticated).toBe(false);
   });
 });

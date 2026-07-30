@@ -383,6 +383,11 @@ if DEBUG:
         'http://127.0.0.1:55010',
     ]))
 
+# Production logs only 5xx, so slow-but-successful requests were invisible.
+# Requests at or above this duration emit one sanitized WARNING. Tunable
+# without a deploy.
+SLOW_REQUEST_LOG_MS = int(os.environ.get('SLOW_REQUEST_LOG_MS', '1000'))
+
 # Session settings
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'  # 'None' if using cross-site cookies, but requires HTTPS

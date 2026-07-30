@@ -250,7 +250,7 @@ if aws apprunner describe-service --service-arn arn:aws:apprunner:$REGION:$ACCOU
           "DISCORD_NEUROCREATIVE_ROLE_ID": "$SSM_PREFIX/prod/discord_neurocreative_role_id",
           "DISCORD_REDIRECT_URI": "$SSM_PREFIX/prod/discord_redirect_uri"
         },
-        "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 --access-logfile - --error-logfile - --capture-output --log-level info tally.wsgi:application"
+        "StartCommand": "./startup.sh gunicorn --no-control-socket --bind 0.0.0.0:8000 --timeout 180 --workers 2 --access-logfile - --error-logfile - --capture-output --log-level info tally.wsgi:application"
       },
       "ImageRepositoryType": "ECR"
     },
@@ -368,7 +368,7 @@ else
           "DISCORD_NEUROCREATIVE_ROLE_ID": "$SSM_PREFIX/prod/discord_neurocreative_role_id",
           "DISCORD_REDIRECT_URI": "$SSM_PREFIX/prod/discord_redirect_uri"
         },
-        "StartCommand": "./startup.sh gunicorn --bind 0.0.0.0:8000 --timeout 180 --workers 2 --access-logfile - --error-logfile - --capture-output --log-level info tally.wsgi:application"
+        "StartCommand": "./startup.sh gunicorn --no-control-socket --bind 0.0.0.0:8000 --timeout 180 --workers 2 --access-logfile - --error-logfile - --capture-output --log-level info tally.wsgi:application"
       },
       "ImageRepositoryType": "ECR"
     },

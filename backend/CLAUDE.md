@@ -566,6 +566,7 @@ Located in `.env` file:
 - `RECAPTCHA_PRIVATE_KEY` - Google reCAPTCHA secret key (required - use test key from .env.example for development)
 - `RECAPTCHA_ALLOW_TEST_KEYS` - Optional opt-in flag for non-production deployments that intentionally use Google's reCAPTCHA test keys with `DEBUG=False`. Set to `true` to silence `django_recaptcha.recaptcha_test_key_error`; production must not set this flag. The logic lives in `tally/settings.py` near `_RECAPTCHA_TEST_PUBLIC_KEY` and `SILENCED_SYSTEM_CHECKS`.
 - `CRON_SYNC_TOKEN` - Cron-protected endpoint auth (used by `sync` and `sync-grafana`)
+- `SLOW_REQUEST_LOG_MS` - Duration in ms (default `1000`) at or above which `APILoggingMiddleware` emits one sanitized WARNING for a non-5xx request. Production otherwise logs only 5xx, so slow successful requests leave no trace. The message carries method, redacted path, status and duration only, never query strings or bodies.
 - `DISCORD_SYNAPSE_ROLE_ID` / `DISCORD_BRAIN_ROLE_ID` / `DISCORD_NEUROCREATIVE_ROLE_ID` - Discord role IDs for the earned community role automation (Synapse/Brain assignment). All three must be set or the assignment job is a no-op.
 - `GRAFANA_BASE_URL` - Grafana Cloud base URL (default `https://genlayerfoundation.grafana.net`)
 - `GRAFANA_API_TOKEN` - Grafana service-account bearer token (required for Wall of Shame). Store in AWS SSM (`/tally/{env}/grafana_api_token`) for production.
@@ -662,6 +663,39 @@ The project uses **context-aware serialization** to optimize API performance:
 **Evidence URL Type Serializers** (`contributions/serializers.py`):
 - `LightEvidenceURLTypeSerializer` - Minimal (id, name, slug, is_generic) for nested use in Evidence responses
 - `EvidenceURLTypeSerializer` - Full serializer with url_patterns for client-side detection, used in ContributionType responses
+
+### Per-request user lookup (do not reintroduce the address scan)
+
+`EthereumAuthentication` (`ethereum_auth/authentication.py`) runs on EVERY DRF request:
+it is first in `DEFAULT_AUTHENTICATION_CLASSES` and DRF resolves `request.user`
+unconditionally. It resolves the user from Django's own session machinery via
+`request._request.user` (one primary-key lookup, plus `_auth_user_backend` /
+`_auth_user_hash` / `is_active` validation), then checks that the session's
+`ethereum_address` still binds to that user **case-insensitively** (login stores the
+lowercased SIWE address, `signup_email_confirm` stores database casing, and production
+holds mixed-case rows). A wallet mismatch RAISES rather than returning `None`, so the
+next authenticator in the chain cannot grant the request off the same session user.
+
+Never look the user up by `address__iexact` in a per-request path. `iexact` compiles to
+`UPPER(address) = UPPER(...)` on PostgreSQL and the only unique index on the column is
+case-sensitive, so it is a sequential scan. Migration `users/0022` adds a non-unique
+functional index on `Upper('address')` for the case-insensitive lookups that legitimately
+remain (`users/utils.py::user_lookup_kwargs`, address search). Guards:
+`ethereum_auth/test_authentication.py::WalletSessionQueryShapeTests`.
+
+Session-based tests must build a real session with
+`ethereum_auth.testing.login_wallet_session(client, user)`; hand-seeding only
+`ethereum_address` + `authenticated` produces a session the authenticator rejects.
+
+### Community aggregate caching
+
+`community_xp/cache.py` holds a 60s cache for the two shared, non-personalized community
+aggregates: the ranking snapshot (`list[(user_id, total_points)]`) and the stats summary.
+Both take no request input. Search, `user_rank`, `profile_context` and hydration stay live
+per request. There is no `CACHES` setting, so this is per-process `LocMemCache`: the relief
+scales with worker/container count and is strongest at steady state. Tests that touch the
+community endpoints must call `clear_community_caches()` in `setUp` (LocMemCache is not
+reset between tests). Query-count guards: `leaderboard/tests/test_community_query_counts.py`.
 
 ## Testing
 - **Test Organization Best Practice**: Use `{app}/tests/` folder structure for better organization
