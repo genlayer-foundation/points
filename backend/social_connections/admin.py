@@ -12,6 +12,7 @@ from .models import (
     DiscordRoleSyncLock,
     GitHubConnection,
     PendingOAuthState,
+    TelegramConnection,
     TwitterConnection,
     UsedOAuthCode,
 )
@@ -66,6 +67,13 @@ class TwitterConnectionAdmin(admin.ModelAdmin):
     list_display = ('user', 'platform_username', 'platform_user_id', 'linked_at')
     search_fields = ('user__email', 'platform_username')
     readonly_fields = ('platform_user_id', 'access_token', 'refresh_token', 'linked_at', 'created_at', 'updated_at')
+
+
+@admin.register(TelegramConnection)
+class TelegramConnectionAdmin(admin.ModelAdmin):
+    list_display = ('user', 'platform_username', 'platform_user_id', 'linked_at')
+    search_fields = ('user__email', 'platform_username', 'platform_user_id')
+    readonly_fields = ('platform_user_id', 'linked_at', 'created_at', 'updated_at')
 
 
 @admin.register(DiscordConnection)

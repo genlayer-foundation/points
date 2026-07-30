@@ -378,6 +378,7 @@ const routes = {
   '/validators/leaderboard': Leaderboard,
   '/validators/participants': Validators,
   '/validators/wall-of-shame': WallOfShame,
+  '/validators/telegram': ValidatorTelegram,  // Link Telegram groups via Deckard bot bind codes
   '/validators/waitlist': Waitlist,
   '/validators/waitlist/participants': WaitlistParticipants,
   '/validators/waitlist/join': ValidatorWaitlist,
@@ -477,6 +478,7 @@ const routes = {
   - `genTvAPI` - Gen TV streams (`list`, `get(slug)`)
   - `poapsAPI` - POAP list/detail/claims, user POAPs, secret claims, mint-link claims, and recovery wallet verification
   - `validatorsAPI.getWallOfShame(params)` - Public Wall of Shame list for active validators with Grafana metrics/logs status badges (renders in `routes/WallOfShame.svelte`)
+  - `validatorsAPI` Telegram group bind codes - `issueTelegramBindCode()` (raw code is ONLY in this response), `getMyTelegramBindCodes()`, `revokeTelegramBindCode(id)` (renders in `routes/ValidatorTelegram.svelte`; bot handle comes from `DECKARD_BOT_USERNAME` in `lib/config.js`, env `VITE_DECKARD_BOT_USERNAME`)
   - `notificationsAPI` - Portal notifications (`list`, `unreadCount`, `markRead(id)`, `markAllRead`)
   - `socialTasksAPI` - Social tasks (`list({ status, category })`, `complete(slug)`)
   - `stewardAPI` - Steward tools: submissions review plus structured AI-review feedback (`getAIFeedback(id)` reads all reviewer records for a submission; `submitAIFeedback(id, data)` creates or versioned-revises the current reviewer's exact-proposal feedback) and Discord XP (`getDiscordXP(params)` lists community XP rows for contributions and social task completions; `recordDiscordXPCopy(stateId)`, `markDiscordXPDistributed(stateId)`, `unsetDiscordXPDistributed(stateId)` act on a row's state id — `row.id`, not the contribution id)

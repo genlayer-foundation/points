@@ -221,6 +221,8 @@ REST_FRAMEWORK = {
         'public_leaderboard': '300/minute',
         # Wallet linking is a one-time action per validator
         'wallet_link': '10/hour',
+        # Telegram group bind codes are live secrets for 48h; bound hoarding
+        'telegram_bind_issue': '10/hour',
         'pending_email_start': '10/hour',
         'pending_email_resend': '10/hour',
         'pending_email_confirm': '30/hour',
