@@ -419,11 +419,16 @@ cd backend/scripts
 - Creates timestamped backups in `backend/backups/`
 - See `backend/scripts/README.md` for detailed setup and troubleshooting
 
-### RDS to SQLite Migration
-- **Script**: `backend/scripts/migrate_rds_to_sqlite.py`
-- **Purpose**: Convert production PostgreSQL to local SQLite for development
-- **Usage**: `python scripts/migrate_rds_to_sqlite.py` (from backend directory)
-- **Notes**: Resets all passwords to 'pass', excludes leaderboard entries, backs up existing db.sqlite3
+### Production to SQLite Sync (local development)
+- **Script**: `backend/scripts/sync_prod_to_sqlite.py`
+- **Purpose**: Put a copy of production in local `db.sqlite3` (the default local database)
+- **Usage**: `python scripts/sync_prod_to_sqlite.py` (from backend directory, venv active, Docker running)
+- **Takes**: ~30 min. Flags: `--reuse-dump`, `--reuse-postgres`, `--keep-container`, `--keep-json`, `--no-leaderboard`
+- **Notes**: Resets all passwords to `pass`, backs up the existing `db.sqlite3` (~1.6GB per backup — prune them), rebuilds the leaderboard at the end
+- **How**: pg_dump production → restore into a local Postgres container → `migrate` that copy → `dumpdata` locally → `loaddata` into a fresh SQLite. It never runs `dumpdata` against production, because Django's per-row m2m queries make that ~90 rows/minute over a remote link (hours, never finishes).
+
+- **Do NOT use `backend/scripts/migrate_rds_to_sqlite.py`** — it exports directly from production RDS and does not complete. Kept only for reference. Its `loaddata json_file 'exclude' 'leaderboard'` call is also wrong: those trailing strings are parsed as fixture labels, not as an exclude option.
+- **Known bug the sync script works around**: `sync_contribution_discord_xp_state` and `sync_social_task_completion_discord_xp_state` (this file's `contributions/models.py`), plus `users/signals.py:create_referral_code` and `poaps/signals.py:attach_legacy_poap_claims`, do not check `kwargs.get('raw')`, so a fixture load recreates rows the fixture already contains and collides on `ContributionDiscordXPState.contribution_id`. Neighbouring receivers guard correctly; the fix is a one-line early return in each.
 
 ## API Endpoints Summary
 
