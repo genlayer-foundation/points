@@ -65,22 +65,15 @@ def dump_production():
         'aws', 'ssm', 'get-parameter', '--name', PROD_PARAM,
         '--with-decryption', '--query', 'Parameter.Value', '--output', 'text',
     ])
-    rest = url.split('://', 1)[1]
-    creds, hostpart = rest.split('@', 1)
-    user, password = creds.split(':', 1)
-    hostport, dbname = hostpart.split('/', 1)
-    host, _, port = hostport.partition(':')
-    port = port or '5432'
-
     BACKUP_DIR.mkdir(exist_ok=True)
     out = BACKUP_DIR / f'tally_prod_{datetime.now():%Y%m%d_%H%M%S}.sql'
-    print(f'{host}:{port}/{dbname} -> {out.name}', flush=True)
+    print(f'-> {out.name}', flush=True)
+    # The URI goes to pg_dump whole: parsing it here breaks percent-encoded
+    # passwords and drops query params such as ?sslmode=require.
     run([
         'docker', 'run', '--rm', '--platform', DOCKER_PLATFORM,
         '-v', f'{BACKUP_DIR}:/backup',
-        '-e', f'PGPASSWORD={password}',
-        PG_IMAGE, 'pg_dump',
-        '-h', host, '-p', port, '-U', user, '-d', dbname,
+        PG_IMAGE, 'pg_dump', '--dbname', url,
         '--no-owner', '--no-acl', '--clean', '--if-exists',
         '--format=plain', f'--file=/backup/{out.name}',
     ])
@@ -94,10 +87,17 @@ def latest_dump():
     return dumps[-1]
 
 
-def start_postgres():
+def pg_container_exists():
+    return bool(capture(['docker', 'ps', '-aq', '-f', f'name=^{CONTAINER}$']))
+
+
+def start_postgres(fresh=False):
     log('Starting local Postgres container')
-    existing = capture(['docker', 'ps', '-aq', '-f', f'name=^{CONTAINER}$'])
-    if existing:
+    if fresh and pg_container_exists():
+        # A previous run migrated this copy past the prod schema; tables the
+        # new dump does not know about survive --clean and poison the restore.
+        run(['docker', 'rm', '-f', CONTAINER], stdout=subprocess.DEVNULL)
+    if pg_container_exists():
         run(['docker', 'start', CONTAINER], stdout=subprocess.DEVNULL)
     else:
         run([
@@ -121,12 +121,13 @@ def start_postgres():
 def restore(dump_path):
     log(f'Restoring {dump_path.name} into local Postgres')
     run(['docker', 'cp', str(dump_path), f'{CONTAINER}:/tmp/dump.sql'])
-    # The dump carries --clean --if-exists, so restoring over an existing copy
-    # is fine; ON_ERROR_STOP=0 tolerates the drop statements on a fresh volume.
+    # The volume is fresh and the dump carries --clean --if-exists, so no
+    # statement may fail; abort loudly rather than flow a partial restore
+    # into the SQLite conversion.
     run([
         'docker', 'exec', '-e', f'PGPASSWORD={PG_PASSWORD}', CONTAINER,
         'psql', '-q', '-U', 'postgres', '-d', 'postgres',
-        '-v', 'ON_ERROR_STOP=0', '-f', '/tmp/dump.sql',
+        '-v', 'ON_ERROR_STOP=1', '-f', '/tmp/dump.sql',
     ], stdout=subprocess.DEVNULL)
 
 
@@ -253,12 +254,15 @@ def main():
         return
 
     started = time.time()
-    if not args.reuse_postgres:
-        dump = latest_dump() if args.reuse_dump else dump_production()
+    if args.reuse_postgres:
+        if not pg_container_exists():
+            sys.exit(f'--reuse-postgres: no {CONTAINER} container to reuse. '
+                     'Run a full sync (or --reuse-dump) first.')
         start_postgres()
-        restore(dump)
     else:
-        start_postgres()
+        dump = latest_dump() if args.reuse_dump else dump_production()
+        start_postgres(fresh=True)
+        restore(dump)
 
     export_snapshot()
     rebuild_sqlite()
