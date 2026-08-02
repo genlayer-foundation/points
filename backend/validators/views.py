@@ -1191,8 +1191,8 @@ class TelegramBindCodeViewSet(viewsets.GenericViewSet):
 
         bind_code, plaintext = TelegramGroupBindCode.issue(validator, request.user)
         logger.info(
-            "Telegram bind code issued: user=%s (id=%s) code_id=%s",
-            request.user.address, request.user.id, bind_code.id,
+            "Telegram bind code issued: user_id=%s code_id=%s",
+            request.user.id, bind_code.id,
         )
         data = TelegramBindCodeSerializer(bind_code).data
         data['code'] = plaintext

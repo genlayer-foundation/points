@@ -766,6 +766,7 @@ Set in `.env` file:
 - `VITE_VALIDATOR_RPC_URL` - Blockchain RPC endpoint for Asimov testnet
 - `VITE_EXPLORER_URL` - Blockchain explorer URL
 - `VITE_RECAPTCHA_SITE_KEY` - Google reCAPTCHA site key (required - use test key from .env.example for development)
+- `VITE_DECKARD_BOT_USERNAME` - Deckard Telegram support bot @username without the @ (optional - the Telegram group linking page falls back to generic wording)
 
 ## Common Commands
 ```bash
