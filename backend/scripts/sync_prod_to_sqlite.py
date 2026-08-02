@@ -27,14 +27,16 @@ from urllib.parse import unquote
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 BACKUP_DIR = BACKEND_DIR / 'backups'
-SNAPSHOT = BACKEND_DIR / 'prod_snapshot.json'
+# The snapshot is a full production fixture; it lives in the gitignored
+# backups/ so it can never be staged.
+SNAPSHOT = BACKUP_DIR / 'prod_snapshot.json'
 
 PROD_PARAM = '/tally/prod/database_url'
 PG_IMAGE = 'postgres:17'
 CONTAINER = 'tally-local-pg'
 PG_PORT = '5434'
 PG_PASSWORD = 'localpass'
-LOCAL_DB_URL = f'postgresql://postgres:{PG_PASSWORD}@localhost:{PG_PORT}/postgres'
+LOCAL_DB_URL = f'postgresql://postgres:{PG_PASSWORD}@127.0.0.1:{PG_PORT}/postgres'
 
 # contenttypes and auth.permission are deliberately NOT excluded: the m2m rows
 # in users_user_user_permissions reference production's permission ids, and a
@@ -77,6 +79,9 @@ def dump_production():
 
     BACKUP_DIR.mkdir(exist_ok=True)
     out = BACKUP_DIR / f'tally_prod_{datetime.now():%Y%m%d_%H%M%S}.sql'
+    # Dump to a .partial name and rename only on success, so latest_dump()'s
+    # *.sql glob can never resume from an interrupted download.
+    tmp = out.with_name(out.name + '.partial')
     print(f'-> {out.name}', flush=True)
     run([
         'docker', 'run', '--rm', '--platform', DOCKER_PLATFORM,
@@ -84,8 +89,9 @@ def dump_production():
         '-e', 'PGPASSWORD',  # bare -e: docker reads the value from our env
         PG_IMAGE, 'pg_dump', '--dbname', safe_url,
         '--no-owner', '--no-acl', '--clean', '--if-exists',
-        '--format=plain', f'--file=/backup/{out.name}',
+        '--format=plain', f'--file=/backup/{tmp.name}',
     ], env=os.environ | {'PGPASSWORD': unquote(password)})
+    tmp.rename(out)
     return out
 
 
@@ -112,7 +118,9 @@ def start_postgres(fresh=False):
         run([
             'docker', 'run', '-d', '--name', CONTAINER, '--platform', DOCKER_PLATFORM,
             '-e', f'POSTGRES_PASSWORD={PG_PASSWORD}', '-e', 'POSTGRES_DB=postgres',
-            '-p', f'{PG_PORT}:5432', PG_IMAGE,
+            # Loopback only: this container holds unredacted production data
+            # behind a fixed password.
+            '-p', f'127.0.0.1:{PG_PORT}:5432', PG_IMAGE,
         ], stdout=subprocess.DEVNULL)
 
     for _ in range(60):
@@ -142,10 +150,11 @@ def restore(dump_path):
 
 def manage(args, db_url=None):
     env = os.environ.copy()
-    if db_url:
-        env['DATABASE_URL'] = db_url
-    else:
-        env.pop('DATABASE_URL', None)
+    # '' rather than pop: settings.py runs load_dotenv(), which fills in any
+    # ABSENT variable from backend/.env -- a popped DATABASE_URL would come
+    # back and point the SQLite steps (and their table clearing) at that
+    # database. An empty value stays present, and settings treats it as unset.
+    env['DATABASE_URL'] = db_url or ''
     run([sys.executable, '-u', 'manage.py'] + args, cwd=BACKEND_DIR, env=env)
 
 
@@ -156,6 +165,7 @@ def export_snapshot():
     manage(['migrate'], db_url=LOCAL_DB_URL)
 
     log('Exporting snapshot from local Postgres')
+    BACKUP_DIR.mkdir(exist_ok=True)  # --reuse-postgres runs never created it
     args = ['dumpdata', '--indent', '2']
     for label in DUMPDATA_EXCLUDES:
         args += ['--exclude', label]
@@ -179,7 +189,9 @@ def rebuild_sqlite():
 
 def load_into_sqlite(snapshot):
     """Child step: runs with SQLite settings, signals off, tables cleared."""
-    os.environ.pop('DATABASE_URL', None)
+    # '' rather than pop -- see manage(): load_dotenv() refills absent vars,
+    # and this step deletes every table in whatever database it connects to.
+    os.environ['DATABASE_URL'] = ''
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tally.settings')
     sys.path.insert(0, str(BACKEND_DIR))
 

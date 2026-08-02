@@ -19,7 +19,7 @@ Flags for resuming after a failure:
 - `--reuse-dump` — skip the pg_dump, use the newest `backups/*.sql`
 - `--reuse-postgres` — the `tally-local-pg` container already holds the data
 - `--keep-container` — leave Postgres up (`docker start tally-local-pg` to reuse)
-- `--keep-json` — keep the intermediate `prod_snapshot.json`
+- `--keep-json` — keep the intermediate `backups/prod_snapshot.json`
 - `--no-leaderboard` — skip the leaderboard rebuild
 
 Verified end to end on 2026-08-01: 16 minutes with the dump already local,
