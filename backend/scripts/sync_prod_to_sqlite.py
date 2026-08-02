@@ -23,6 +23,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import unquote
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 BACKUP_DIR = BACKEND_DIR / 'backups'
@@ -65,18 +66,26 @@ def dump_production():
         'aws', 'ssm', 'get-parameter', '--name', PROD_PARAM,
         '--with-decryption', '--query', 'Parameter.Value', '--output', 'text',
     ])
+    # The password may not appear in argv (visible in ps for the whole dump),
+    # so split it off the userinfo and hand it to libpq via the environment.
+    # Everything else stays untouched: rebuilding the URI wholesale breaks
+    # percent-encoded values and query params such as ?sslmode=require.
+    scheme, _, rest = url.partition('://')
+    userinfo, _, hostpart = rest.rpartition('@')
+    user, _, password = userinfo.partition(':')
+    safe_url = f'{scheme}://{user}@{hostpart}' if userinfo else url
+
     BACKUP_DIR.mkdir(exist_ok=True)
     out = BACKUP_DIR / f'tally_prod_{datetime.now():%Y%m%d_%H%M%S}.sql'
     print(f'-> {out.name}', flush=True)
-    # The URI goes to pg_dump whole: parsing it here breaks percent-encoded
-    # passwords and drops query params such as ?sslmode=require.
     run([
         'docker', 'run', '--rm', '--platform', DOCKER_PLATFORM,
         '-v', f'{BACKUP_DIR}:/backup',
-        PG_IMAGE, 'pg_dump', '--dbname', url,
+        '-e', 'PGPASSWORD',  # bare -e: docker reads the value from our env
+        PG_IMAGE, 'pg_dump', '--dbname', safe_url,
         '--no-owner', '--no-acl', '--clean', '--if-exists',
         '--format=plain', f'--file=/backup/{out.name}',
-    ])
+    ], env=os.environ | {'PGPASSWORD': unquote(password)})
     return out
 
 
@@ -262,7 +271,13 @@ def main():
     else:
         dump = latest_dump() if args.reuse_dump else dump_production()
         start_postgres(fresh=True)
-        restore(dump)
+        try:
+            restore(dump)
+        except BaseException:
+            # A partial restore (failed statement, Ctrl-C) must not linger
+            # where a later --reuse-postgres run would export it as if complete.
+            run(['docker', 'rm', '-f', CONTAINER], stdout=subprocess.DEVNULL)
+            raise
 
     export_snapshot()
     rebuild_sqlite()
