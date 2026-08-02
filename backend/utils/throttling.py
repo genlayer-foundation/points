@@ -18,6 +18,15 @@ class WalletLinkRateThrottle(UserRateThrottle):
     scope = 'wallet_link'
 
 
+class TelegramBindCodeIssueRateThrottle(UserRateThrottle):
+    """
+    Per-user throttle for issuing Telegram group bind codes. Codes are cheap
+    to mint but each is a live secret for 48h; a tight rate bounds hoarding
+    and keeps the active-code surface small.
+    """
+    scope = 'telegram_bind_issue'
+
+
 class PendingEmailStartRateThrottle(AnonRateThrottle):
     scope = 'pending_email_start'
 

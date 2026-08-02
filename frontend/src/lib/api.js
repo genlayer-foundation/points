@@ -290,7 +290,12 @@ export const validatorsAPI = {
   getMyValidatorWallets: () => api.get('/validators/my-wallets/'),
   linkValidatorWalletsByOperator: (operatorAddress) => api.post('/validators/link-by-operator/', { operator_address: operatorAddress }),
   getNetworks: () => api.get('/validators/wallets/networks/'),
-  getWallOfShame: (params = {}) => api.get('/validators/wallets/wall-of-shame/', { params })
+  getWallOfShame: (params = {}) => api.get('/validators/wallets/wall-of-shame/', { params }),
+  // Telegram group bind codes (Deckard support bot). The raw code is only in
+  // the issue response — list/revoke responses carry metadata only.
+  issueTelegramBindCode: () => api.post('/validators/telegram-bind-codes/'),
+  getMyTelegramBindCodes: () => api.get('/validators/telegram-bind-codes/mine/'),
+  revokeTelegramBindCode: (id) => api.post(`/validators/telegram-bind-codes/${id}/revoke/`)
 };
 
 // Builders API

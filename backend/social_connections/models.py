@@ -48,6 +48,23 @@ class TwitterConnection(SocialConnection):
         verbose_name_plural = 'Twitter Connections'
 
 
+class TelegramConnection(SocialConnection):
+    """Telegram identity for a portal account.
+
+    Telegram has no OAuth flow here: the connection is created/confirmed when
+    the Deckard support bot redeems a Telegram group bind code issued by this
+    user (see validators.TelegramGroupBindCode). `platform_user_id` holds the
+    numeric Telegram user id (the stable identity); `platform_username` is the
+    display-only @username, which Telegram users can change at any time. The
+    inherited OAuth token fields stay empty.
+    """
+
+    class Meta:
+        db_table = 'social_connections_telegram'
+        verbose_name = 'Telegram Connection'
+        verbose_name_plural = 'Telegram Connections'
+
+
 class DiscordConnection(SocialConnection):
     discriminator = models.CharField(max_length=10, blank=True, help_text="Discord discriminator (legacy)")
     avatar_hash = models.CharField(max_length=100, blank=True, help_text="Discord avatar hash for CDN URL")

@@ -13,3 +13,7 @@ export const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
 
 // External Links Configuration
 export const FAUCET_URL = 'https://testnet-faucet.genlayer.foundation/';
+
+// Deckard Telegram support bot @username (without the @). When unset, the
+// Telegram group linking page falls back to generic wording.
+export const DECKARD_BOT_USERNAME = import.meta.env.VITE_DECKARD_BOT_USERNAME || '';

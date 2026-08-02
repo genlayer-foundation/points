@@ -1,7 +1,32 @@
 from rest_framework import serializers
 from django.conf import settings
-from .models import ValidatorOperatorWallet, ValidatorWallet, Validator
+from .models import TelegramGroupBindCode, ValidatorOperatorWallet, ValidatorWallet, Validator
 from users.utils import truncate_address
+
+
+class TelegramBindCodeSerializer(serializers.ModelSerializer):
+    """List/detail serializer for Telegram group bind codes.
+
+    Never exposes the plaintext code or its digest — the plaintext is returned
+    exactly once by the issuance endpoint. `status` is the lazy-expiry
+    effective status, so an issued code past its expiry reads 'expired'.
+    """
+
+    status = serializers.CharField(source='effective_status', read_only=True)
+
+    class Meta:
+        model = TelegramGroupBindCode
+        fields = [
+            'id',
+            'identifier',
+            'status',
+            'expires_at',
+            'redeemed_at',
+            'redeemed_group_chat_id',
+            'redeemed_by_telegram_uid',
+            'created_at',
+        ]
+        read_only_fields = fields
 
 
 def grafana_network_label(network):

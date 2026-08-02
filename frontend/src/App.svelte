@@ -91,6 +91,7 @@
   import Waitlist from './routes/Waitlist.svelte';
   import WaitlistParticipants from './routes/WaitlistParticipants.svelte';
   import WallOfShame from './routes/WallOfShame.svelte';
+  import ValidatorTelegram from './routes/ValidatorTelegram.svelte';
 
   import TermsOfUse from './routes/TermsOfUse.svelte';
   import PrivacyPolicy from './routes/PrivacyPolicy.svelte';
@@ -287,6 +288,7 @@
     '/validators/tasks': roleGatedRoute(SocialTasks, 'validator'),
     '/validators/participants': protectedRoute(Validators),
     '/validators/wall-of-shame': roleGatedRoute(WallOfShame, 'validator'),
+    '/validators/telegram': roleGatedRoute(ValidatorTelegram, 'validator'),
     '/validators/waitlist': protectedRoute(Waitlist),
     '/validators/waitlist/participants': protectedRoute(WaitlistParticipants),
     '/validators/waitlist/join': ValidatorWaitlist,
