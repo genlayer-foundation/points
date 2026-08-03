@@ -4,6 +4,7 @@
   import { replace } from 'svelte-spa-router';
   import { journeyAPI, socialTasksAPI } from '../lib/api.js';
   import { userStore } from '../lib/userStore.js';
+  import { isCsrfFailure, retryOnceAfterCsrfFailure } from '../lib/csrf.js';
   import { showError, showSuccess } from '../lib/toastStore.js';
   import {
     getAnalyticsContext,
@@ -279,6 +280,20 @@
     return 'unknown_error';
   }
 
+  function completionErrorMessage(err) {
+    const data = err?.response?.data || {};
+    if (data.error === 'incomplete' || data.error === 'not_started') {
+      return data.message || 'Complete all Creator journey steps first.';
+    }
+    if (isCsrfFailure(err)) {
+      return 'The security check could not be refreshed. Reload the page and try again.';
+    }
+    if (err?.response?.status === 401 || err?.response?.status === 403) {
+      return 'Your session expired. Reconnect your wallet and try again.';
+    }
+    return data.message || data.detail || data.error || 'Could not complete the Creator journey. Please try again.';
+  }
+
   function stepPoints(id) {
     return steps?.[id]?.points ?? null;
   }
@@ -492,9 +507,13 @@
     completing = true;
     actionError = '';
     try {
-      const res = await journeyAPI.completeCommunityJourney();
+      // The endpoint is idempotent: an already-created Creator returns 200,
+      // so replaying it once after a stale CSRF token is safe.
+      const res = await retryOnceAfterCsrfFailure(() => journeyAPI.completeCommunityJourney());
       if (res.data?.user) userStore.updateUser(res.data.user);
-      await userStore.loadUser?.({ force: true });
+      // The role grant already succeeded. Refresh the shared profile without
+      // letting a transient follow-up GET turn success into a journey error.
+      userStore.loadUser?.({ force: true })?.catch(() => {});
       markLifecycleTime('role_unlocked:community');
       trackEvent('community_role_claim_success', getAnalyticsContext(claimParams));
       trackEvent('journey_completed', getAnalyticsContext({
@@ -516,9 +535,12 @@
         error_code: err.response?.status ? 'backend_error' : 'unknown_error',
         error_stage: err.response?.status ? 'backend' : 'network',
       }));
-      actionError = err.response?.data?.message || err.response?.data?.error || 'Complete all creator journey steps first.';
+      actionError = completionErrorMessage(err);
       showError(actionError);
-      await loadJourney({ showLoading: false });
+      const errorCode = err?.response?.data?.error;
+      if (errorCode === 'incomplete' || errorCode === 'not_started') {
+        await loadJourney({ showLoading: false });
+      }
     } finally {
       completing = false;
     }

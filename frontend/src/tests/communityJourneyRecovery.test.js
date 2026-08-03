@@ -16,6 +16,9 @@ const mocks = vi.hoisted(() => ({
   refreshTwitterUsername: vi.fn(),
   refreshDiscordUsername: vi.fn(),
   refreshGithubUsername: vi.fn(),
+  showError: vi.fn(),
+  showSuccess: vi.fn(),
+  showWarning: vi.fn(),
 }));
 
 vi.mock('svelte-spa-router', () => ({
@@ -41,6 +44,12 @@ vi.mock('../lib/api.js', () => ({
     refreshDiscordUsername: mocks.refreshDiscordUsername,
     refreshGithubUsername: mocks.refreshGithubUsername,
   },
+}));
+
+vi.mock('../lib/toastStore.js', () => ({
+  showError: mocks.showError,
+  showSuccess: mocks.showSuccess,
+  showWarning: mocks.showWarning,
 }));
 
 import CommunityJourney from '../routes/CommunityJourney.svelte';
@@ -79,6 +88,9 @@ describe('Community journey membership and recovery', () => {
     mocks.startRoleJourney.mockResolvedValue({ data: {} });
     mocks.communityJourney.mockResolvedValue({ data: completedJourney });
     mocks.listSocialTasks.mockResolvedValue({ data: [] });
+    mocks.completeCommunityJourney.mockResolvedValue({
+      data: { user: { ...nonCreator, creator: { created_at: '2026-08-04T00:00:00Z' } } },
+    });
   });
 
   it('redirects a confirmed Creator before mounting journey APIs', async () => {
@@ -158,5 +170,58 @@ describe('Community journey membership and recovery', () => {
 
     await waitFor(() => expect(mocks.communityJourney).toHaveBeenCalledTimes(2));
     expect(await screen.findByText('Creator journey complete')).toBeTruthy();
+  });
+
+  it('retries a stale CSRF rejection once and completes the journey', async () => {
+    const csrfError = {
+      response: { status: 403, data: { detail: 'CSRF Failed: CSRF token incorrect.' } },
+    };
+    userStore.setUser(nonCreator);
+    mocks.completeCommunityJourney
+      .mockRejectedValueOnce(csrfError)
+      .mockResolvedValueOnce({
+        data: { user: { ...nonCreator, creator: { created_at: '2026-08-04T00:00:00Z' } } },
+      });
+
+    render(CommunityJourney);
+    const button = await screen.findByRole('button', { name: 'Become a Creator' });
+    await waitFor(() => expect(/** @type {HTMLButtonElement} */ (button).disabled).toBe(false));
+    await fireEvent.click(button);
+
+    await waitFor(() => expect(mocks.completeCommunityJourney).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith('/community'));
+    expect(mocks.showError).not.toHaveBeenCalled();
+  });
+
+  it('keeps a successful role grant successful when the profile refresh fails', async () => {
+    userStore.setUser(nonCreator);
+    mocks.getCurrentUser.mockRejectedValueOnce(new Error('profile refresh unavailable'));
+
+    render(CommunityJourney);
+    const button = await screen.findByRole('button', { name: 'Become a Creator' });
+    await waitFor(() => expect(/** @type {HTMLButtonElement} */ (button).disabled).toBe(false));
+    await fireEvent.click(button);
+
+    await waitFor(() => expect(mocks.completeCommunityJourney).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith('/community'));
+    expect(mocks.showSuccess).toHaveBeenCalledWith('Welcome to the GenLayer community!');
+    expect(mocks.showError).not.toHaveBeenCalled();
+  });
+
+  it('does not retry an expired session and shows an authentication error', async () => {
+    const authError = {
+      response: { status: 403, data: { detail: 'Authentication credentials were not provided.' } },
+    };
+    userStore.setUser(nonCreator);
+    mocks.completeCommunityJourney.mockRejectedValueOnce(authError);
+
+    render(CommunityJourney);
+    const button = await screen.findByRole('button', { name: 'Become a Creator' });
+    await waitFor(() => expect(/** @type {HTMLButtonElement} */ (button).disabled).toBe(false));
+    await fireEvent.click(button);
+
+    await waitFor(() => expect(mocks.completeCommunityJourney).toHaveBeenCalledTimes(1));
+    expect(mocks.showError).toHaveBeenCalledWith('Your session expired. Reconnect your wallet and try again.');
+    expect(mocks.replace).not.toHaveBeenCalledWith('/community');
   });
 });
