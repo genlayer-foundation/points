@@ -124,7 +124,7 @@ backend/
 
 ### Campaigns (Marketing Vanity Links + Attribution)
 
-- **App**: `campaigns/`. Marketing creates campaigns and role links in Django admin; no deploy per campaign. Public URL contract: `{FRONTEND_URL}/join/<builders|validators|community>/<alias>`, reverse-proxied by an Amplify rule (`amplify.yml`, before the SPA catch-all) to `GET /campaigns/redirect/<role>/<alias>`.
+- **App**: `campaigns/`. Marketing creates campaigns and role links in Django admin; no deploy per campaign. Public URL contract: `{FRONTEND_URL}/join/<builders|validators|community>/<alias>`. The backend serves `/join/<role>/<alias>` directly (`tally/urls.py`) as well as the internal `/campaigns/redirect/<role>/<alias>`, so the portal CDN only needs a pass-through: production is CloudFront + S3 (behavior for `/join/*` with the backend origin `portal-admin.genlayer.foundation`, methods GET/HEAD, cache policy CachingDisabled, origin request policy AllViewerExceptHostHeader so query strings are forwarded); the `amplify.yml` rule covers Amplify-hosted environments only.
 - **Models** (`campaigns/models.py`):
   - `MarketingCampaign` - name, unique `tracking_key` (published as utm_campaign, readonly after create), date window, `is_active`, `created_by`.
   - `CampaignLink` - FK campaign, server-generated immutable `tracking_id` (published as utm_id), role, alias (UNIQUE role+alias, locked after create), `destination_path` (validated relative portal path: allowlist + reserved-prefix rejection in `validate_destination_path`, re-run by the resolver so corrupt data fails closed), required utm_source/utm_medium, optional content/term, optional window overrides. `redirect_target` builds the UTM query from stored fields only.
@@ -543,8 +543,9 @@ GET    /api/v1/notifications/unread-count/ (requires auth)
 POST   /api/v1/notifications/{id}/mark-read/   (requires auth)
 POST   /api/v1/notifications/mark-all-read/    (requires auth)
 
-# Campaign vanity links (public; proxied from portal /join/<role>/<alias> by Amplify)
-GET    /campaigns/redirect/{role}/{alias}  (anonymous, 302 with UTMs, throttled 120/min)
+# Campaign vanity links (public; the portal CDN passes /join/* through to the backend)
+GET    /join/{role}/{alias}                (anonymous GET/HEAD, 302 with UTMs, throttled 120/min)
+GET    /campaigns/redirect/{role}/{alias}  (same view; original internal path)
 ```
 
 ### Leaderboard monthly date ranges
