@@ -62,6 +62,13 @@ def capture(cmd):
     return subprocess.run(cmd, check=True, capture_output=True, text=True).stdout.strip()
 
 
+def ensure_backup_dir():
+    BACKUP_DIR.mkdir(exist_ok=True)
+    # Everything in here is unredacted production data; keep it owner-only
+    # whatever the umask says, including for pre-existing directories.
+    BACKUP_DIR.chmod(0o700)
+
+
 def dump_production():
     log('Dumping production with pg_dump')
     url = capture([
@@ -77,7 +84,7 @@ def dump_production():
     user, _, password = userinfo.partition(':')
     safe_url = f'{scheme}://{user}@{hostpart}' if userinfo else url
 
-    BACKUP_DIR.mkdir(exist_ok=True)
+    ensure_backup_dir()
     out = BACKUP_DIR / f'tally_prod_{datetime.now():%Y%m%d_%H%M%S}.sql'
     # Dump to a .partial name and rename only on success, so latest_dump()'s
     # *.sql glob can never resume from an interrupted download.
@@ -165,7 +172,7 @@ def export_snapshot():
     manage(['migrate'], db_url=LOCAL_DB_URL)
 
     log('Exporting snapshot from local Postgres')
-    BACKUP_DIR.mkdir(exist_ok=True)  # --reuse-postgres runs never created it
+    ensure_backup_dir()  # --reuse-postgres runs never created it
     args = ['dumpdata', '--indent', '2']
     for label in DUMPDATA_EXCLUDES:
         args += ['--exclude', label]
