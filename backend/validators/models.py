@@ -1,3 +1,7 @@
+import hashlib
+import secrets
+from datetime import timedelta
+
 from django.conf import settings
 from django.core.exceptions import FieldDoesNotExist
 from django.db import IntegrityError, models, transaction
@@ -188,6 +192,116 @@ def ensure_validator_profile(user):
         pass
 
     return validator
+
+
+class TelegramGroupBindCode(BaseModel):
+    """One-time code that binds a Telegram group to a validator via the Deckard bot.
+
+    A validator issues a code from the portal, pastes it in their Telegram
+    group, and the Deckard support bot redeems it server-to-server (service
+    account scope `telegram_bind:redeem`). One code binds exactly one group;
+    a validator may hold multiple active codes (and therefore bind multiple
+    groups). DM bindings are refused bot-side.
+
+    The plaintext code is shown exactly once at issuance. Only its SHA-256
+    digest is stored, mirroring service_accounts.ServiceAccountToken: lookup is
+    by the non-secret `identifier` embedded in the code, then the presented
+    digest is compared in constant time.
+    """
+
+    CODE_PREFIX = 'tgb_'
+    DEFAULT_TTL_HOURS = 48
+
+    STATUS_ISSUED = 'issued'
+    STATUS_REDEEMED = 'redeemed'
+    STATUS_EXPIRED = 'expired'
+    STATUS_REVOKED = 'revoked'
+    STATUS_CHOICES = [
+        (STATUS_ISSUED, 'Issued'),
+        (STATUS_REDEEMED, 'Redeemed'),
+        (STATUS_EXPIRED, 'Expired'),
+        (STATUS_REVOKED, 'Revoked'),
+    ]
+
+    validator = models.ForeignKey(
+        'Validator',
+        on_delete=models.CASCADE,
+        related_name='telegram_bind_codes',
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='telegram_bind_codes',
+    )
+    identifier = models.CharField(
+        max_length=16, unique=True,
+        help_text="Non-secret lookup id embedded in the code",
+    )
+    digest = models.CharField(
+        max_length=64, unique=True,
+        help_text="SHA-256 digest of the plaintext code (plaintext is never stored)",
+    )
+    status = models.CharField(
+        max_length=10, choices=STATUS_CHOICES, default=STATUS_ISSUED, db_index=True,
+    )
+    expires_at = models.DateTimeField()
+    redeemed_at = models.DateTimeField(null=True, blank=True)
+    redeemed_group_chat_id = models.CharField(
+        max_length=32, blank=True,
+        help_text="Telegram chat id of the bound group (set on redemption)",
+    )
+    redeemed_by_telegram_uid = models.CharField(
+        max_length=32, blank=True,
+        help_text="Numeric Telegram user id that redeemed the code (set on redemption)",
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"TelegramGroupBindCode {self.identifier} ({self.status})"
+
+    @staticmethod
+    def hash_code(plaintext):
+        # Plain SHA-256 (not salted_hmac): the code secret has enough entropy
+        # for its 48h single-use lifetime, and this survives SECRET_KEY rotation.
+        return hashlib.sha256(plaintext.encode('utf-8')).hexdigest()
+
+    @classmethod
+    def identifier_from_plaintext(cls, plaintext):
+        """Extract the non-secret lookup identifier from `tgb_<id>_<secret>`."""
+        if not plaintext or not plaintext.startswith(cls.CODE_PREFIX):
+            return None
+        remainder = plaintext[len(cls.CODE_PREFIX):]
+        identifier, separator, secret = remainder.partition('_')
+        if not separator or not identifier or not secret:
+            return None
+        return identifier
+
+    @classmethod
+    def issue(cls, validator, created_by, ttl_hours=DEFAULT_TTL_HOURS):
+        """Create a bind code and return (instance, plaintext)."""
+        identifier = secrets.token_hex(6)
+        plaintext = f'{cls.CODE_PREFIX}{identifier}_{secrets.token_urlsafe(12)}'
+        bind_code = cls.objects.create(
+            validator=validator,
+            created_by=created_by,
+            identifier=identifier,
+            digest=cls.hash_code(plaintext),
+            expires_at=timezone.now() + timedelta(hours=ttl_hours),
+        )
+        return bind_code, plaintext
+
+    @property
+    def effective_status(self):
+        """`status` with lazy expiry: an issued code past expires_at reads expired."""
+        if self.status == self.STATUS_ISSUED and self.expires_at <= timezone.now():
+            return self.STATUS_EXPIRED
+        return self.status
+
+    def is_redeemable(self, now=None):
+        now = now or timezone.now()
+        return self.status == self.STATUS_ISSUED and self.expires_at > now
 
 
 class ValidatorWalletStatusSnapshot(BaseModel):

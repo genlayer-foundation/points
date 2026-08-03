@@ -5,6 +5,12 @@ const UNSAFE_METHODS = new Set(['post', 'put', 'patch', 'delete']);
 
 let csrfCookieName = 'csrftoken';
 let csrfTokenRequest = null;
+// In production the API lives on a different host than the SPA, so the CSRF
+// cookie is never readable from document.cookie and every unsafe request would
+// otherwise refetch /api/csrf/. Held in memory only, never localStorage or any
+// persistent browser storage, and cleared by clearCsrfToken() on every path
+// that rotates the server-side token.
+let cachedCsrfToken = null;
 
 function getCookie(name) {
   if (typeof document === 'undefined' || !document.cookie) {
@@ -31,9 +37,14 @@ function isUnsafeMethod(method = 'get') {
 }
 
 async function getCsrfToken() {
+  // Same-origin dev keeps working off the cookie, which Django rotates for us.
   const existingToken = getCookieToken();
   if (existingToken) {
     return existingToken;
+  }
+
+  if (cachedCsrfToken) {
+    return cachedCsrfToken;
   }
 
   if (!csrfTokenRequest) {
@@ -41,7 +52,8 @@ async function getCsrfToken() {
       .get(`${API_BASE_URL}/api/csrf/`, { withCredentials: true })
       .then((response) => {
         csrfCookieName = response.data?.csrfCookieName || csrfCookieName;
-        return response.data?.csrfToken || getCookieToken();
+        cachedCsrfToken = response.data?.csrfToken || getCookieToken() || null;
+        return cachedCsrfToken;
       })
       .finally(() => {
         csrfTokenRequest = null;
@@ -49,6 +61,27 @@ async function getCsrfToken() {
   }
 
   return csrfTokenRequest;
+}
+
+/**
+ * Drop the cached token. Call from every path that rotates the server-side
+ * token: login, logout, wallet switch, and email confirmation, plus a genuine
+ * CSRF rejection. Session refresh does not rotate it.
+ */
+export function clearCsrfToken() {
+  cachedCsrfToken = null;
+  csrfTokenRequest = null;
+}
+
+/**
+ * Distinguish a real CSRF rejection from an authorization 403. DRF raises
+ * PermissionDenied('CSRF Failed: ...') from enforce_csrf, so the detail string
+ * is the only reliable signal; both cases are 403.
+ */
+export function isCsrfFailure(error) {
+  if (error?.response?.status !== 403) return false;
+  const detail = error.response?.data?.detail;
+  return typeof detail === 'string' && detail.startsWith('CSRF Failed');
 }
 
 export async function attachCsrfToken(config) {

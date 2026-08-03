@@ -25,6 +25,13 @@ applications:
             VITE_APP_NAME: Tally
             VITE_VALIDATOR_RPC_URL: https://rpc.testnet-chain.genlayer.com
     customRules:
+      # Campaign vanity links: reverse-proxy the reserved /join/ namespace to
+      # the Django resolver. Must stay BEFORE the SPA catch-all (rules apply
+      # in order). One dynamic rule for all campaigns; never add per-campaign
+      # rules here.
+      - source: '/join/<*>'
+        target: 'https://tally-backend.33qpgck0g28d0.us-east-1.cs.amazonlightsail.com/campaigns/redirect/<*>'
+        status: '200'
       - source: '</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json|webp)$)([^.]+$)/>'
         target: '/index.html'
         status: '200'

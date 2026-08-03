@@ -438,6 +438,19 @@
                 <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               {/if}
             </a>
+            <a
+              href="/validators/telegram"
+              onclick={(e) => { e.preventDefault(); openRoleSection('/validators/telegram', 'validator'); }}
+              class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
+                isActive('/validators/telegram') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
+              } {isRoleLocked('validator') ? 'text-gray-400' : 'text-black'}"
+              title={isRoleLocked('validator') ? 'Become a validator to unlock' : ''}
+            >
+              <span>Telegram Support</span>
+              {#if isRoleLocked('validator')}
+                <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              {/if}
+            </a>
           </div>
         {/if}
       </div>
@@ -927,6 +940,19 @@
             title={isRoleLocked('validator') ? 'Become a validator to unlock' : ''}
           >
             <span>Wall of Shame</span>
+            {#if isRoleLocked('validator')}
+              <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            {/if}
+          </a>
+          <a
+            href="/validators/telegram"
+            onclick={(e) => { e.preventDefault(); openRoleSection('/validators/telegram', 'validator'); }}
+            class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
+              isActive('/validators/telegram') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
+            } {isRoleLocked('validator') ? 'text-gray-400' : 'text-black'}"
+            title={isRoleLocked('validator') ? 'Become a validator to unlock' : ''}
+          >
+            <span>Telegram Support</span>
             {#if isRoleLocked('validator')}
               <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             {/if}

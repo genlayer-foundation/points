@@ -16,7 +16,7 @@
   import { normalizeReferralCode } from './lib/referrals.js';
   import { hasRoleSectionAccess, journeyPath, rolePath } from './lib/roleState.js';
   import { installLinkInterceptor } from './lib/router.js';
-  import { getAnalyticsContext, initializeAnalytics, setConnectWalletIntent, templateRoute, trackEvent, trackPageView } from './lib/analytics.js';
+  import { cleanTrackingParamsFromUrl, getAnalyticsContext, initializeAnalytics, setConnectWalletIntent, templateRoute, trackEvent, trackPageView } from './lib/analytics.js';
 
   // Early OAuth result detection — runs before routes mount.
   // Backend redirects here with ?oauth_platform=X&oauth_verified=true/false&oauth_error=...
@@ -91,6 +91,7 @@
   import Waitlist from './routes/Waitlist.svelte';
   import WaitlistParticipants from './routes/WaitlistParticipants.svelte';
   import WallOfShame from './routes/WallOfShame.svelte';
+  import ValidatorTelegram from './routes/ValidatorTelegram.svelte';
 
   import TermsOfUse from './routes/TermsOfUse.svelte';
   import PrivacyPolicy from './routes/PrivacyPolicy.svelte';
@@ -287,6 +288,7 @@
     '/validators/tasks': roleGatedRoute(SocialTasks, 'validator'),
     '/validators/participants': protectedRoute(Validators),
     '/validators/wall-of-shame': roleGatedRoute(WallOfShame, 'validator'),
+    '/validators/telegram': roleGatedRoute(ValidatorTelegram, 'validator'),
     '/validators/waitlist': protectedRoute(Waitlist),
     '/validators/waitlist/participants': protectedRoute(WaitlistParticipants),
     '/validators/waitlist/join': ValidatorWaitlist,
@@ -400,13 +402,11 @@
       if (rawReferralCode !== null && !referralCode) {
         localStorage.removeItem('referral_code');
       } else if (referralCode) {
-        // Store referral code in localStorage for later use during login
+        // Store referral code in localStorage for later use during login.
+        // URL cleanup happens in cleanTrackingParamsFromUrl (onMount), which
+        // removes ref and UTM params together while preserving other query
+        // params (the old cleanup here dropped the whole query string).
         localStorage.setItem('referral_code', referralCode);
-
-        // Clean URL without page reload to remove the ref parameter
-        const cleanUrl = window.location.pathname + window.location.hash;
-        window.history.replaceState({}, '', cleanUrl);
-
       }
     } catch (error) {
       // Error capturing referral code silently handled
@@ -428,7 +428,11 @@
   onMount(() => {
     // Capture referral code from URL on app load
     captureReferralCode();
-    
+
+    // Clean attribution params (utm_*, click IDs, ref) from the visible URL.
+    // Safe here: analytics.js captured them at module import, before mount.
+    cleanTrackingParamsFromUrl(['ref']);
+
     // Use event delegation for better performance
     document.body.addEventListener('mouseover', handleTooltipPosition);
 

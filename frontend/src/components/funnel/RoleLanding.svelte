@@ -82,7 +82,7 @@
       if (response.data?.user) {
         userStore.setUser(response.data.user);
       } else {
-        userStore.loadUser?.()?.catch(() => {});
+        userStore.loadUser?.({ force: true })?.catch(() => {});
       }
       markFunnelTime(`journey_start:${role}`);
       markLifecycleTime(`first_journey_start:${role}`);

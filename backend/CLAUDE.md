@@ -27,13 +27,14 @@ backend/
 ├── api/                    # Core API app
 ├── contributions/          # Contribution tracking
 ├── leaderboard/           # Leaderboard and rankings
-├── social_connections/    # OAuth (GitHub, Twitter, Discord) + encrypted token storage
+├── social_connections/    # OAuth (GitHub, Twitter, Discord) + encrypted token storage + Telegram (bot-confirmed, no OAuth)
 ├── social_tasks/          # Repeatable social tasks (follow, join, like) and completions
 ├── users/                 # User management and auth
 ├── partners/              # Ecosystem partners directory
 ├── gen_tv/                # Gen TV livestream index
 ├── notifications/         # Portal notification system
 ├── service_accounts/      # Machine identities + scoped bearer tokens (AI review agent)
+├── campaigns/             # Marketing vanity links + campaign acquisition attribution
 ├── utils/                 # Shared utilities
 └── tally/                 # Django project settings (settings.py, urls.py)
 ```
@@ -117,8 +118,23 @@ backend/
 - **Models**: `ServiceAccount` (name, description, is_active; acts as the DRF request principal; it is NOT a User and can never become a session) and `ServiceAccountToken` (unique non-secret `identifier`; unique SHA-256 `digest` of the plaintext, which is never stored; `scopes` list; `expires_at`/`revoked_at`/`last_used_at`, with `last_used_at` writes throttled to once per minute).
 - **Auth class**: `service_accounts.authentication.ServiceAccountAuthentication` parses `Bearer sa_<id>_<secret>`, looks up the token by non-secret id, compares digests in constant time, rejects expired/revoked/inactive with a generic 401. Non-`sa_` credentials pass through to other authenticators.
 - **Permission**: `service_accounts.permissions.HasServiceAccountScope`; views declare `required_scopes = {'<action>': '<scope>', '*': '<default>'}`.
+- **Scopes** (`service_accounts/scopes.py`): `ai_review:read`, `ai_review:propose` (AI review agent), `telegram_bind:redeem` (Deckard Telegram bot redeeming validator group bind codes). New scopes must be added to `ALLOWED_SERVICE_ACCOUNT_SCOPES` or admin token issuance rejects them.
 - **Issue a token**: Django admin Service account change page -> "Issue token", or `python manage.py issue_service_account_token <account> --scopes <scope>... [--expires-days N]`; plaintext is shown exactly once. Rotate = issue new + revoke old (admin action on Service account tokens); kill switch = deactivate the account.
 - **Tests**: `service_accounts/tests/`; test helper `service_accounts.testing.service_account_auth_headers()` returns client auth kwargs.
+
+### Campaigns (Marketing Vanity Links + Attribution)
+
+- **App**: `campaigns/`. Marketing creates campaigns and role links in Django admin; no deploy per campaign. Public URL contract: `{FRONTEND_URL}/join/<builders|validators|community>/<alias>`, reverse-proxied by an Amplify rule (`amplify.yml`, before the SPA catch-all) to `GET /campaigns/redirect/<role>/<alias>`.
+- **Models** (`campaigns/models.py`):
+  - `MarketingCampaign` - name, unique `tracking_key` (published as utm_campaign, readonly after create), date window, `is_active`, `created_by`.
+  - `CampaignLink` - FK campaign, server-generated immutable `tracking_id` (published as utm_id), role, alias (UNIQUE role+alias, locked after create), `destination_path` (validated relative portal path: allowlist + reserved-prefix rejection in `validate_destination_path`, re-run by the resolver so corrupt data fails closed), required utm_source/utm_medium, optional content/term, optional window overrides. `redirect_target` builds the UTM query from stored fields only.
+  - `CampaignRedirectHit` - append-only resolver request log with UA bot classification (`services.classify_user_agent`, substring list). Privacy: never store IPs, full referrers, full UAs, wallets, emails. Retention via `python manage.py purge_campaign_hits [--days N] [--dry-run]` (default `CAMPAIGN_HIT_RETENTION_DAYS=90`).
+  - `UserAcquisitionAttribution` - write-once first-touch signup attribution (OneToOne user). Keeps immutable snapshot columns (campaign_key/source/medium/...) alongside the SET_NULL link FK so history survives campaign edits/deletes.
+- **Resolver** (`campaigns/views.py:campaign_redirect`): anonymous GET/HEAD, throttle scope `campaign_redirect` (120/min), 302 + `Cache-Control: no-store` (never 301), 404 unknown/inactive/future, 410 expired, hit-log failure never blocks the redirect. Forwards ONLY allowlisted ad click IDs (`CLICK_ID_FORWARD_PARAMS`: gclid/gbraid/wbraid/fbclid/twclid/msclkid/ttclid, length-capped) from the request onto the destination; never a request-supplied destination.
+- **Attribution flow** (mirrors the referral_code pattern): frontend sends `attribution: {utm_id, landing_path, captured_at}` in the `/api/auth/login/` body → `services.apply_pending_attribution` resolves the link server-side (never trusts browser UTM text; unknown/expired IDs silently ignored; first touch never overwritten; expired pending reuse resets stale data; window `CAMPAIGN_ATTRIBUTION_WINDOW_DAYS=30`) and writes `PendingWalletSignup.acquisition_*` → email confirm calls `services.record_user_acquisition` inside the signup transaction (internally savepointed: an attribution failure can never abort user creation). Attribution must never make signup fail.
+- **Activation reporting**: `services.campaign_report(campaign)` returns Portal-DB-only funnel counts (redirect hits human/bot, attributed wallet connects, signups, distinct-user activations: builder = first builder-category SubmittedContribution any state, validator = `validator-waitlist` Contribution, community = completion of a `SocialTask` with `counts_as_activation=True`). Rendered on the campaign admin change page; a future internal-dashboard staff API should wrap this same service.
+- **Admin**: `Marketing` group (data migration `campaigns/0002`) gets add/change/view on campaigns/links + view on hits/attributions; members need `is_staff` set manually. Hits and attributions are read-only in admin.
+- **Tests**: `campaigns/tests/` (models, resolver, attribution incl. SIWE login + email-confirm integration, reporting, admin permissions).
 
 ### Node Upgrade (Sub-app)
 - **Models**: `contributions/node_upgrade/models.py`
@@ -280,6 +296,7 @@ backend/
   - ValidatorWalletStatusSnapshot - Daily wallet rollup. On-chain `status` (owned by the on-chain sync, for uptime lookback) PLUS the latched observability verdict written by the Grafana sync: `metrics_status` / `logs_status` / `version_status`, `metrics_samples` / `logs_samples` counters, and `node_version`. **Metrics and logs latch pessimistically** (worst-of-day: shame at ANY observation → the day is shame). **Version latches optimistically** (best-of-day: a single up-to-date observation → the day is OK, since once a node upgrades that day an earlier stale reading must not shame it; `on` > `warning` > `shame`). A day is "clean" only if `status=='active'` and both sample counters are ≥1 and neither metrics nor logs is `shame` and version is not `shame`. The two syncs write disjoint columns (bulk_create update_conflicts on `(wallet, date)`), so neither clobbers the other.
   - ValidatorWalletObservation - Append-only raw log; one row per active wallet per Grafana sync run (`observed_at`, `onchain_status`, `metrics_status`, `logs_status`, `version_status`, `node_version`). Source of truth the daily rollup is materialised from and rebuildable via `rebuild_daily_snapshots`.
   - SyncLock - Database-backed sync coordination row with owner token for cross-worker locking
+  - TelegramGroupBindCode - One-time code binding a Telegram group to a validator via the Deckard support bot. Plaintext (`tgb_<id>_<secret>`) is returned exactly once at issuance; only the SHA-256 digest is stored (identifier lookup + constant-time compare, mirroring ServiceAccountToken). 48h expiry (lazy: `effective_status`), statuses issued/redeemed/expired/revoked, multiple active codes per validator (one group per code). Redemption records `redeemed_group_chat_id` + `redeemed_by_telegram_uid` and upserts the issuing user's `social_connections.TelegramConnection` (numeric Telegram uid = identity, username display-only, no OAuth tokens).
 - **Services**: `validators/grafana_service.py`
   - GrafanaValidatorStatusService - Polls Grafana Cloud (`/api/ds/query`) Prometheus + Loki datasources and updates `ValidatorWallet.metrics_status` / `logs_status` for `status='active'` wallets, per network. The Prometheus query also reads the `version` label from `genlayer_node_info` — **normalised at ingest** in `parse_response` ('v' prefix stripped, capped to the 50-char column; when a node briefly reports two version series right after an upgrade, the higher parseable one wins). Each run writes a `ValidatorWalletObservation` and latches today's `ValidatorWalletStatusSnapshot` rollup (`_record_history`, best-effort — never breaks the live status sync). Observations are retained forever by explicit decision — no pruning in points. Used by the Wall of Shame cron.
   - GrafanaValidatorStatusService is also the **source of truth for node versions** (`_sync_node_versions`, best-effort, runs before the active-wallet early return so networks with zero active wallets are still covered): version detection covers **every reporting node on the network regardless of on-chain status** (a quarantined node can still record its upgrade), **except banned wallets**, and only counts versions observed on wallets known to the DB and linked to an operator — the `version` label is self-reported by the node being judged and rewarded, so unknown Prometheus series count for nothing. Only versions that are both semver-valid AND PEP 440-parseable drive comparisons (e.g. `0.6.0-genlayer.1` is excluded — `packaging` can't parse it; in the shame loop an unparseable observed version or an unparseable active target yields `version_status='unknown'`, never a lexicographic fallback verdict). It auto-creates a `TargetNodeVersion` when a STABLE release (bare `x.y.z`, no pre-release/build) higher than the active target is reported by **at least `NODE_VERSION_MIN_OPERATORS_FOR_AUTO_TARGET` (default 1: the first adopter creates the target) distinct operators** (`target_date=now`; an unparseable active target is never blindly superseded; a broadcast notification is emitted via `broadcast_target_node_version`), raises each linked operator's `node_version_<network>` to their highest observed version via a direct `.update()` (**monotonic** — a wallet skipping a scrape cycle can't transiently downgrade the field; genuine downgrades need admin correction), and directly awards an already-approved `node-upgrade` Contribution (`_award_node_upgrade`, early-bonus 4/3/2/1) when a visible operator first reaches the active target. **Removing the node-upgrade multiplier pauses the auto-award** (it is skipped with a warning, not created at 1.0). The per-operator loop is individually fault-isolated — one operator's failure never blocks the rest. Dedup shares the exact `version {v} [{network}]` notes key with the old manual flow so nothing double-awards. A run where a whole datasource comes back empty (no Prometheus series or no Loki counts) still updates live wallet statuses (they self-heal) but **skips the permanent history latch** — a datasource blackout must not shame every validator's recorded day.
@@ -291,6 +308,10 @@ backend/
   - `/api/v1/validators/wallets/sync/` - POST cron-protected background sync trigger with DB-backed lock (on-chain validator sync)
   - `/api/v1/validators/wallets/sync-grafana/` - POST cron-protected background sync trigger for Grafana observability cross-check (separate SyncLock row `grafana_status_sync` so it can run alongside the on-chain sync)
   - `/api/v1/validators/wallets/wall-of-shame/` - Public read-only endpoint listing active validator wallets with `metrics_status` / `logs_status`. SHAME rows sort first. Cached 60s. Optional `?network=asimov|bradbury` filter. Each wallet also carries `clean_streak_days` + `clean_streak_broken_by` (consecutive not-shamed days for that node, from `validators/streaks.py` over the daily rollup). The grouped `validators` output adds `network_streaks` — per-operator-per-network any-node-clean streaks (a network-day is clean if ≥1 of the operator's nodes was clean) — plus per-node `clean_streak_days` on each `networks` entry. Streaks start accumulating at deploy (history wasn't recorded before). Days with no Grafana data while the node was active (sync outage, pre-history) are SKIPPED — they neither count nor break, so an infra failure on our side never resets streaks; days spent non-active per the on-chain sync break the streak with `broken_by: ['status']`.
+  - `/api/v1/validators/telegram-bind-codes/` - POST (auth, validator profile required, `telegram_bind_issue` throttle 10/hour) issues a bind code and returns the plaintext ONCE
+  - `/api/v1/validators/telegram-bind-codes/mine/` - GET the current user's codes (metadata only, never raw codes)
+  - `/api/v1/validators/telegram-bind-codes/{id}/revoke/` - POST owner-only revoke of an unredeemed code (409 if already redeemed)
+  - `/api/v1/validators/telegram-bind-codes/redeem/` - POST for the Deckard Telegram bot only: service account bearer token with scope `telegram_bind:redeem`. Body `{code, group_chat_id, telegram_uid, telegram_username?}`. Single-use atomic redemption: marks the code, records group + uid, upserts TelegramConnection. Errors carry a machine `code`: `invalid_request` (400), `invalid_code` (404), `already_redeemed`/`revoked` (409), `expired` (410). DM-vs-group is enforced bot-side.
   - `/api/v1/validators/wallets/grafana/` - Public minimal roster for the Grafana Infinity datasource (`GrafanaValidatorSerializer`). Flat array, one row per wallet across ALL statuses; fields: `network` (Grafana label value e.g. `asimov-phase5`), `node` (on-chain validator address == Prometheus `genlayer_node_info` `node` label, lowercased), `name`, `status`, `operator`, `account`/`account_name` (only for visible operators), `explorer_url`, plus **raw link/identity facts** (verdicts are computed dashboard-side, NOT here): `linked` (bool — wallet attributed to a portal account; a bare fact, safe for non-visible operators), `moniker` and `logo_uri` (raw synced `getIdentity()` values, empty string = unset), `has_description` (presence bool so the roster doesn't ship long texts). Excludes observability/shame fields by design. Cached 60s. Optional `?network=asimov|bradbury` filter.
     - The roster **also appends one synthetic `status='missing'` row per network** for every graduated portal validator (visible Validator role user) with no wallet linked on that network (`_missing_graduated_rows` in the view) — graduated validators are expected on every testnet, and an absent one otherwise has no row for dashboards to show. On these rows `node` = the account address (unique join key only — matches no metric series), `operator` is null, and the link/identity facts (`linked`/`moniker`/`logo_uri`/`has_description`) are **null** (no wallet to describe — distinct from `false`/empty on a real wallet). A wallet of ANY status (incl. `inactive`) suppresses the missing row; an unlinked wallet (`operator=None`) does not.
 
@@ -404,11 +425,16 @@ cd backend/scripts
 - Creates timestamped backups in `backend/backups/`
 - See `backend/scripts/README.md` for detailed setup and troubleshooting
 
-### RDS to SQLite Migration
-- **Script**: `backend/scripts/migrate_rds_to_sqlite.py`
-- **Purpose**: Convert production PostgreSQL to local SQLite for development
-- **Usage**: `python scripts/migrate_rds_to_sqlite.py` (from backend directory)
-- **Notes**: Resets all passwords to 'pass', excludes leaderboard entries, backs up existing db.sqlite3
+### Production to SQLite Sync (local development)
+- **Script**: `backend/scripts/sync_prod_to_sqlite.py`
+- **Purpose**: Put a copy of production in local `db.sqlite3` (the default local database)
+- **Usage**: `python scripts/sync_prod_to_sqlite.py` (from backend directory, venv active, Docker running)
+- **Takes**: ~30 min. Flags: `--reuse-dump`, `--reuse-postgres`, `--keep-container`, `--keep-json`, `--no-leaderboard`
+- **Notes**: Resets all passwords to `pass`, backs up the existing `db.sqlite3` (~1.6GB per backup — prune them), rebuilds the leaderboard at the end
+- **How**: pg_dump production → restore into a local Postgres container → `migrate` that copy → `dumpdata` locally → `loaddata` into a fresh SQLite. It never runs `dumpdata` against production, because Django's per-row m2m queries make that ~90 rows/minute over a remote link (hours, never finishes).
+
+- **Do NOT use `backend/scripts/migrate_rds_to_sqlite.py`** — it exports directly from production RDS and does not complete. Kept only for reference. Its `loaddata json_file 'exclude' 'leaderboard'` call is also wrong: those trailing strings are parsed as fixture labels, not as an exclude option.
+- **Known bug the sync script works around**: `sync_contribution_discord_xp_state` and `sync_social_task_completion_discord_xp_state` (this file's `contributions/models.py`), plus `users/signals.py:create_referral_code` and `poaps/signals.py:attach_legacy_poap_claims`, do not check `kwargs.get('raw')`, so a fixture load recreates rows the fixture already contains and collides on `ContributionDiscordXPState.contribution_id`. Neighbouring receivers guard correctly; the fix is a one-line early return in each.
 
 ## API Endpoints Summary
 
@@ -472,6 +498,12 @@ GET    /api/v1/leaderboard/user_stats/by-address/{address}/ (requires auth)
 GET    /api/v1/multipliers/        (requires auth)
 GET    /api/v1/multiplier-periods/
 
+# Validators - Telegram group bind codes (Deckard support bot)
+POST   /api/v1/validators/telegram-bind-codes/           (requires auth + validator profile; returns plaintext code ONCE; throttled 10/hour)
+GET    /api/v1/validators/telegram-bind-codes/mine/      (requires auth; metadata only)
+POST   /api/v1/validators/telegram-bind-codes/{id}/revoke/ (requires auth, owner-only)
+POST   /api/v1/validators/telegram-bind-codes/redeem/    (service account bearer token, scope telegram_bind:redeem)
+
 # Validators - Wall of Shame
 POST   /api/v1/validators/wallets/sync-grafana/    (cron-protected, X-Cron-Token, background)
 GET    /api/v1/validators/wallets/wall-of-shame/   (public, cached 60s, ?network= filter)
@@ -510,6 +542,9 @@ GET    /api/v1/notifications/              (requires auth, ?unread=true ?categor
 GET    /api/v1/notifications/unread-count/ (requires auth)
 POST   /api/v1/notifications/{id}/mark-read/   (requires auth)
 POST   /api/v1/notifications/mark-all-read/    (requires auth)
+
+# Campaign vanity links (public; proxied from portal /join/<role>/<alias> by Amplify)
+GET    /campaigns/redirect/{role}/{alias}  (anonymous, 302 with UTMs, throttled 120/min)
 ```
 
 ### Leaderboard monthly date ranges
@@ -548,6 +583,7 @@ Located in `.env` file:
 - `RECAPTCHA_PRIVATE_KEY` - Google reCAPTCHA secret key (required - use test key from .env.example for development)
 - `RECAPTCHA_ALLOW_TEST_KEYS` - Optional opt-in flag for non-production deployments that intentionally use Google's reCAPTCHA test keys with `DEBUG=False`. Set to `true` to silence `django_recaptcha.recaptcha_test_key_error`; production must not set this flag. The logic lives in `tally/settings.py` near `_RECAPTCHA_TEST_PUBLIC_KEY` and `SILENCED_SYSTEM_CHECKS`.
 - `CRON_SYNC_TOKEN` - Cron-protected endpoint auth (used by `sync` and `sync-grafana`)
+- `SLOW_REQUEST_LOG_MS` - Duration in ms (default `1000`) at or above which `APILoggingMiddleware` emits one sanitized WARNING for a non-5xx request. Production otherwise logs only 5xx, so slow successful requests leave no trace. The message carries method, redacted path, status and duration only, never query strings or bodies.
 - `DISCORD_SYNAPSE_ROLE_ID` / `DISCORD_BRAIN_ROLE_ID` / `DISCORD_NEUROCREATIVE_ROLE_ID` - Discord role IDs for the earned community role automation (Synapse/Brain assignment). All three must be set or the assignment job is a no-op.
 - `GRAFANA_BASE_URL` - Grafana Cloud base URL (default `https://genlayerfoundation.grafana.net`)
 - `GRAFANA_API_TOKEN` - Grafana service-account bearer token (required for Wall of Shame). Store in AWS SSM (`/tally/{env}/grafana_api_token`) for production.
@@ -556,6 +592,8 @@ Located in `.env` file:
 - `GRAFANA_ASIMOV_LABEL` / `GRAFANA_BRADBURY_LABEL` - Override the `network` label values Grafana queries use per testnet (defaults: `asimov-phase5`, `bradbury-phase1`)
 - `NODE_VERSION_SHAME_GRACE_DAYS` - Grace period (days) after a target's `target_date` before a node still behind it is version-shamed, applied globally (default `3`)
 - `NODE_VERSION_MIN_OPERATORS_FOR_AUTO_TARGET` - Minimum distinct operators that must be observed running a new stable node version before the Grafana sync auto-creates it as the fleet-wide upgrade target (default `1`: the first adopter creates the target; raise it to require corroboration if version spoofing ever becomes a concern)
+- `CAMPAIGN_HIT_RETENTION_DAYS` - Retention window for detailed campaign redirect hits, used as the default of `purge_campaign_hits` (default `90`)
+- `CAMPAIGN_ATTRIBUTION_WINDOW_DAYS` - Maximum age of a browser-captured campaign first touch accepted for signup attribution (default `30`)
 - `SORSA_API_BASE_URL` - Sorsa API base URL (default `https://api.sorsa.io/v3`); used for Twitter follow verification in social_tasks and X follower counts in overview metrics.
 - `SORSA_API_KEY` - Sorsa API key sent in the `ApiKey` header (secret, required). Store in AWS SSM (`/tally/{env}/sorsa_api_key`) for production.
 - Note: the Sorsa request timeout and follow endpoint path are intentionally code constants in `social_tasks/sorsa_client.py`, not env vars. Changing the endpoint requires a code deploy anyway because the response parser lives in the same file.
@@ -642,6 +680,39 @@ The project uses **context-aware serialization** to optimize API performance:
 **Evidence URL Type Serializers** (`contributions/serializers.py`):
 - `LightEvidenceURLTypeSerializer` - Minimal (id, name, slug, is_generic) for nested use in Evidence responses
 - `EvidenceURLTypeSerializer` - Full serializer with url_patterns for client-side detection, used in ContributionType responses
+
+### Per-request user lookup (do not reintroduce the address scan)
+
+`EthereumAuthentication` (`ethereum_auth/authentication.py`) runs on EVERY DRF request:
+it is first in `DEFAULT_AUTHENTICATION_CLASSES` and DRF resolves `request.user`
+unconditionally. It resolves the user from Django's own session machinery via
+`request._request.user` (one primary-key lookup, plus `_auth_user_backend` /
+`_auth_user_hash` / `is_active` validation), then checks that the session's
+`ethereum_address` still binds to that user **case-insensitively** (login stores the
+lowercased SIWE address, `signup_email_confirm` stores database casing, and production
+holds mixed-case rows). A wallet mismatch RAISES rather than returning `None`, so the
+next authenticator in the chain cannot grant the request off the same session user.
+
+Never look the user up by `address__iexact` in a per-request path. `iexact` compiles to
+`UPPER(address) = UPPER(...)` on PostgreSQL and the only unique index on the column is
+case-sensitive, so it is a sequential scan. Migration `users/0022` adds a non-unique
+functional index on `Upper('address')` for the case-insensitive lookups that legitimately
+remain (`users/utils.py::user_lookup_kwargs`, address search). Guards:
+`ethereum_auth/test_authentication.py::WalletSessionQueryShapeTests`.
+
+Session-based tests must build a real session with
+`ethereum_auth.testing.login_wallet_session(client, user)`; hand-seeding only
+`ethereum_address` + `authenticated` produces a session the authenticator rejects.
+
+### Community aggregate caching
+
+`community_xp/cache.py` holds a 60s cache for the two shared, non-personalized community
+aggregates: the ranking snapshot (`list[(user_id, total_points)]`) and the stats summary.
+Both take no request input. Search, `user_rank`, `profile_context` and hydration stay live
+per request. There is no `CACHES` setting, so this is per-process `LocMemCache`: the relief
+scales with worker/container count and is strongest at steady state. Tests that touch the
+community endpoints must call `clear_community_caches()` in `setUp` (LocMemCache is not
+reset between tests). Query-count guards: `leaderboard/tests/test_community_query_counts.py`.
 
 ## Testing
 - **Test Organization Best Practice**: Use `{app}/tests/` folder structure for better organization

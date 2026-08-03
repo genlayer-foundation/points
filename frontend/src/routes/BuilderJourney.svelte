@@ -262,7 +262,7 @@
       .startBuilderJourney()
       .then((res) => {
         if (res.data?.user) userStore.updateUser(res.data.user);
-        else userStore.loadUser?.();
+        else userStore.loadUser?.({ force: true })?.catch(() => {});
         markFunnelTime('journey_start:builder');
         markLifecycleTime('first_journey_start:builder');
         trackEvent('journey_started', getAnalyticsContext({
@@ -589,7 +589,7 @@
     try {
       const res = await journeyAPI.linkGithubAccount();
       if (res.data?.user) userStore.updateUser(res.data.user);
-      else await userStore.loadUser?.();
+      else await userStore.loadUser?.({ force: true });
       trackBuilderStepEvent('journey_step_verified', 'github');
       showSuccess('GitHub linked. 25 BP awarded.');
     } catch (err) {
@@ -605,7 +605,7 @@
 
   function handleGithubLinked(updatedUser) {
     if (updatedUser) userStore.updateUser(updatedUser);
-    else userStore.loadUser?.();
+    else userStore.loadUser?.({ force: true })?.catch(() => {});
   }
 
   function handleTaskCompleted(result) {
@@ -619,7 +619,7 @@
         : task
     );
     loadTasks({ showLoading: false });
-    userStore.loadUser?.();
+    userStore.loadUser?.({ force: true })?.catch(() => {});
   }
 
   function triggerWalletConnect() {
@@ -650,7 +650,7 @@
     completing = true;
     try {
       await journeyAPI.completeBuilderJourney();
-      await userStore.loadUser();
+      await userStore.loadUser({ force: true });
       markLifecycleTime('role_unlocked:builder');
       trackEvent('builder_role_claim_success', getAnalyticsContext(claimParams));
       trackEvent('journey_completed', getAnalyticsContext({

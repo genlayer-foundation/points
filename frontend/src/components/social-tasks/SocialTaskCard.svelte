@@ -183,7 +183,7 @@
     if (updatedUser) {
       userStore.updateUser(updatedUser);
     } else {
-      userStore.loadUser?.();
+      userStore.loadUser?.({ force: true })?.catch(() => {});
     }
   }
 </script>

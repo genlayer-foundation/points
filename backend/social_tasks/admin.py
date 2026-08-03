@@ -35,6 +35,7 @@ class SocialTaskAdmin(BroadcastNotificationAdminMixin, admin.ModelAdmin):
         'points',
         'completions',
         'is_active',
+        'counts_as_activation',
         'starts_at',
         'ends_at',
         'order',
@@ -89,7 +90,7 @@ class SocialTaskAdmin(BroadcastNotificationAdminMixin, admin.ModelAdmin):
             ),
         }),
         ('Lifecycle', {
-            'fields': ('is_active', 'starts_at', 'ends_at'),
+            'fields': ('is_active', 'starts_at', 'ends_at', 'counts_as_activation'),
         }),
     )
 

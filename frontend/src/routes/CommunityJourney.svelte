@@ -174,7 +174,7 @@
           time_from_wallet_auth_success_ms: getFunnelDurationMs('wallet_auth_success'),
           time_from_profile_completion_ms: getFunnelDurationMs('profile_completion'),
         }));
-        userStore.loadUser?.();
+        userStore.loadUser?.({ force: true })?.catch(() => {});
       })
       .catch((err) => {
         trackEvent('journey_start_error', getAnalyticsContext({
@@ -339,7 +339,7 @@
     try {
       const res = isX ? await journeyAPI.linkXAccount() : await journeyAPI.linkDiscordAccount();
       if (res.data?.user) userStore.updateUser(res.data.user);
-      else await userStore.loadUser?.();
+      else await userStore.loadUser?.({ force: true });
       trackCommunityStepEvent('journey_step_verified', stepId);
       markStepDone(stepId);
       showSuccess(isX ? 'X account linked for community points.' : 'Discord account linked for community points.');
@@ -379,7 +379,7 @@
         : task
     );
     loadJourney({ showLoading: false });
-    userStore.loadUser?.();
+    userStore.loadUser?.({ force: true })?.catch(() => {});
   }
 
   async function copyShareText() {
@@ -494,7 +494,7 @@
     try {
       const res = await journeyAPI.completeCommunityJourney();
       if (res.data?.user) userStore.updateUser(res.data.user);
-      await userStore.loadUser?.();
+      await userStore.loadUser?.({ force: true });
       markLifecycleTime('role_unlocked:community');
       trackEvent('community_role_claim_success', getAnalyticsContext(claimParams));
       trackEvent('journey_completed', getAnalyticsContext({

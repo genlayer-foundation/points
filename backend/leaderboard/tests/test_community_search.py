@@ -12,10 +12,14 @@ from creators.models import Creator
 from leaderboard.models import GlobalLeaderboardMultiplier
 from poaps.models import PoapClaim, PoapDrop
 from users.models import User
+from community_xp.cache import clear_community_caches
 
 
 class CommunityLeaderboardSearchTest(TestCase):
     def setUp(self):
+        # The community ranking/summary aggregates are cached briefly and
+        # LocMemCache is not reset between tests.
+        clear_community_caches()
         self.client = APIClient()
         self.viewer = User.objects.create_user(
             email='community-viewer@example.com',

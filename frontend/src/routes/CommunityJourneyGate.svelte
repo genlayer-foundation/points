@@ -12,7 +12,7 @@
     verificationState = 'loading';
 
     try {
-      const user = await userStore.loadUser();
+      const user = await userStore.loadUser({ force: true });
       if (currentRequestId !== requestId) return;
 
       if (!user) {
