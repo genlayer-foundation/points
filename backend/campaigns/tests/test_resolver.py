@@ -44,6 +44,11 @@ class CampaignRedirectResolverTests(TestCase):
         response = self._get('/join/builders/ethcc')
         self.assertEqual(response.status_code, 302)
         self.assertIn(f'utm_id={self.link.tracking_id}', response['Location'])
+        self.assertEqual(response['Cache-Control'], 'no-store')
+        self.assertEqual(self._get('/join/builders/ethcc/').status_code, 302)
+        head = self.client.head('/join/builders/ethcc', HTTP_USER_AGENT=BROWSER_UA)
+        self.assertEqual(head.status_code, 302)
+        self.assertEqual(head['Cache-Control'], 'no-store')
         self.assertEqual(self._get('/join/builders/nope').status_code, 404)
 
     def test_head_request_works(self):
