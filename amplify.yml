@@ -26,11 +26,14 @@ applications:
             VITE_VALIDATOR_RPC_URL: https://rpc.testnet-chain.genlayer.com
     customRules:
       # Campaign vanity links: reverse-proxy the reserved /join/ namespace to
-      # the Django resolver. Must stay BEFORE the SPA catch-all (rules apply
-      # in order). One dynamic rule for all campaigns; never add per-campaign
-      # rules here.
+      # the Django backend, which serves /join/<role>/<alias> directly. Must
+      # stay BEFORE the SPA catch-all (rules apply in order). One dynamic rule
+      # for all campaigns; never add per-campaign rules here.
+      # NOTE: production is served by CloudFront + S3, not Amplify; there the
+      # equivalent is a CloudFront behavior for /join/* with the backend as
+      # origin (caching disabled, query strings forwarded).
       - source: '/join/<*>'
-        target: 'https://tally-backend.33qpgck0g28d0.us-east-1.cs.amazonlightsail.com/campaigns/redirect/<*>'
+        target: 'https://portal-admin.genlayer.foundation/join/<*>'
         status: '200'
       - source: '</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json|webp)$)([^.]+$)/>'
         target: '/index.html'
