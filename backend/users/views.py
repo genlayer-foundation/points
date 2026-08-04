@@ -608,12 +608,17 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
                 'user': serializer.data
             }, status=status.HTTP_201_CREATED)
 
-        except Exception as e:
+        except Exception:
             # logger.exception keeps the traceback: catching the error here
-            # suppresses django.request's own 500 logging.
+            # suppresses django.request's own 500 logging. The client gets a
+            # stable message only; str(e) can leak table/constraint names and
+            # row values, and the portal renders these fields verbatim.
             logger.exception('Failed to complete builder journey')
             return Response(
-                {'error': f'Failed to complete journey: {str(e)}'},
+                {
+                    'error': 'completion_failed',
+                    'message': 'Something went wrong on our side while completing the journey. Please try again in a moment.',
+                },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -895,14 +900,19 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
                 {'message': 'Welcome to the GenLayer community!', 'user': self.get_serializer(fresh_user).data},
                 status=status.HTTP_201_CREATED,
             )
-        except Exception as e:
+        except Exception:
             # An unhandled error here surfaces as an HTML 500 the portal can
             # only render as a generic "try again" dead end. Catching it drops
-            # django.request's traceback logging, so log it ourselves and give
-            # the client the real reason, mirroring the builder endpoint.
+            # django.request's traceback logging, so log it ourselves. The
+            # client gets a stable message only; str(e) can leak table or
+            # constraint names and row values, and the portal renders these
+            # fields verbatim.
             logger.exception('Failed to complete community journey')
             return Response(
-                {'error': f'Failed to complete journey: {str(e)}'},
+                {
+                    'error': 'completion_failed',
+                    'message': 'Something went wrong on our side while completing the journey. Please try again in a moment.',
+                },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 

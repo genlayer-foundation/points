@@ -327,7 +327,11 @@ class CommunityJourneyTests(TestCase):
         self.assertIn('Traceback', logged)
         self.assertIn('leaderboard exploded', logged)
         self.assertEqual(res.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
-        self.assertIn('leaderboard exploded', res.data['error'])
+        # The real reason belongs in the logs only: exception text can carry
+        # table/constraint names or row values, and the portal shows these
+        # response fields verbatim.
+        self.assertEqual(res.data['error'], 'completion_failed')
+        self.assertNotIn('leaderboard exploded', str(res.data))
         self.assertFalse(Creator.objects.filter(user=self.user).exists())
 
     def test_existing_creator_is_grandfathered(self):
