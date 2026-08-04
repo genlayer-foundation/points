@@ -607,7 +607,9 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
             }, status=status.HTTP_201_CREATED)
 
         except Exception as e:
-            logger.error(f"Failed to complete builder journey: {str(e)}")
+            # logger.exception keeps the traceback: catching the error here
+            # suppresses django.request's own 500 logging.
+            logger.exception('Failed to complete builder journey')
             return Response(
                 {'error': f'Failed to complete journey: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -869,25 +871,36 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
         from django.db import transaction
         from django.contrib.auth import get_user_model
 
-        with transaction.atomic():
-            # Lock the user row so two concurrent requests can't both pass the
-            # hasattr check above and race into a OneToOne IntegrityError.
-            get_user_model().objects.select_for_update().get(pk=user.pk)
-            _, created = Creator.objects.get_or_create(user=user)
+        try:
+            with transaction.atomic():
+                # Lock the user row so two concurrent requests can't both pass the
+                # hasattr check above and race into a OneToOne IntegrityError.
+                get_user_model().objects.select_for_update().get(pk=user.pk)
+                _, created = Creator.objects.get_or_create(user=user)
 
-            if not created:
-                return Response(
-                    {'message': 'You are already a creator', 'user': self.get_serializer(user).data},
-                    status=status.HTTP_200_OK,
-                )
+                if not created:
+                    return Response(
+                        {'message': 'You are already a creator', 'user': self.get_serializer(user).data},
+                        status=status.HTTP_200_OK,
+                    )
 
-            fresh_user = type(user).objects.get(pk=user.pk)
-            update_user_leaderboard_entries(fresh_user)
+                fresh_user = type(user).objects.get(pk=user.pk)
+                update_user_leaderboard_entries(fresh_user)
 
-        return Response(
-            {'message': 'Welcome to the GenLayer community!', 'user': self.get_serializer(fresh_user).data},
-            status=status.HTTP_201_CREATED,
-        )
+            return Response(
+                {'message': 'Welcome to the GenLayer community!', 'user': self.get_serializer(fresh_user).data},
+                status=status.HTTP_201_CREATED,
+            )
+        except Exception as e:
+            # An unhandled error here surfaces as an HTML 500 the portal can
+            # only render as a generic "try again" dead end. Catching it drops
+            # django.request's traceback logging, so log it ourselves and give
+            # the client the real reason, mirroring the builder endpoint.
+            logger.exception('Failed to complete community journey')
+            return Response(
+                {'error': f'Failed to complete journey: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=False, methods=['get'])
     def validators(self, request):

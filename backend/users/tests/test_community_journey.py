@@ -291,6 +291,25 @@ class CommunityJourneyTests(TestCase):
         self.assertEqual(second.status_code, status.HTTP_200_OK)
         self.assertEqual(Creator.objects.filter(user=self.user).count(), 1)
 
+    def test_complete_failure_returns_json_error_and_rolls_back(self):
+        # An unhandled exception used to produce an HTML 500 the portal can only
+        # render as a generic "try again"; it must come back as JSON with the
+        # real reason, be logged with a traceback, and roll back the role grant.
+        self.start_journey()
+        self.complete_steps_1_to_4()
+        CommunityPostProof.objects.create(user=self.user, post_url=POST_URL, tweet_id='1790000000000000000')
+        # Patched around the POST only: contribution signals in the setup steps
+        # call the same function.
+        with (
+            patch('leaderboard.models.update_user_leaderboard_entries',
+                  side_effect=RuntimeError('leaderboard exploded')),
+            self.assertLogs('tally.app.users', level='ERROR'),
+        ):
+            res = self.client.post('/api/v1/users/complete_community_journey/')
+        self.assertEqual(res.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertIn('leaderboard exploded', res.data['error'])
+        self.assertFalse(Creator.objects.filter(user=self.user).exists())
+
     def test_existing_creator_is_grandfathered(self):
         # A pre-existing creator who never went through the
         # new journey is grandfathered in: treated as a complete member and
