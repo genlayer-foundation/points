@@ -178,6 +178,22 @@ class BuilderJourneyTests(TestCase):
             LeaderboardEntry.objects.filter(user=self.user, type='builder').exists()
         )
 
+    def test_complete_grants_role_through_wallet_session_auth(self):
+        # Same grant as test_complete_grants_role_point_free, but through the
+        # real session authentication chain: EthereumAuthentication returns
+        # Django's SimpleLazyObject wrapper, which force_authenticate cannot
+        # model (type(request.user) on the wrapper has no .objects manager).
+        from ethereum_auth.testing import login_wallet_session
+        self.client.force_authenticate(user=None)
+        login_wallet_session(self.client, self.user)
+        self.complete_star_task()
+
+        response = self.client.post('/api/v1/users/complete_builder_journey/')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        from builders.models import Builder
+        self.assertTrue(Builder.objects.filter(user=self.user).exists())
+
     def test_complete_is_idempotent(self):
         self.complete_star_task()
 

@@ -4,6 +4,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Finishing the Creator or Builder journey now actually grants the role: since late June the final "Become a Creator" / "Claim Builder Role" step failed for every new member with a generic error, and completion errors now show their real reason instead of a dead-end "try again" (9d546e70)
+
 - Validators can link Telegram support groups to their validator: generate a one-time code on the new Telegram Support page, paste it in a Telegram group with the Deckard support bot, and the group is bound to the validator (multiple groups supported, codes expire in 48 hours and can be revoked) (0cd7e5f)
 
 - Marketing can create campaign links like portal.genlayer.foundation/join/builders/ethcc from the admin panel without a deployment; each link tracks visits, signups, and role activations per campaign, campaign traffic reaches Google Analytics with clean final URLs, and new accounts are attributed to the campaign that brought them (810bdc32)
