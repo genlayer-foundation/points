@@ -204,6 +204,8 @@ describe('Community journey membership and recovery', () => {
 
     await waitFor(() => expect(mocks.completeCommunityJourney).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith('/community'));
+    // The refresh must have been attempted (and failed) for this to test recovery.
+    await waitFor(() => expect(mocks.getCurrentUser).toHaveBeenCalledTimes(1));
     expect(mocks.showSuccess).toHaveBeenCalledWith('Welcome to the GenLayer community!');
     expect(mocks.showError).not.toHaveBeenCalled();
   });

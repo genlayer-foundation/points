@@ -116,6 +116,8 @@ describe('Builder journey completion recovery', () => {
 
     await waitFor(() => expect(mocks.completeBuilderJourney).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith('/builders'));
+    // The refresh must have been attempted (and failed) for this to test recovery.
+    await waitFor(() => expect(mocks.getCurrentUser).toHaveBeenCalledTimes(1));
     expect(mocks.showSuccess).toHaveBeenCalledWith('Builder role claimed.');
     expect(mocks.showError).not.toHaveBeenCalled();
   });
