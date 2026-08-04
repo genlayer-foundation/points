@@ -303,9 +303,14 @@ class CommunityJourneyTests(TestCase):
         with (
             patch('leaderboard.models.update_user_leaderboard_entries',
                   side_effect=RuntimeError('leaderboard exploded')),
-            self.assertLogs('tally.app.users', level='ERROR'),
+            self.assertLogs('tally.app.users', level='ERROR') as logs,
         ):
             res = self.client.post('/api/v1/users/complete_community_journey/')
+        # The log must carry the traceback, not just a message: a bare ERROR
+        # record would pass assertLogs while losing the diagnostic value.
+        logged = '\n'.join(logs.output)
+        self.assertIn('Traceback', logged)
+        self.assertIn('leaderboard exploded', logged)
         self.assertEqual(res.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
         self.assertIn('leaderboard exploded', res.data['error'])
         self.assertFalse(Creator.objects.filter(user=self.user).exists())
