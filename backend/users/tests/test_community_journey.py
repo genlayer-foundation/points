@@ -281,6 +281,21 @@ class CommunityJourneyTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         self.assertTrue(Creator.objects.filter(user=self.user).exists())
 
+    def test_complete_grants_creator_through_wallet_session_auth(self):
+        # Production resolves request.user through EthereumAuthentication, which
+        # returns Django's SimpleLazyObject wrapper. force_authenticate injects
+        # a concrete User, so it cannot catch wrapper-only breakage such as
+        # type(request.user) having no .objects manager.
+        from ethereum_auth.testing import login_wallet_session
+        self.client.force_authenticate(user=None)
+        login_wallet_session(self.client, self.user)
+        self.start_journey()
+        self.complete_steps_1_to_4()
+        CommunityPostProof.objects.create(user=self.user, post_url=POST_URL, tweet_id='1790000000000000000')
+        res = self.client.post('/api/v1/users/complete_community_journey/')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(Creator.objects.filter(user=self.user).exists())
+
     def test_complete_is_idempotent(self):
         self.start_journey()
         self.complete_steps_1_to_4()

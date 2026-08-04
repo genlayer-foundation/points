@@ -682,6 +682,18 @@ The project uses **context-aware serialization** to optimize API performance:
 - `LightEvidenceURLTypeSerializer` - Minimal (id, name, slug, is_generic) for nested use in Evidence responses
 - `EvidenceURLTypeSerializer` - Full serializer with url_patterns for client-side detection, used in ContributionType responses
 
+### request.user is a lazy wrapper (never `type(request.user)`)
+
+`EthereumAuthentication` returns Django's `request._request.user`, which is a
+`SimpleLazyObject`. Attribute access proxies to the real User (`.pk`, `hasattr`,
+serialization all work, and tests using `force_authenticate` pass because they
+inject a concrete User), but `type(request.user)` returns the wrapper class,
+which has no `.objects` manager. This broke every new Creator/Builder role grant
+in production for five weeks while all tests stayed green. Use
+`get_user_model()` for manager access, and cover session-authenticated view
+paths with `ethereum_auth.testing.login_wallet_session` (guards:
+`test_*_through_wallet_session_auth` in `users/tests/test_*_journey.py`).
+
 ### Per-request user lookup (do not reintroduce the address scan)
 
 `EthereumAuthentication` (`ethereum_auth/authentication.py`) runs on EVERY DRF request:

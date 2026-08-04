@@ -596,8 +596,10 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
                     # Recalculate leaderboard entries now that the Builder relation
                     # exists. The grant itself adds no points, but builder-category
                     # aggregation keys off the Builder profile being present.
+                    # get_user_model(), never type(user): request.user is Django's
+                    # SimpleLazyObject wrapper, whose type has no .objects manager.
                     from leaderboard.models import update_user_leaderboard_entries
-                    fresh_user = type(user).objects.get(pk=user.pk)
+                    fresh_user = get_user_model().objects.get(pk=user.pk)
                     update_user_leaderboard_entries(fresh_user)
 
             serializer = self.get_serializer(user)
@@ -884,7 +886,9 @@ class UserViewSet(UserPoapMixin, viewsets.ReadOnlyModelViewSet):
                         status=status.HTTP_200_OK,
                     )
 
-                fresh_user = type(user).objects.get(pk=user.pk)
+                # get_user_model(), never type(user): request.user is Django's
+                # SimpleLazyObject wrapper, whose type has no .objects manager.
+                fresh_user = get_user_model().objects.get(pk=user.pk)
                 update_user_leaderboard_entries(fresh_user)
 
             return Response(
