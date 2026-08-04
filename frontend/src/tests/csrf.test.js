@@ -17,12 +17,16 @@ function csrfResponse(token = 'token-1') {
   return { data: { csrfToken: token, csrfCookieName: 'csrftoken' } };
 }
 
+function clearCsrfCookie() {
+  document.cookie = 'csrftoken=; Max-Age=0; path=/';
+}
+
 describe('csrf token cache', () => {
   beforeEach(() => {
     mocks.get.mockReset();
     // Production splits the SPA and API across hosts, so document.cookie never
     // carries the CSRF cookie. Model that here.
-    document.cookie = '';
+    clearCsrfCookie();
   });
 
   afterEach(() => {
@@ -134,5 +138,55 @@ describe('isCsrfFailure', () => {
     expect(isCsrfFailure({ response: { status: 500, data: {} } })).toBe(false);
     expect(isCsrfFailure({})).toBe(false);
     expect(isCsrfFailure(undefined)).toBe(false);
+  });
+});
+
+describe('retryOnceAfterCsrfFailure', () => {
+  beforeEach(() => {
+    mocks.get.mockReset();
+    clearCsrfCookie();
+  });
+
+  it('clears the stale token and retries once with a fresh token', async () => {
+    mocks.get
+      .mockResolvedValueOnce(csrfResponse('stale-token'))
+      .mockResolvedValueOnce(csrfResponse('fresh-token'));
+    const { attachCsrfToken, retryOnceAfterCsrfFailure } = await loadCsrf();
+    const csrfError = {
+      response: { status: 403, data: { detail: 'CSRF Failed: CSRF token incorrect.' } },
+    };
+    const request = vi.fn(async () => {
+      const config = await attachCsrfToken({ method: 'post' });
+      if (request.mock.calls.length === 1) throw csrfError;
+      return config;
+    });
+
+    const response = await retryOnceAfterCsrfFailure(request);
+
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(mocks.get).toHaveBeenCalledTimes(2);
+    expect(response.headers['X-CSRFToken']).toBe('fresh-token');
+  });
+
+  it('does not retry authorization or application failures', async () => {
+    const { retryOnceAfterCsrfFailure } = await loadCsrf();
+    const permissionError = {
+      response: { status: 403, data: { detail: 'You do not have permission.' } },
+    };
+    const request = vi.fn().mockRejectedValue(permissionError);
+
+    await expect(retryOnceAfterCsrfFailure(request)).rejects.toBe(permissionError);
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops after one retry if the fresh token is also rejected', async () => {
+    const { retryOnceAfterCsrfFailure } = await loadCsrf();
+    const csrfError = {
+      response: { status: 403, data: { detail: 'CSRF Failed: CSRF token incorrect.' } },
+    };
+    const request = vi.fn().mockRejectedValue(csrfError);
+
+    await expect(retryOnceAfterCsrfFailure(request)).rejects.toBe(csrfError);
+    expect(request).toHaveBeenCalledTimes(2);
   });
 });

@@ -84,6 +84,28 @@ export function isCsrfFailure(error) {
   return typeof detail === 'string' && detail.startsWith('CSRF Failed');
 }
 
+/**
+ * Retry one explicitly idempotent request after a genuine CSRF rejection.
+ *
+ * The shared Axios interceptor cannot safely replay every mutation because
+ * many endpoints are not idempotent. Callers opt in here only when the server
+ * guarantees that repeating the operation is safe (for example, role grants
+ * implemented with get_or_create).
+ *
+ * @template T
+ * @param {() => Promise<T>} request
+ * @returns {Promise<T>}
+ */
+export async function retryOnceAfterCsrfFailure(request) {
+  try {
+    return await request();
+  } catch (error) {
+    if (!isCsrfFailure(error)) throw error;
+    clearCsrfToken();
+    return request();
+  }
+}
+
 export async function attachCsrfToken(config) {
   if (!isUnsafeMethod(config.method)) {
     return config;
