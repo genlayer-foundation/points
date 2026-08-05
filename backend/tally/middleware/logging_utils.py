@@ -75,7 +75,12 @@ class LayeredFormatter(logging.Formatter):
         message = record.getMessage()
         level = record.levelname
 
-        return f"[{layer}] {level}: {message}{cid_suffix}"
+        formatted = f"[{layer}] {level}: {message}{cid_suffix}"
+        # logger.exception callers rely on the traceback reaching the output;
+        # the JSON formatter renders it, so the dev console must too.
+        if record.exc_info:
+            formatted = f"{formatted}\n{self.formatException(record.exc_info)}"
+        return formatted
 
 
 class LayeredJSONFormatter(logging.Formatter):
