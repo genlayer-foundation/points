@@ -10,6 +10,8 @@
   import { rgbaFromHex } from '../lib/categoryPresentation.js';
   import { isInteractiveTarget, stripPreviewMedia } from '../lib/domHelpers.js';
 
+  let { readOnly = false } = $props();
+
   let missions = $state([]);
   let loading = $state(true);
   let countdowns = $state({});
@@ -88,6 +90,7 @@
 
   function isFull(entity) {
     if (!entity) return false;
+    if (entity.user_weekly_is_full === true) return true;
     if (entity.is_full === true) return true;
     return (
       entity.max_submissions !== null &&
@@ -101,6 +104,7 @@
   function missionCapacityLabel(mission, parentType) {
     if (mission?.user_is_full === true) return 'Your limit reached';
     if (isFull(mission)) return 'Full';
+    if (parentType?.user_weekly_is_full === true) return 'Your weekly limit reached';
     if (isFull(parentType)) return 'Submissions closed';
     if (mission?.max_submissions != null && mission?.submissions_remaining != null) {
       return spotsLeftLabel(mission.submissions_remaining);
@@ -309,14 +313,20 @@
                 >
                   Details
                 </button>
-                <button
-                  type="button"
-                  onclick={(event) => { event.stopPropagation(); !submissionClosed && push(`/submit-contribution?mission=${mission.id}`); }}
-                  disabled={submissionClosed}
-                  class="inline-flex h-8 items-center justify-center rounded-[8px] px-2 text-[12px] font-semibold transition {submissionClosed ? 'cursor-not-allowed bg-[#f2f4f7] text-[#98a2b3]' : 'bg-black text-white hover:-translate-y-0.5 hover:shadow-[0_10px_18px_rgba(31,42,68,0.14)]'}"
-                >
-                  {submitLabel(mission, parentType)}
-                </button>
+                {#if readOnly}
+                  <span class="inline-flex h-8 items-center justify-center rounded-[8px] bg-[#f2f4f7] px-2 text-[12px] font-semibold text-[#667085]">
+                    View only
+                  </span>
+                {:else}
+                  <button
+                    type="button"
+                    onclick={(event) => { event.stopPropagation(); !submissionClosed && push(`/submit-contribution?mission=${mission.id}`); }}
+                    disabled={submissionClosed}
+                    class="inline-flex h-8 items-center justify-center rounded-[8px] px-2 text-[12px] font-semibold transition {submissionClosed ? 'cursor-not-allowed bg-[#f2f4f7] text-[#98a2b3]' : 'bg-black text-white hover:-translate-y-0.5 hover:shadow-[0_10px_18px_rgba(31,42,68,0.14)]'}"
+                  >
+                    {submitLabel(mission, parentType)}
+                  </button>
+                {/if}
               </div>
             </div>
           </div>

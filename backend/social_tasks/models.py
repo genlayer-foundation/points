@@ -94,6 +94,12 @@ class SocialTask(BaseModel):
     starts_at = models.DateTimeField(null=True, blank=True)
     ends_at = models.DateTimeField(null=True, blank=True)
     order = models.PositiveIntegerField(default=0)
+    # Explicit allowlist for campaign activation reporting: a new task never
+    # silently counts as community activation.
+    counts_as_activation = models.BooleanField(
+        default=False,
+        help_text='Completions count as community activation in campaign reporting.',
+    )
 
     class Meta:
         ordering = ['order', 'created_at']

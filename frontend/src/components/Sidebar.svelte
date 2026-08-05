@@ -6,7 +6,12 @@
   import { userStore } from '../lib/userStore.js';
   import { contributionsAPI, stewardAPI } from '../lib/api.js';
   import { stewardPermissions } from '../lib/stewardPermissions.js';
-  import { hasEarnedRole, journeyPath, rolePath } from '../lib/roleState.js';
+  import {
+    hasReadOnlyRoleSectionAccess,
+    hasRoleSectionAccess,
+    journeyPath,
+    rolePath,
+  } from '../lib/roleState.js';
   import { getAnalyticsContext, setConnectWalletIntent, trackEvent } from '../lib/analytics.js';
   import Avatar from './Avatar.svelte';
 
@@ -133,7 +138,7 @@
   // A signed-in user who has not earned this category's role: the role's
   // subsections are shown but locked.
   function isRoleLocked(category) {
-    return $authState.isAuthenticated && !hasEarnedRole($userStore.user, category);
+    return $authState.isAuthenticated && !hasRoleSectionAccess($userStore.user, category);
   }
 
   // Clicking a locked role subsection nudges the user to that role's funnel
@@ -310,6 +315,17 @@
 
         {#if !collapsed && getActiveSection() === 'builder' && $authState.isAuthenticated}
           <div class="pl-5">
+            {#if hasReadOnlyRoleSectionAccess($userStore.user, 'builder')}
+              <a
+                href="/builders/dashboard"
+                onclick={(e) => { e.preventDefault(); openRoleSection('/builders/dashboard', 'builder'); }}
+                class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                  isActive('/builders/dashboard') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
+                }"
+              >
+                Dashboard
+              </a>
+            {/if}
             <a
               href="/builders/contributions"
               onclick={(e) => { e.preventDefault(); openRoleSection('/builders/contributions', 'builder'); }}
@@ -367,6 +383,17 @@
 
         {#if !collapsed && getActiveSection() === 'validator' && $authState.isAuthenticated}
           <div class="pl-5">
+            {#if hasReadOnlyRoleSectionAccess($userStore.user, 'validator')}
+              <a
+                href="/validators/dashboard"
+                onclick={(e) => { e.preventDefault(); openRoleSection('/validators/dashboard', 'validator'); }}
+                class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                  isActive('/validators/dashboard') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
+                }"
+              >
+                Dashboard
+              </a>
+            {/if}
             <a
               href="/validators/contributions"
               onclick={(e) => { e.preventDefault(); openRoleSection('/validators/contributions', 'validator'); }}
@@ -411,6 +438,19 @@
                 <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               {/if}
             </a>
+            <a
+              href="/validators/telegram"
+              onclick={(e) => { e.preventDefault(); openRoleSection('/validators/telegram', 'validator'); }}
+              class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
+                isActive('/validators/telegram') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
+              } {isRoleLocked('validator') ? 'text-gray-400' : 'text-black'}"
+              title={isRoleLocked('validator') ? 'Become a validator to unlock' : ''}
+            >
+              <span>Telegram Support</span>
+              {#if isRoleLocked('validator')}
+                <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              {/if}
+            </a>
           </div>
         {/if}
       </div>
@@ -437,6 +477,17 @@
 
         {#if !collapsed && getActiveSection() === 'community' && $authState.isAuthenticated}
           <div class="pl-5">
+            {#if hasReadOnlyRoleSectionAccess($userStore.user, 'community')}
+              <a
+                href="/community/dashboard"
+                onclick={(e) => { e.preventDefault(); openRoleSection('/community/dashboard', 'community'); }}
+                class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                  isActive('/community/dashboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
+                }"
+              >
+                Dashboard
+              </a>
+            {/if}
             <a
               href="/community/contributions"
               onclick={(e) => { e.preventDefault(); openRoleSection('/community/contributions', 'community'); }}
@@ -777,6 +828,17 @@
 
       {#if getActiveSection() === 'builder' && $authState.isAuthenticated}
         <div class="pl-5">
+          {#if hasReadOnlyRoleSectionAccess($userStore.user, 'builder')}
+            <a
+              href="/builders/dashboard"
+              onclick={(e) => { e.preventDefault(); openRoleSection('/builders/dashboard', 'builder'); }}
+              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                isActive('/builders/dashboard') ? 'border-[#EE8D24]' : 'border-[#f5f5f5]'
+              }"
+            >
+              Dashboard
+            </a>
+          {/if}
           <a
             href="/builders/contributions"
             onclick={(e) => { e.preventDefault(); openRoleSection('/builders/contributions', 'builder'); }}
@@ -827,6 +889,17 @@
 
       {#if getActiveSection() === 'validator' && $authState.isAuthenticated}
         <div class="pl-5">
+          {#if hasReadOnlyRoleSectionAccess($userStore.user, 'validator')}
+            <a
+              href="/validators/dashboard"
+              onclick={(e) => { e.preventDefault(); openRoleSection('/validators/dashboard', 'validator'); }}
+              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                isActive('/validators/dashboard') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
+              }"
+            >
+              Dashboard
+            </a>
+          {/if}
           <a
             href="/validators/contributions"
             onclick={(e) => { e.preventDefault(); openRoleSection('/validators/contributions', 'validator'); }}
@@ -871,6 +944,19 @@
               <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             {/if}
           </a>
+          <a
+            href="/validators/telegram"
+            onclick={(e) => { e.preventDefault(); openRoleSection('/validators/telegram', 'validator'); }}
+            class="flex items-center justify-between border-l-[1.5px] px-3 py-2 text-[14px] font-medium tracking-[0.28px] {
+              isActive('/validators/telegram') ? 'border-[#387DE8]' : 'border-[#f5f5f5]'
+            } {isRoleLocked('validator') ? 'text-gray-400' : 'text-black'}"
+            title={isRoleLocked('validator') ? 'Become a validator to unlock' : ''}
+          >
+            <span>Telegram Support</span>
+            {#if isRoleLocked('validator')}
+              <svg class="h-3.5 w-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            {/if}
+          </a>
         </div>
       {/if}
 
@@ -890,6 +976,17 @@
 
       {#if getActiveSection() === 'community' && $authState.isAuthenticated}
         <div class="pl-5">
+          {#if hasReadOnlyRoleSectionAccess($userStore.user, 'community')}
+            <a
+              href="/community/dashboard"
+              onclick={(e) => { e.preventDefault(); openRoleSection('/community/dashboard', 'community'); }}
+              class="flex items-center border-l-[1.5px] px-3 py-2 text-[14px] font-medium text-black tracking-[0.28px] {
+                isActive('/community/dashboard') ? 'border-[#8D81E1]' : 'border-[#f5f5f5]'
+              }"
+            >
+              Dashboard
+            </a>
+          {/if}
           <a
             href="/community/contributions"
             onclick={(e) => { e.preventDefault(); openRoleSection('/community/contributions', 'community'); }}

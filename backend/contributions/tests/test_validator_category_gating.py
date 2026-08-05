@@ -185,6 +185,19 @@ class ValidatorCategorySubmitGatingTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertIn('Only creators', response.data['error'])
 
+    def test_read_only_role_access_does_not_grant_submission_permissions(self):
+        self.plain_user.can_view_role_sections = True
+        self.plain_user.save(update_fields=['can_view_role_sections', 'updated_at'])
+
+        for contribution_type in (
+            self.builder_type,
+            self.node_running_type,
+            self.community_type,
+        ):
+            with self.subTest(category=contribution_type.category.slug):
+                response = self._post_submission(self.plain_user, contribution_type)
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_user_with_creator_profile_passes_community_gating(self):
         response = self._post_submission(self.creator_user, self.community_type)
         # May be 201 or 400 depending on recaptcha config, but must not be 403

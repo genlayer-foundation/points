@@ -190,6 +190,158 @@ export function templateRoute(path) {
   return match ? match[1] : route;
 }
 
+// Structured campaign attribution for the backend (separate from the GA
+// querystring above). The backend only trusts the opaque utm_id and resolves
+// the campaign server-side; everything else here is captured for debugging.
+// First touch (localStorage, 30 days) is written once and never overwritten;
+// the session touch refreshes on every new campaign landing.
+const FIRST_TOUCH_KEY = 'campaign_first_touch';
+const SESSION_TOUCH_KEY = 'campaign_session_touch';
+const FIRST_TOUCH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+const STRUCTURED_ATTRIBUTION_KEYS = [
+  ['utm_id', 'utm_id'],
+  ['utm_source', 'source'],
+  ['utm_medium', 'medium'],
+  ['utm_campaign', 'campaign'],
+  ['utm_content', 'content'],
+  ['utm_term', 'term'],
+];
+
+function buildStructuredAttribution() {
+  try {
+    if (!canUseBrowser()) return null;
+    const params = new URLSearchParams(window.location.search || '');
+    const attribution = {};
+    for (const [param, key] of STRUCTURED_ATTRIBUTION_KEYS) {
+      const value = params.get(param);
+      if (value) attribution[key] = value.slice(0, MAX_STRING_LENGTH);
+    }
+    // Only touches with the opaque link ID are stored: the backend resolves
+    // campaigns exclusively from utm_id, and a utm_id-less (or whitespace)
+    // touch must never lock the 30-day first-touch slot against a later real
+    // campaign click.
+    const utmId = resolvableUtmId(attribution);
+    if (!utmId) return null;
+    attribution.utm_id = utmId;
+    // Templated so a wallet-address landing path never reaches storage.
+    attribution.landing_path = templateRoute(window.location.pathname);
+    attribution.captured_at = new Date().toISOString();
+    return attribution;
+  } catch {
+    return null;
+  }
+}
+
+function resolvableUtmId(touch) {
+  return typeof touch?.utm_id === 'string' ? touch.utm_id.trim() : '';
+}
+
+function readStoredTouch(storage, key, ttlMs) {
+  try {
+    const raw = storage.getItem(key);
+    if (!raw) return null;
+    const stored = JSON.parse(raw);
+    const capturedAt = Date.parse(stored?.captured_at);
+    if (!Number.isFinite(capturedAt) || safeNow() - capturedAt > ttlMs) {
+      storage.removeItem(key);
+      return null;
+    }
+    return stored;
+  } catch {
+    return null;
+  }
+}
+
+function captureStructuredAttribution() {
+  try {
+    if (!canUseBrowser()) return;
+    const attribution = buildStructuredAttribution();
+    if (!attribution) return;
+    sessionStorage.setItem(SESSION_TOUCH_KEY, JSON.stringify(attribution));
+    if (!readStoredTouch(localStorage, FIRST_TOUCH_KEY, FIRST_TOUCH_TTL_MS)) {
+      localStorage.setItem(FIRST_TOUCH_KEY, JSON.stringify(attribution));
+    }
+  } catch {
+    // Attribution persistence is best-effort only.
+  }
+}
+
+captureStructuredAttribution();
+
+export function getAcquisitionAttribution() {
+  try {
+    if (!canUseBrowser()) return null;
+    // A stored first touch without a resolvable ID (legacy or hand-edited)
+    // must fall through to the session touch instead of shadowing it.
+    const firstTouch = readStoredTouch(localStorage, FIRST_TOUCH_KEY, FIRST_TOUCH_TTL_MS);
+    const touch = resolvableUtmId(firstTouch)
+      ? firstTouch
+      : readStoredTouch(sessionStorage, SESSION_TOUCH_KEY, ATTRIBUTION_TTL_MS);
+    const utmId = resolvableUtmId(touch);
+    if (!utmId) return null;
+    return {
+      utm_id: utmId,
+      landing_path: typeof touch.landing_path === 'string' ? touch.landing_path : '/',
+      captured_at: touch.captured_at,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function clearAcquisitionAttribution() {
+  try {
+    if (!canUseBrowser()) return;
+    localStorage.removeItem(FIRST_TOUCH_KEY);
+    sessionStorage.removeItem(SESSION_TOUCH_KEY);
+  } catch {
+    // Best-effort only.
+  }
+}
+
+export function cleanTrackingParamsFromUrl(extraKeys = []) {
+  // Remove only recognized attribution params from the visible URL, after
+  // capture has already happened at module load. Everything else in the query
+  // (OAuth codes, email-verification tokens, product params) is preserved.
+  // Raw replaceState on purpose: the router stores are untouched, so no
+  // navigation event fires and no duplicate page_view is emitted.
+  try {
+    if (!canUseBrowser() || !window.history?.replaceState) return false;
+    const params = new URLSearchParams(window.location.search || '');
+    let removed = false;
+    for (const key of [...ATTRIBUTION_PARAMS, ...extraKeys]) {
+      if (params.has(key)) {
+        params.delete(key);
+        removed = true;
+      }
+    }
+    if (!removed) return false;
+    const remaining = params.toString();
+    const cleanUrl = window.location.pathname + (remaining ? `?${remaining}` : '') + window.location.hash;
+    window.history.replaceState({}, '', cleanUrl);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function trackSignUp(responseData, params = {}) {
+  // GA's recommended sign_up event: fires only when email confirmation
+  // actually created the account. Returning wallet logins have created:false
+  // and never reach here with true.
+  try {
+    if (responseData?.created !== true) return false;
+    const tracked = trackEvent('sign_up', getAnalyticsContext({ method: 'siwe_email', ...params }));
+    // The stored touch has converted; clearing it prevents another wallet
+    // registered later in this browser from inheriting this campaign.
+    clearAcquisitionAttribution();
+    return tracked;
+  } catch {
+    return false;
+  }
+}
+
 function roleContextFromRoute(path) {
   const route = normalizePath(path);
   if (route.startsWith('/builders')) return 'builder';

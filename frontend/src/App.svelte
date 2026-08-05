@@ -14,9 +14,9 @@
   import { authState, verifyAuth } from './lib/auth.js';
   import { userStore } from './lib/userStore.js';
   import { normalizeReferralCode } from './lib/referrals.js';
-  import { hasEarnedRole, journeyPath, rolePath } from './lib/roleState.js';
+  import { hasRoleSectionAccess, journeyPath, rolePath } from './lib/roleState.js';
   import { installLinkInterceptor } from './lib/router.js';
-  import { getAnalyticsContext, initializeAnalytics, setConnectWalletIntent, templateRoute, trackEvent, trackPageView } from './lib/analytics.js';
+  import { cleanTrackingParamsFromUrl, getAnalyticsContext, initializeAnalytics, setConnectWalletIntent, templateRoute, trackEvent, trackPageView } from './lib/analytics.js';
 
   // Early OAuth result detection — runs before routes mount.
   // Backend redirects here with ?oauth_platform=X&oauth_verified=true/false&oauth_error=...
@@ -67,6 +67,7 @@
   }
   
   import Overview from './routes/Overview.svelte';
+  import Dashboard from './routes/Dashboard.svelte';
   import Contributions from './routes/Contributions.svelte';
   import AllContributions from './routes/AllContributions.svelte';
   import Leaderboard from './routes/Leaderboard.svelte';
@@ -90,6 +91,7 @@
   import Waitlist from './routes/Waitlist.svelte';
   import WaitlistParticipants from './routes/WaitlistParticipants.svelte';
   import WallOfShame from './routes/WallOfShame.svelte';
+  import ValidatorTelegram from './routes/ValidatorTelegram.svelte';
 
   import TermsOfUse from './routes/TermsOfUse.svelte';
   import PrivacyPolicy from './routes/PrivacyPolicy.svelte';
@@ -120,7 +122,7 @@
   import SocialTasks from './routes/SocialTasks.svelte';
   import RoleFunnel from './components/funnel/RoleFunnel.svelte';
   import BuilderJourney from './routes/BuilderJourney.svelte';
-  import CommunityJourney from './routes/CommunityJourney.svelte';
+  import CommunityJourneyGate from './routes/CommunityJourneyGate.svelte';
 
   async function requireAuthForRoute({ location, querystring }) {
     const state = authState.get();
@@ -175,37 +177,36 @@
     conditions: [requireAuthForRoute],
   });
 
-  // Role-gated subsection: must be authenticated AND hold the role, else bounce
-  // to the role's main route (the funnel) so the user can start there. Role
-  // membership (user.builder/validator/creator) is authoritative for all three
-  // categories: existing members are grandfathered, the journey gates newcomers.
-  function hasSubsectionAccess(user, category) {
-    return hasEarnedRole(user, category);
-  }
-
+  // Role-gated subsection: actual members and admin-enabled read-only viewers
+  // may enter Builder, Validator, and Community views. Steward routes use their
+  // existing, separate authorization and are never included here.
+  /**
+   * @param {string} category
+   */
   function requireRoleForRoute(category) {
     return async (detail) => {
       const authed = await requireAuthForRoute(detail);
       if (!authed) return false;
 
-      let user = userStore.getUser();
-      if (!user) {
-        try {
-          user = await userStore.loadUser();
-        } catch (err) {
-          const status = err.response?.status;
-          if (!(status === 401 || status === 403)) {
-            // Membership couldn't be verified (backend down/overloaded), which
-            // is not the same as "no role". Fail open: the backend enforces
-            // real permissions on every API call, so the worst case is an
-            // error state inside the page — far better than bouncing a member
-            // back to the start of their journey.
-            return true;
+      // Re-read /users/me/ on every gated navigation so an admin toggle or
+      // revocation takes effect without trusting stale client state. loadUser
+      // coalesces overlapping calls, so rapid navigation shares one request.
+      let user = null;
+      try {
+        user = await userStore.loadUser();
+      } catch (error) {
+        const status = error?.response?.status;
+        if (status === 401 || status === 403) {
+          const stillAuthenticated = await verifyAuth({ force: true });
+          if (!stillAuthenticated) {
+            await requireAuthForRoute(detail);
           }
-          user = null;
         }
+        // Network/5xx failures say nothing about role access. Abort this
+        // navigation without redirecting or rendering from stale client state.
+        return false;
       }
-      if (await hasSubsectionAccess(user, category)) return true;
+      if (hasRoleSectionAccess(user, category)) return true;
 
       // Stale-navigation guard: only redirect if still on the guarded route.
       const normalizePath = (value) => (value || '/').replace(/\/+$/, '') || '/';
@@ -225,6 +226,10 @@
     };
   }
 
+  /**
+   * @param {any} component
+   * @param {string} category
+   */
   const roleGatedRoute = (component, category) => wrap({
     component,
     conditions: [requireRoleForRoute(category)],
@@ -243,7 +248,8 @@
     '/participants': protectedRoute(Validators),
     '/referrals': protectedRoute(Referrals),
     '/community': RoleFunnel,
-    '/community/journey': protectedRoute(CommunityJourney),
+    '/community/journey': protectedRoute(CommunityJourneyGate),
+    '/community/dashboard': roleGatedRoute(Dashboard, 'community'),
     '/community/contributions': roleGatedRoute(Contributions, 'community'),
     '/community/all-contributions': roleGatedRoute(AllContributions, 'community'),
     '/community/referrals': LegacyReferralRedirect,
@@ -261,6 +267,7 @@
     // Builders routes
     '/builders': RoleFunnel,
     '/builders/journey': protectedRoute(BuilderJourney),
+    '/builders/dashboard': roleGatedRoute(Dashboard, 'builder'),
     '/builders/contributions': roleGatedRoute(Contributions, 'builder'),
     '/builders/all-contributions': roleGatedRoute(AllContributions, 'builder'),
     '/builders/leaderboard': protectedRoute(Leaderboard),
@@ -274,12 +281,14 @@
     // Validators routes
     '/validators': RoleFunnel,
     '/validators/journey': ValidatorWaitlist,
+    '/validators/dashboard': roleGatedRoute(Dashboard, 'validator'),
     '/validators/contributions': roleGatedRoute(Contributions, 'validator'),
     '/validators/all-contributions': roleGatedRoute(AllContributions, 'validator'),
     '/validators/leaderboard': protectedRoute(Leaderboard),
     '/validators/tasks': roleGatedRoute(SocialTasks, 'validator'),
     '/validators/participants': protectedRoute(Validators),
     '/validators/wall-of-shame': roleGatedRoute(WallOfShame, 'validator'),
+    '/validators/telegram': roleGatedRoute(ValidatorTelegram, 'validator'),
     '/validators/waitlist': protectedRoute(Waitlist),
     '/validators/waitlist/participants': protectedRoute(WaitlistParticipants),
     '/validators/waitlist/join': ValidatorWaitlist,
@@ -393,13 +402,11 @@
       if (rawReferralCode !== null && !referralCode) {
         localStorage.removeItem('referral_code');
       } else if (referralCode) {
-        // Store referral code in localStorage for later use during login
+        // Store referral code in localStorage for later use during login.
+        // URL cleanup happens in cleanTrackingParamsFromUrl (onMount), which
+        // removes ref and UTM params together while preserving other query
+        // params (the old cleanup here dropped the whole query string).
         localStorage.setItem('referral_code', referralCode);
-
-        // Clean URL without page reload to remove the ref parameter
-        const cleanUrl = window.location.pathname + window.location.hash;
-        window.history.replaceState({}, '', cleanUrl);
-
       }
     } catch (error) {
       // Error capturing referral code silently handled
@@ -421,7 +428,11 @@
   onMount(() => {
     // Capture referral code from URL on app load
     captureReferralCode();
-    
+
+    // Clean attribution params (utm_*, click IDs, ref) from the visible URL.
+    // Safe here: analytics.js captured them at module import, before mount.
+    cleanTrackingParamsFromUrl(['ref']);
+
     // Use event delegation for better performance
     document.body.addEventListener('mouseover', handleTooltipPosition);
 

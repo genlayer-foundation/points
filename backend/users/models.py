@@ -2,6 +2,7 @@ import secrets
 import string
 
 from django.db import IntegrityError, models, transaction
+from django.db.models.functions import Upper
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from utils.models import BaseModel
 
@@ -52,6 +53,14 @@ class User(AbstractUser, BaseModel):
     address = models.CharField(max_length=42, blank=True, null=True,
                               help_text="Ethereum wallet address associated with this user")
     visible = models.BooleanField(default=True, help_text="Whether this user should be visible in API responses.")
+    can_view_role_sections = models.BooleanField(
+        default=False,
+        help_text=(
+            "Allow read-only access to gated Builder, Validator, and Community "
+            "portal sections. This does not grant a role, interaction permissions, "
+            "or access to Steward tools."
+        ),
+    )
     
     # Profile fields
     description = models.TextField(max_length=500, blank=True, 
@@ -118,6 +127,15 @@ class User(AbstractUser, BaseModel):
                 condition=models.Q(address__isnull=False),
                 name='unique_address_when_not_null'
             )
+        ]
+        indexes = [
+            # unique_address_when_not_null is a plain-column btree, which
+            # PostgreSQL cannot use for UPPER(address). Public lookups still
+            # arrive case-insensitively through users.utils.user_lookup_kwargs
+            # (/users/by-address/, ?user_address=, address search), so those
+            # would otherwise sequentially scan users_user on every request.
+            # Non-unique on purpose: address uniqueness stays exact-match.
+            models.Index(Upper('address'), name='users_user_address_upper_idx'),
         ]
 
     # Use email as the username field

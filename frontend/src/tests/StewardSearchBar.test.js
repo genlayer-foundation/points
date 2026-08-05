@@ -48,4 +48,15 @@ describe('StewardSearchBar lifecycle autocomplete', () => {
     expect(input.value).toBe('not:more-info-resubmitted ');
     expect(input.getAttribute('aria-expanded')).toBe('false');
   });
+
+  it('suggests escalated queue filters and their negation', async () => {
+    render(StewardSearchBar);
+    const input = screen.getByRole('combobox');
+
+    await fireEvent.input(input, { target: { value: 'is:esc' } });
+    expect(screen.getByRole('option', { name: 'is:escalated' })).toBeTruthy();
+
+    await fireEvent.input(input, { target: { value: 'not:esc' } });
+    expect(screen.getByRole('option', { name: 'not:escalated' })).toBeTruthy();
+  });
 });

@@ -10,6 +10,7 @@
     verifyAuth,
   } from '../lib/auth.js';
   import { showError, showSuccess } from '../lib/toastStore.js';
+  import { hasReadOnlyRoleSectionAccess } from '../lib/roleState.js';
   import SocialLink from '../components/SocialLink.svelte';
   import CategoryIcon from '../components/portal/CategoryIcon.svelte';
   import { getCategoryGradientStyle } from '../lib/categoryPresentation.js';
@@ -27,6 +28,9 @@
 
   let portalAddress = $derived(currentUser?.address || $authState.address || '');
   let isAuthenticated = $derived(Boolean($authState.isAuthenticated && portalAddress));
+  let isRoleSectionReadOnly = $derived(
+    hasReadOnlyRoleSectionAccess(currentUser, 'community')
+  );
 
   /** @param {string | null | undefined} value */
   function truncateAddress(value) {
@@ -119,10 +123,13 @@ Issued At: ${new Date().toISOString()}`;
   /** @param {any} err */
   function isAuthError(err) {
     const statusCode = err?.response?.status;
-    return statusCode === 401 || statusCode === 403;
+    const errorCode = err?.response?.data?.code;
+    return errorCode !== 'role_view_only'
+      && (statusCode === 401 || statusCode === 403);
   }
 
   async function verifyPoapWallet() {
+    if (isRoleSectionReadOnly) return;
     if (!isAuthenticated) {
       requestLogin();
       return;
@@ -240,6 +247,14 @@ Issued At: ${new Date().toISOString()}`;
           <p class="poap-muted">You need to be connected to the portal first. The recovery wallet will only be used to prove ownership.</p>
         </div>
         <button class="poap-primary-action" onclick={requestLogin}>Connect portal wallet</button>
+      </section>
+    {:else if isRoleSectionReadOnly}
+      <section class="poap-recovery-card border-[#cdddf8] bg-[#f7faff]">
+        <div>
+          <p class="poap-kicker">View-only access</p>
+          <h2>POAP recovery is unavailable</h2>
+          <p class="poap-muted">You can browse Community POAPs, but recovery and claims require the Community role.</p>
+        </div>
       </section>
     {:else}
       <section class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">

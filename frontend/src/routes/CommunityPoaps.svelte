@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { push } from 'svelte-spa-router';
   import { poapsAPI } from '../lib/api.js';
+  import { userStore } from '../lib/userStore.js';
+  import { hasReadOnlyRoleSectionAccess } from '../lib/roleState.js';
   import { showError } from '../lib/toastStore.js';
   import PoapCollectionWall from '../components/poaps/PoapCollectionWall.svelte';
   import CategoryIcon from '../components/portal/CategoryIcon.svelte';
@@ -18,27 +20,37 @@
   let page = $state(1);
   let hasMore = $state(false);
   let loadingMore = $state(false);
+  let loadError = $state('');
+  let loadMoreError = $state('');
   let latestPoapsRequestId = 0;
 
   const PAGE_SIZE = 48;
   const poapGradientStyle = getCategoryGradientStyle('community', '#7f52e1');
+  let isRoleSectionReadOnly = $derived(
+    hasReadOnlyRoleSectionAccess($userStore.user, 'community')
+  );
 
-  /** @param {number} [nextPage] @param {boolean} [append] */
-  async function loadPoaps(nextPage = 1, append = false) {
+  /** @param {number} [nextPage] @param {boolean} [append] @param {boolean} [reuseAppliedFilters] */
+  async function loadPoaps(nextPage = 1, append = false, reuseAppliedFilters = false) {
     const requestId = ++latestPoapsRequestId;
     if (append) {
       loadingMore = true;
+      loadMoreError = '';
     } else {
       loading = true;
       loadingMore = false;
-      appliedSearch = search.trim();
-      appliedMonthFilter = monthFilter;
+      loadError = '';
+      loadMoreError = '';
+      if (!reuseAppliedFilters) {
+        appliedSearch = search.trim();
+        appliedMonthFilter = monthFilter;
+      }
       hasMore = false;
     }
 
     try {
-      const nextSearch = append ? appliedSearch : search.trim();
-      const nextMonthFilter = append ? appliedMonthFilter : monthFilter;
+      const nextSearch = append || reuseAppliedFilters ? appliedSearch : search.trim();
+      const nextMonthFilter = append || reuseAppliedFilters ? appliedMonthFilter : monthFilter;
       /** @type {Record<string, any>} */
       const params = {
         page: nextPage,
@@ -66,8 +78,12 @@
     } catch (err) {
       if (requestId !== latestPoapsRequestId) return;
       const error = /** @type {any} */ (err);
-      showError(error.response?.data?.error || 'Unable to load POAPs');
-      if (!append) {
+      const message = error.response?.data?.error || 'Unable to load POAPs';
+      showError(message);
+      if (append) {
+        loadMoreError = message;
+      } else {
+        loadError = message;
         poaps = [];
         count = 0;
         page = 1;
@@ -91,6 +107,9 @@
 
   onMount(() => {
     loadPoaps(1);
+    return () => {
+      latestPoapsRequestId += 1;
+    };
   });
 </script>
 
@@ -116,17 +135,23 @@
       </div>
 
       <div class="flex w-full flex-col gap-3 xl:w-auto xl:items-end">
-        <button
-          class="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9d2ff] bg-white px-4 text-[13px] font-semibold text-[#6b5bd6] transition-colors hover:bg-[#f7f4ff] xl:self-end"
-          onclick={() => push('/community/poaps/recover')}
-        >
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M20 12v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5" />
-            <path d="m8 10 4-4 4 4" />
-            <path d="M12 6v10" />
-          </svg>
-          Recover POAPs
-        </button>
+        {#if isRoleSectionReadOnly}
+          <span class="inline-flex min-h-10 items-center rounded-full border border-[#cdddf8] bg-[#edf4ff] px-4 text-[12px] font-semibold text-[#245ca8] xl:self-end">
+            View-only access
+          </span>
+        {:else}
+          <button
+            class="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d9d2ff] bg-white px-4 text-[13px] font-semibold text-[#6b5bd6] transition-colors hover:bg-[#f7f4ff] xl:self-end"
+            onclick={() => push('/community/poaps/recover')}
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M20 12v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5" />
+              <path d="m8 10 4-4 4 4" />
+              <path d="M12 6v10" />
+            </svg>
+            Recover POAPs
+          </button>
+        {/if}
         <div class="flex w-full flex-col gap-2 md:flex-row xl:justify-end">
           <label class="relative md:w-[300px]">
             <span class="sr-only">Search POAPs</span>
@@ -180,6 +205,18 @@
             {/each}
           </div>
         </div>
+      {:else if loadError}
+        <div class="rounded-[8px] border border-[#e6e6e6] bg-white p-10 text-center" role="alert">
+          <p class="text-[15px] font-medium text-black">Couldn't load POAPs</p>
+          <p class="mt-1 text-[14px] text-[#7a7a7a]">{loadError} Try again when the connection is available.</p>
+          <button
+            type="button"
+            class="mt-5 h-10 rounded-[8px] bg-[#8d81e1] px-5 text-[13px] font-semibold text-white transition-colors hover:bg-[#7669d4]"
+            onclick={() => loadPoaps(1, false, true)}
+          >
+            Retry
+          </button>
+        </div>
       {:else if poaps.length === 0}
         <div class="rounded-[8px] border border-[#f0f0f0] bg-white p-12 text-center">
           <p class="text-[15px] font-medium text-black">No POAPs found</p>
@@ -187,7 +224,18 @@
         </div>
       {:else}
         <PoapCollectionWall items={poaps} density="large" showCaptions={false} showOpenBadge={true} />
-        {#if hasMore}
+        {#if loadMoreError}
+          <div class="flex flex-col items-center gap-3 pt-2 text-center" role="alert">
+            <p class="text-[13px] text-[#666]">{loadMoreError} The POAPs already loaded are still available.</p>
+            <button
+              type="button"
+              class="h-10 rounded-[8px] border border-[#d9d2ff] bg-white px-4 text-[13px] font-semibold text-[#6b5bd6] transition-colors hover:bg-[#f7f4ff]"
+              onclick={() => loadPoaps(page + 1, true)}
+            >
+              Retry loading more
+            </button>
+          </div>
+        {:else if hasMore}
           <div class="flex justify-center pt-2">
             <button
               class="h-10 rounded-[8px] border border-[#d9d2ff] bg-white px-4 text-[13px] font-semibold text-[#6b5bd6] transition-colors hover:bg-[#f7f4ff] disabled:cursor-not-allowed disabled:opacity-60"

@@ -59,6 +59,19 @@ class PendingWalletSignup(models.Model):
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
     expires_at = models.DateTimeField(db_index=True)
     last_email_sent_at = models.DateTimeField(null=True, blank=True)
+    # Campaign acquisition attribution (first touch). The snapshot is written
+    # only from a resolved CampaignLink, never from raw browser UTM text, and
+    # is copied into campaigns.UserAcquisitionAttribution when the user is
+    # created at email confirmation.
+    acquisition_campaign_link = models.ForeignKey(
+        'campaigns.CampaignLink',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='pending_signups',
+    )
+    acquisition_snapshot = models.JSONField(default=dict, blank=True)
+    acquisition_captured_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 

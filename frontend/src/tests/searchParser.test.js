@@ -74,6 +74,12 @@ describe("steward search negation", () => {
     });
   });
 
+  it("maps escalated lifecycle filters and negation", () => {
+    expect(paramsFor("is:escalated")).toEqual({ is_escalated: true });
+    expect(paramsFor("not:escalated")).toEqual({ is_escalated: false });
+    expect(paramsFor("-is:escalated")).toEqual({ is_escalated: false });
+  });
+
   it("maps recorded more-info request presence and absence", () => {
     expect(paramsFor("status:pending has:more-info-request")).toEqual({
       state: "pending",

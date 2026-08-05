@@ -15,7 +15,9 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
+
+from campaigns.views import campaign_redirect
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from rest_framework import permissions
@@ -76,7 +78,18 @@ urlpatterns = [
 
     # Contributions app (includes both API and staff views)
     path('contributions/', include('contributions.urls')),
-    
+
+    # Marketing campaign vanity-link resolver. The backend answers the public
+    # /join/<role>/<alias> contract directly so the portal CDN only needs a
+    # plain /join/* pass-through behavior (no edge URL rewriting);
+    # /campaigns/redirect/... remains as the original internal path.
+    re_path(
+        r'^join/(?P<role>[A-Za-z]+)/(?P<alias>[A-Za-z0-9\-]+)/?$',
+        campaign_redirect,
+        name='campaign_join',
+    ),
+    path('campaigns/', include('campaigns.urls')),
+
     # API documentation
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),

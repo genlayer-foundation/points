@@ -168,6 +168,7 @@ vi.mock('../lib/api', () => {
       getStats: vi.fn().mockResolvedValue(mockStatsData),
       getMonthlyLeaderboardByType: vi.fn().mockResolvedValue(mockLeaderboardData),
       getCommunity: vi.fn().mockResolvedValue({ data: { results: [] } }),
+      getCommunityPodium: vi.fn().mockResolvedValue({ data: [] }),
       getReferrals: vi.fn().mockResolvedValue({ data: { results: [] } }),
       getWaitlistTop: vi.fn().mockResolvedValue({ data: [] }),
       getTrending: vi.fn().mockResolvedValue({ data: [] })

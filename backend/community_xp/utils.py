@@ -111,13 +111,12 @@ def _pending_points_case(points_field, state_field, baseline_completed_at=None):
     )
 
 
-def build_effective_community_scores_queryset(user_ids=None, guild_id=None, visible_only=True):
-    """
-    Return users annotated with the same effective community score fields as
-    build_effective_community_scores(), without materializing the full ranking.
-    Effective points are MEE6 current XP plus contribution and social-task
-    points not covered by the applied MEE6 baseline.
-    """
+def _build_effective_community_scores_queryset(
+    user_ids=None,
+    guild_id=None,
+    visible_only=True,
+    include_details=True,
+):
     from users.models import User
 
     guild_id = str(guild_id or get_default_guild_id())
@@ -166,102 +165,144 @@ def build_effective_community_scores_queryset(user_ids=None, guild_id=None, visi
         )))
         .values('pending_total')[:1]
     )
-    all_time_points_queryset = (
-        community_contributions
-        .annotate(total=Sum('frozen_global_points'))
-        .values('total')[:1]
-    )
-    contribution_count_queryset = (
-        community_contributions
-        .annotate(count=Count('id'))
-        .values('count')[:1]
-    )
-    all_time_social_task_points_queryset = (
-        community_social_tasks
-        .annotate(total=Sum('points_awarded'))
-        .values('total')[:1]
-    )
-    social_task_count_queryset = (
-        community_social_tasks
-        .annotate(count=Count('id'))
-        .values('count')[:1]
-    )
+    annotations = {
+        'discord_xp': Coalesce(
+            Subquery(current_xp_queryset.values('xp')[:1], output_field=IntegerField()),
+            Value(0),
+            output_field=IntegerField(),
+        ),
+        'pending_portal_points': Coalesce(
+            Subquery(pending_points_queryset, output_field=IntegerField()),
+            Value(0),
+            output_field=IntegerField(),
+        ),
+        'pending_social_task_points': Coalesce(
+            Subquery(pending_social_task_points_queryset, output_field=IntegerField()),
+            Value(0),
+            output_field=IntegerField(),
+        ),
+    }
+    selected_fields = ('id', 'name')
 
-    return (
-        user_queryset
-        .only('id', 'name', 'address', 'profile_image_url', 'visible')
-        .annotate(
-            discord_xp=Coalesce(
-                Subquery(current_xp_queryset.values('xp')[:1], output_field=IntegerField()),
-                Value(0),
-                output_field=IntegerField(),
-            ),
-            discord_xp_synced_at=Subquery(
+    if include_details:
+        all_time_points_queryset = (
+            community_contributions
+            .annotate(total=Sum('frozen_global_points'))
+            .values('total')[:1]
+        )
+        contribution_count_queryset = (
+            community_contributions
+            .annotate(count=Count('id'))
+            .values('count')[:1]
+        )
+        all_time_social_task_points_queryset = (
+            community_social_tasks
+            .annotate(total=Sum('points_awarded'))
+            .values('total')[:1]
+        )
+        social_task_count_queryset = (
+            community_social_tasks
+            .annotate(count=Count('id'))
+            .values('count')[:1]
+        )
+        annotations.update({
+            'discord_xp_synced_at': Subquery(
                 current_xp_queryset.values('synced_at')[:1],
                 output_field=DateTimeField(),
             ),
-            current_xp_row_id=Subquery(
+            'current_xp_row_id': Subquery(
                 current_xp_queryset.values('id')[:1],
                 output_field=IntegerField(),
             ),
-            pending_portal_points=Coalesce(
-                Subquery(pending_points_queryset, output_field=IntegerField()),
-                Value(0),
-                output_field=IntegerField(),
-            ),
-            pending_social_task_points=Coalesce(
-                Subquery(pending_social_task_points_queryset, output_field=IntegerField()),
-                Value(0),
-                output_field=IntegerField(),
-            ),
-            tracked_portal_points_all_time=Coalesce(
+            'tracked_portal_points_all_time': Coalesce(
                 Subquery(all_time_points_queryset, output_field=IntegerField()),
                 Value(0),
                 output_field=IntegerField(),
             ),
-            community_contribution_count=Coalesce(
+            'community_contribution_count': Coalesce(
                 Subquery(contribution_count_queryset, output_field=IntegerField()),
                 Value(0),
                 output_field=IntegerField(),
             ),
-            tracked_social_task_points_all_time=Coalesce(
+            'tracked_social_task_points_all_time': Coalesce(
                 Subquery(all_time_social_task_points_queryset, output_field=IntegerField()),
                 Value(0),
                 output_field=IntegerField(),
             ),
-            community_social_task_count=Coalesce(
+            'community_social_task_count': Coalesce(
                 Subquery(social_task_count_queryset, output_field=IntegerField()),
                 Value(0),
                 output_field=IntegerField(),
             ),
-            latest_applied_sync_completed_at=Value(
+            'latest_applied_sync_completed_at': Value(
                 latest_sync.completed_at if latest_sync else None,
                 output_field=DateTimeField(),
             ),
-            latest_applied_at=Value(
+            'latest_applied_at': Value(
                 latest_sync.applied_at if latest_sync else None,
                 output_field=DateTimeField(),
             ),
-        )
+        })
+        selected_fields = ('id', 'name', 'address', 'profile_image_url', 'visible')
+
+    queryset = (
+        user_queryset
+        .only(*selected_fields)
+        .annotate(**annotations)
         .annotate(
             total_points=(
                 F('discord_xp')
                 + F('pending_portal_points')
                 + F('pending_social_task_points')
             ),
+            community_sort_name=Lower(Coalesce('name', Value(''))),
+        )
+    )
+
+    if include_details:
+        queryset = queryset.annotate(
             has_discord_xp_snapshot=Case(
                 When(current_xp_row_id__isnull=False, then=Value(True)),
                 default=Value(False),
                 output_field=BooleanField(),
             ),
-            community_sort_name=Lower(Coalesce('name', Value(''))),
         )
+
+    return queryset
+
+
+def build_effective_community_scores_queryset(user_ids=None, guild_id=None, visible_only=True):
+    """
+    Return users annotated with the full effective community score breakdown.
+
+    Effective points are MEE6 current XP plus contribution and social-task
+    points not covered by the applied MEE6 baseline.
+    """
+    return _build_effective_community_scores_queryset(
+        user_ids=user_ids,
+        guild_id=guild_id,
+        visible_only=visible_only,
+        include_details=True,
+    )
+
+
+def build_effective_community_ranking_queryset(
+    user_ids=None,
+    guild_id=None,
+    visible_only=True,
+):
+    """Return users annotated only with fields needed to rank community scores."""
+    return _build_effective_community_scores_queryset(
+        user_ids=user_ids,
+        guild_id=guild_id,
+        visible_only=visible_only,
+        include_details=False,
     )
 
 
 def effective_community_ranking_queryset(user_ids=None, guild_id=None, visible_only=True):
     return (
-        build_effective_community_scores_queryset(
+        build_effective_community_ranking_queryset(
             user_ids=user_ids,
             guild_id=guild_id,
             visible_only=visible_only,
@@ -307,47 +348,57 @@ def get_community_member_user_ids(user_ids=None, guild_id=None, visible_only=Tru
     from creators.models import Creator
     from poaps.models import PoapClaim
 
-    score_queryset = effective_community_ranking_queryset(
-        user_ids=user_ids,
+    guild_id = str(guild_id or get_default_guild_id())
+    latest_sync = get_latest_applied_sync(guild_id)
+
+    positive_xp = Mee6CurrentXP.objects.filter(
         guild_id=guild_id,
-        visible_only=visible_only,
+        matched_user__isnull=False,
+        xp__gt=0,
     )
-    score_member_user_ids = set(
-        score_queryset
-        .filter(Q(discord_xp__gt=0) | Q(pending_social_task_points__gt=0))
-        .values_list('id', flat=True)
+    pending_social_tasks = (
+        _community_social_task_completions(user_ids=user_ids)
+        .annotate(pending_points=_pending_points_case(
+            'points_awarded',
+            'discord_xp_state',
+            latest_sync.completed_at if latest_sync else None,
+        ))
+        .filter(pending_points__gt=0)
     )
+    if visible_only:
+        positive_xp = positive_xp.filter(matched_user__visible=True)
+        pending_social_tasks = pending_social_tasks.filter(user__visible=True)
+    if user_ids is not None:
+        positive_xp = positive_xp.filter(matched_user_id__in=user_ids)
+
+    eligible_member_user_ids = set(
+        positive_xp.values_list('matched_user_id', flat=True).distinct()
+    )
+    eligible_member_user_ids.update(
+        pending_social_tasks.values_list('user_id', flat=True).distinct()
+    )
+
     member_contributions = _community_member_contributions(user_ids=user_ids)
     if visible_only:
         member_contributions = member_contributions.filter(user__visible=True)
-    score_member_user_ids.update(
+    eligible_member_user_ids.update(
         member_contributions
         .values_list('user_id', flat=True)
         .distinct()
     )
-    member_user_ids = set(score_member_user_ids if since is None else [])
+    member_user_ids = set(eligible_member_user_ids if since is None else [])
 
-    contribution_filters = {
-        'contribution_type__category__slug': 'community',
-        'contribution_type__is_submittable': True,
-    }
     poap_filters = {
         'user__isnull': False,
     }
     if visible_only:
-        contribution_filters['user__visible'] = True
         poap_filters['user__visible'] = True
     if user_ids is not None:
-        contribution_filters['user_id__in'] = user_ids
         poap_filters['user_id__in'] = user_ids
     if since is not None:
-        contribution_filters['created_at__gte'] = since
         poap_filters['created_at__gte'] = since
-        recent_effective_contributions = _community_member_contributions(user_ids=user_ids)
-        if visible_only:
-            recent_effective_contributions = recent_effective_contributions.filter(user__visible=True)
         member_user_ids.update(
-            recent_effective_contributions
+            member_contributions
             .filter(created_at__gte=since)
             .values_list('user_id', flat=True)
             .distinct()
@@ -362,7 +413,7 @@ def get_community_member_user_ids(user_ids=None, guild_id=None, visible_only=Tru
             .distinct()
         )
         creator_filters = {
-            'user_id__in': score_member_user_ids,
+            'user_id__in': eligible_member_user_ids,
             'created_at__gte': since,
         }
         if visible_only:
@@ -374,13 +425,6 @@ def get_community_member_user_ids(user_ids=None, guild_id=None, visible_only=Tru
             .distinct()
         )
 
-    member_user_ids.update(
-        Contribution.objects
-        .filter(**contribution_filters)
-        .exclude(contribution_type__slug__in=COMMUNITY_MEMBER_EXCLUDED_TYPE_SLUGS)
-        .values_list('user_id', flat=True)
-        .distinct()
-    )
     member_user_ids.update(
         PoapClaim.objects
         .filter(**poap_filters)

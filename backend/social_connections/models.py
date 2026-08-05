@@ -97,12 +97,17 @@ class DiscordConnection(SocialConnection):
 
 
 class TelegramConnection(SocialConnection):
-    """Verified Telegram account link, created via the bot's /start deep link.
+    """Verified Telegram identity for a portal account.
+
+    Created/confirmed by either verifiable path (Telegram has no OAuth):
+    the portal bot's /start deep link, or the Deckard support bot redeeming
+    a Telegram group bind code issued by this user (see
+    validators.TelegramGroupBindCode).
 
     Owner-only data: never exposed through public serializers. For private
-    chats Telegram's chat id equals the user id, so `platform_user_id` doubles
-    as the chat id for outbound sends. Telegram bots receive no user tokens,
-    so the inherited access/refresh token fields stay blank.
+    chats Telegram's chat id equals the user id, so `platform_user_id`
+    doubles as the chat id for outbound sends. Telegram bots receive no user
+    tokens, so the inherited access/refresh token fields stay blank.
     """
 
     notifications_enabled = models.BooleanField(

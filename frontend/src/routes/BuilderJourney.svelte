@@ -5,6 +5,7 @@
   import { socialTasksAPI, journeyAPI } from '../lib/api.js';
   import { authState } from '../lib/auth.js';
   import { userStore } from '../lib/userStore.js';
+  import { isCsrfFailure, retryOnceAfterCsrfFailure } from '../lib/csrf.js';
   import { showError, showSuccess, showWarning } from '../lib/toastStore.js';
   import { STAR_BOILERPLATE_TASK_SLUG } from '../lib/roleState.js';
   import { FAUCET_URL } from '../lib/config.js';
@@ -262,7 +263,7 @@
       .startBuilderJourney()
       .then((res) => {
         if (res.data?.user) userStore.updateUser(res.data.user);
-        else userStore.loadUser?.();
+        else userStore.loadUser?.({ force: true })?.catch(() => {});
         markFunnelTime('journey_start:builder');
         markLifecycleTime('first_journey_start:builder');
         trackEvent('journey_started', getAnalyticsContext({
@@ -401,6 +402,17 @@
     }
     if (err?.response?.status) return 'backend_error';
     return 'unknown_error';
+  }
+
+  function completionErrorMessage(err) {
+    const data = err?.response?.data || {};
+    if (isCsrfFailure(err)) {
+      return 'The security check could not be refreshed. Reload the page and try again.';
+    }
+    if (err?.response?.status === 401 || err?.response?.status === 403) {
+      return 'Your session expired. Reconnect your wallet and try again.';
+    }
+    return data.message || data.detail || data.error || 'Could not complete the Builder journey. Please try again.';
   }
 
   function networkDone(kind) {
@@ -589,7 +601,7 @@
     try {
       const res = await journeyAPI.linkGithubAccount();
       if (res.data?.user) userStore.updateUser(res.data.user);
-      else await userStore.loadUser?.();
+      else await userStore.loadUser?.({ force: true });
       trackBuilderStepEvent('journey_step_verified', 'github');
       showSuccess('GitHub linked. 25 BP awarded.');
     } catch (err) {
@@ -605,7 +617,7 @@
 
   function handleGithubLinked(updatedUser) {
     if (updatedUser) userStore.updateUser(updatedUser);
-    else userStore.loadUser?.();
+    else userStore.loadUser?.({ force: true })?.catch(() => {});
   }
 
   function handleTaskCompleted(result) {
@@ -619,7 +631,7 @@
         : task
     );
     loadTasks({ showLoading: false });
-    userStore.loadUser?.();
+    userStore.loadUser?.({ force: true })?.catch(() => {});
   }
 
   function triggerWalletConnect() {
@@ -649,8 +661,13 @@
     trackEvent('builder_role_claim_attempt', getAnalyticsContext(claimParams));
     completing = true;
     try {
-      await journeyAPI.completeBuilderJourney();
-      await userStore.loadUser();
+      // The endpoint is idempotent: an existing Builder returns 200, so one
+      // retry after a stale CSRF token cannot grant the role twice.
+      const res = await retryOnceAfterCsrfFailure(() => journeyAPI.completeBuilderJourney());
+      if (res.data?.user) userStore.updateUser(res.data.user);
+      // Completion is authoritative; a transient profile refresh must not
+      // report the already-successful role grant as a failed journey.
+      userStore.loadUser({ force: true }).catch(() => {});
       markLifecycleTime('role_unlocked:builder');
       trackEvent('builder_role_claim_success', getAnalyticsContext(claimParams));
       trackEvent('journey_completed', getAnalyticsContext({
@@ -672,7 +689,7 @@
         error_code: journeyErrorCode(err),
         error_stage: err.response?.status ? 'backend' : 'network',
       }));
-      showError(err.response?.data?.error || 'Could not complete the builder journey yet.');
+      showError(completionErrorMessage(err));
     } finally {
       completing = false;
     }

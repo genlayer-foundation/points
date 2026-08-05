@@ -84,6 +84,7 @@ INSTALLED_APPS = [
     'social_tasks',
     'notifications.apps.NotificationsConfig',
     'service_accounts',
+    'campaigns',
 ]
 
 MIDDLEWARE = [
@@ -220,6 +221,8 @@ REST_FRAMEWORK = {
         'public_leaderboard': '300/minute',
         # Wallet linking is a one-time action per validator
         'wallet_link': '10/hour',
+        # Telegram group bind codes are live secrets for 48h; bound hoarding
+        'telegram_bind_issue': '10/hour',
         'pending_email_start': '10/hour',
         'pending_email_resend': '10/hour',
         'pending_email_confirm': '30/hour',
@@ -227,6 +230,9 @@ REST_FRAMEWORK = {
         'existing_email_resend': '10/hour',
         'existing_email_confirm': '30/hour',
         'community_post_verify': '10/hour',
+        # Public campaign vanity-link resolver: generous for NAT'd event
+        # traffic, bounds floods.
+        'campaign_redirect': '120/minute',
     },
     'PAGE_SIZE': 10,
 }
@@ -364,6 +370,10 @@ EMAIL_VERIFICATION_TOKEN_TTL_SECONDS = int(os.environ.get('EMAIL_VERIFICATION_TO
 EMAIL_VERIFICATION_MAX_ATTEMPTS = int(os.environ.get('EMAIL_VERIFICATION_MAX_ATTEMPTS', '5') or '5')
 EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS = int(os.environ.get('EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS', '60') or '60')
 PENDING_WALLET_SIGNUP_TTL_SECONDS = int(os.environ.get('PENDING_WALLET_SIGNUP_TTL_SECONDS', '1800') or '1800')
+
+# Marketing campaign vanity links (campaigns app).
+CAMPAIGN_HIT_RETENTION_DAYS = int(os.environ.get('CAMPAIGN_HIT_RETENTION_DAYS', '90') or '90')
+CAMPAIGN_ATTRIBUTION_WINDOW_DAYS = int(os.environ.get('CAMPAIGN_ATTRIBUTION_WINDOW_DAYS', '30') or '30')
 EMAIL_VERIFICATION_HMAC_KEY = os.environ.get('EMAIL_VERIFICATION_HMAC_KEY', SECRET_KEY)
 EMAIL_VERIFICATION_ENCRYPTION_KEY = os.environ.get('EMAIL_VERIFICATION_ENCRYPTION_KEY', '')
 
@@ -382,6 +392,11 @@ if DEBUG:
         'http://localhost:55010',
         'http://127.0.0.1:55010',
     ]))
+
+# Production logs only 5xx, so slow-but-successful requests were invisible.
+# Requests at or above this duration emit one sanitized WARNING. Tunable
+# without a deploy.
+SLOW_REQUEST_LOG_MS = int(os.environ.get('SLOW_REQUEST_LOG_MS', '1000'))
 
 # Session settings
 SESSION_COOKIE_HTTPONLY = True
@@ -440,6 +455,8 @@ AUTH_USER_MODEL = 'users.User'
 # Blockchain settings
 # Shared RPC URL for all networks
 VALIDATOR_RPC_URL = get_required_env('VALIDATOR_RPC_URL')
+WEB3_RPC_TIMEOUT_SECONDS = int(os.environ.get('WEB3_RPC_TIMEOUT_SECONDS', '10') or '10')
+WEB3_RPC_MAX_RETRIES = int(os.environ.get('WEB3_RPC_MAX_RETRIES', '1') or '1')
 
 # Legacy settings (backward compatibility - deprecated, use TESTNET_NETWORKS instead)
 VALIDATOR_CONTRACT_ADDRESS = os.environ.get(

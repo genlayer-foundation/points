@@ -331,6 +331,10 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     def to_internal_value(self, data):
         if 'email' in data:
             raise serializers.ValidationError({'email': 'Use email verification to change email.'})
+        if 'can_view_role_sections' in data:
+            raise serializers.ValidationError({
+                'can_view_role_sections': 'Only an administrator can change role view access.'
+            })
         return super().to_internal_value(data)
 
     def validate_description(self, value):
@@ -493,6 +497,7 @@ class UserSerializer(serializers.ModelSerializer):
     validator = serializers.SerializerMethodField()
     builder = serializers.SerializerMethodField()
     steward = StewardSerializer(read_only=True)
+    steward_tier = serializers.SerializerMethodField()
     creator = CreatorSerializer(read_only=True)
     has_validator_waitlist = serializers.SerializerMethodField()
     has_builder_welcome = serializers.SerializerMethodField()
@@ -525,10 +530,12 @@ class UserSerializer(serializers.ModelSerializer):
     email_verified_at = serializers.SerializerMethodField()
     is_banned = serializers.SerializerMethodField()
     ban_reason = serializers.SerializerMethodField()
+    can_view_role_sections = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = ['id', 'name', 'address', 'visible', 'leaderboard_entry', 'validator', 'builder', 'steward',
+                  'steward_tier',
                   'creator', 'has_validator_waitlist', 'has_builder_welcome',
                   'has_validator_welcome', 'has_community_welcome',
                   'has_community_link_x', 'has_community_link_discord', 'has_community_link_github',
@@ -540,6 +547,8 @@ class UserSerializer(serializers.ModelSerializer):
                   'email', 'is_email_verified', 'email_verified_at',
                   # Ban status
                   'is_banned', 'ban_reason',
+                  # Admin-managed read-only access to non-steward role sections
+                  'can_view_role_sections',
                   # Social connections
                   'github_connection', 'twitter_connection', 'discord_connection',
                   'telegram_connection',
@@ -582,6 +591,15 @@ class UserSerializer(serializers.ModelSerializer):
         if use_light:
             return LightBuilderSerializer(obj.builder).data
         return BuilderSerializer(obj.builder, context=self.context).data
+
+    def get_steward_tier(self, obj):
+        if not self._can_view_private_user_data(obj):
+            return None
+        try:
+            steward = obj.steward
+        except Steward.DoesNotExist:
+            return None
+        return 3 if obj.is_superuser else steward.tier
 
     def get_leaderboard_entry(self, obj):
         """
@@ -702,6 +720,17 @@ class UserSerializer(serializers.ModelSerializer):
         if self._can_view_private_user_data(obj):
             return obj.ban_reason
         return ''
+
+    def get_can_view_role_sections(self, obj):
+        """Expose the admin-managed viewer flag to its owner only."""
+        request = self.context.get('request')
+        request_user = getattr(request, 'user', None)
+        return bool(
+            request_user
+            and request_user.is_authenticated
+            and request_user.pk == obj.pk
+            and obj.can_view_role_sections
+        )
 
     def get_referral_code(self, obj):
         """Expose referral code only to the account owner or staff."""

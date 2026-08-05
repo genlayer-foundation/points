@@ -293,12 +293,15 @@ frontend/src/
   - Mobile responsive menu
 - **Notifications**: `src/components/NotificationCenter.svelte`
   - Bell icon button in the navbar, left of the search bar on desktop, before the auth button on mobile; only when authenticated
-  - Unread badge, dropdown with latest notifications, mark-all-read, "View all" linking to `/notifications`
-  - Polls unread count every 60s; clicking a notification marks it read (non-blocking) and follows its `link_url` (internal routes push in-app, http(s) opens a new tab)
+  - Unread badge, dropdown with latest notifications, mark-all-read, "View all" linking to `/notifications`. Dropdown body previews retain sanitized markdown formatting and links while being capped at 120 characters and visually clamped to two lines; the full notifications page retains rich markdown.
+  - Polls unread count every 60s while the tab is visible; the desktop/mobile instances share one refcounted timer and visibility listener, and returning to the tab refreshes immediately. Failed polls back off (60s → 180s → 240s, reset on the first success) so a degraded backend is not hammered at a fixed rate by every open tab. Clicking a notification marks it read (non-blocking) and follows its `link_url` (internal routes push in-app, http(s) opens a new tab)
+  - **Route changes only refresh the unread count, never the list.** The `$effect` tracks `$location` and `$authState`, so it reruns on every navigation and every auth-store emission; calling `loadLatest()` there cost a list request plus a redundant unread-count on each one, doubled by the two mounted instances. `loadLatest()` now runs only when the panel is opened. Guard: `src/tests/notificationCenterRequests.test.js` (renders the component; `notificationPolling.test.js` only exercises the store).
+  - `markRead` deliberately refetches the count instead of decrementing locally: a count request can observe the server-side mark-read before the POST resolves, and a blind decrement would then subtract it twice (pinned by `notificationPolling.test.js`). `markAllRead` is local because it sets the count to zero outright.
   - Full feed page: `src/routes/Notifications.svelte` (All/Unread filter pills, load-more pagination). Bodies render as sanitized image-free markdown via `parseUserMarkdown()` (no `<img>`, so private campaign opens can't ping external tracking pixels); rows are `div[role=button]` so markdown links stay clickable, inline anchor clicks don't also trigger the row's `link_url` redirect, and rows without a `link_url` show a default cursor (pure announcements)
-  - Shared utils: `src/lib/notificationUtils.js` (`asList` payload normalization, `followNotificationLink` link handling) and `src/lib/relativeTime.js` for compact timestamps
+  - Shared utils: `src/lib/notificationUtils.js` (`asList` payload normalization, `notificationBodyPreview` compact dropdown copy, `followNotificationLink` link handling) and `src/lib/relativeTime.js` for compact timestamps
 - **Sidebar**: `src/components/Sidebar.svelte`
   - Side navigation with collapsible sections
+  - Admin-managed role viewer: `/users/me/` may return `can_view_role_sections=true`. This unlocks gated Builder, Validator, and Community views without changing `hasEarnedRole`; Steward tools are excluded and point-bearing actions remain real-role-only.
   - Navigation structure:
     - **Overview** (links to `/`) - Contains Testnet Asimov and Metrics sub-items
     - **Builders** - Category-specific dashboard and pages
@@ -319,7 +322,7 @@ The portal uses **history-based routing** (clean `/testnets` URLs, not hash `/#/
 - **Links:** plain `<a href="/path">` is SPA-navigated automatically by a global click interceptor (`installLinkInterceptor`, installed once in `App.svelte`); it skips modified/new-tab/external/file links and any anchor whose own handler already called `preventDefault()`. Never write `href="#/..."`.
 - **Deep links / refresh:** AWS Amplify (`amplify.yml` customRules) and the Vite dev server already serve `index.html` for unmatched paths — no server change needed.
 - **Back-compat:** a tiny boot script in `index.html` rewrites any incoming legacy `#/path` to `/path` before the app mounts, so old shared hash links still resolve.
-- **Guard error semantics (degraded backend):** "couldn't verify" is never treated as "not a member". `performVerification` (auth.js) only sets unauthenticated on a definitive <500 response — network/5xx keeps the current state and leaves `hasVerified` unset so it retries. `userStore.loadUser()` only clears `user` on 401/403; other failures keep the previously loaded user. `requireRoleForRoute` (App.svelte) fails OPEN when `/users/me/` fails with a non-auth error (the backend enforces real permissions on every API call). Journey pages (`CommunityJourney`, `BuilderJourney`) only auto-call the journey-start endpoint when a user object is actually loaded, so an outage can't fire a journey-start mutation for an existing member.
+- **Guard error semantics (degraded backend):** "couldn't verify" is never treated as "not a member". `performVerification` (auth.js) only sets unauthenticated on a definitive <500 response — network/5xx keeps the current state and leaves `hasVerified` unset so it retries. `userStore.loadUser()` only clears `user` on 401/403; other failures keep the previously loaded user. `requireRoleForRoute` (App.svelte) fails OPEN when `/users/me/` fails with a non-auth error (the backend enforces real permissions on every API call). `CommunityJourneyGate.svelte` is stricter for `/community/journey`: it refreshes `/users/me/`, redirects confirmed Creators, and renders Retry without mounting journey code when verification fails. Journey pages only auto-call journey endpoints for a loaded, eligible user.
 - **Static OG:** `scripts/generate-og-pages.mjs` (post-build) writes `dist/<route>/index.html` per `STATIC_OG_ROUTES` with route-specific meta; with history routing a copied static-route URL hits that prerendered file directly. Dynamic detail pages (projects/POAPs/profiles) still serve the generic card to crawlers — a future backend-meta + edge-function task.
 
 ### Routes/Pages
@@ -341,6 +344,7 @@ const routes = {
   '/participants': Validators,
   '/referrals': Referrals,
   '/community': ReferralProgram,
+  '/community/journey': CommunityJourneyGate,            // Refreshes profile before mounting the Creator journey
   '/community/contributions': Contributions,
   '/community/all-contributions': AllContributions,
   '/community/contributions/highlights': AllContributions,
@@ -376,6 +380,7 @@ const routes = {
   '/validators/leaderboard': Leaderboard,
   '/validators/participants': Validators,
   '/validators/wall-of-shame': WallOfShame,
+  '/validators/telegram': ValidatorTelegram,  // Link Telegram groups via Deckard bot bind codes
   '/validators/waitlist': Waitlist,
   '/validators/waitlist/participants': WaitlistParticipants,
   '/validators/waitlist/join': ValidatorWaitlist,
@@ -423,10 +428,11 @@ const routes = {
 #### Community POAPs
 
 - **`/community/poaps`** - POAP collection wall (`CommunityPoaps.svelte`)
-  - Calls `poapsAPI.list({ page, page_size: 100, ordering: '-event_start_at', search?, month? })`.
+  - Calls `poapsAPI.list({ page, page_size: 48, ordering: '-event_start_at', search?, month? })`.
   - `loadPoaps(nextPage = 1, append = false)` replaces the list on initial/filter loads and appends only when `append=true`.
   - Search and month filters are applied when a non-append load starts; appended loads reuse `appliedSearch` / `appliedMonthFilter` so typed-but-unsubmitted filter changes do not mix result sets.
   - `loading` controls the initial/filter skeleton, `loadingMore` controls the Load more button, and `hasMore` is driven by the paginated API `next` field.
+  - Initial/filter failures render a Retry state; append failures keep the loaded collection visible and retry the same next page.
   - Overlapping list requests must be guarded with `latestPoapsRequestId` before mutating list, error, or loading state.
 - **`/community/poaps/recover`** - POAP recovery flow for attaching legacy wallet claims.
 - **`/community/poaps/:slug`** - POAP detail page with lazy collector loading.
@@ -474,6 +480,7 @@ const routes = {
   - `genTvAPI` - Gen TV streams (`list`, `get(slug)`)
   - `poapsAPI` - POAP list/detail/claims, user POAPs, secret claims, mint-link claims, and recovery wallet verification
   - `validatorsAPI.getWallOfShame(params)` - Public Wall of Shame list for active validators with Grafana metrics/logs status badges (renders in `routes/WallOfShame.svelte`)
+  - `validatorsAPI` Telegram group bind codes - `issueTelegramBindCode()` (raw code is ONLY in this response), `getMyTelegramBindCodes()`, `revokeTelegramBindCode(id)` (renders in `routes/ValidatorTelegram.svelte`; bot handle comes from `DECKARD_BOT_USERNAME` in `lib/config.js`, env `VITE_DECKARD_BOT_USERNAME`)
   - `notificationsAPI` - Portal notifications (`list`, `unreadCount`, `markRead(id)`, `markAllRead`)
   - `telegramAPI` - Telegram bot linking (`getLinkToken()` returns a one-time `t.me` deep link, `disconnect()`). The connection is PRIVATE: the backend only includes `user.telegram_connection` for the owner/staff, so it must never be rendered on other users' profiles
   - `socialTasksAPI` - Social tasks (`list({ status, category })`, `complete(slug)`)
@@ -492,29 +499,56 @@ const routes = {
   - `/api/auth/login/`
   - `/api/auth/verify/`
   - `/api/auth/logout/`
+- **Verify cooldown**: a 5xx/network verify failure deliberately leaves `hasVerified` unset (so the session is never dropped on a transient error), which used to mean every subsequent `verifyAuth()` re-hit a degraded backend. A 30s cooldown now absorbs the repeats. A definitive `<500` rejection clears the cooldown and still logs out immediately.
+- **Refresh throttle**: `refreshSession()` runs on a 5-minute interval AND on `visibilitychange`. The visibility path is throttled to once per 60s, so flipping between tabs no longer produces one `POST /auth/refresh/` per flip.
+
+### CSRF (`src/lib/csrf.js`)
+
+In production the SPA (Amplify) and the API are on different hosts and `CSRF_COOKIE_DOMAIN` is unset, so the CSRF cookie is host-only on the API and `document.cookie` can never read it. Every unsafe request therefore used to fetch `/api/csrf/` (the in-flight promise is cleared in `.finally()`, so only literally simultaneous requests shared one).
+
+- `attachCsrfToken(config)` - adds `X-CSRFToken` to unsafe methods only. Token order: readable cookie (same-origin dev, where Django rotates it for us) → in-memory cache → network.
+- **The cached token is in module memory only. Never `localStorage`, `sessionStorage`, or any persistent browser storage.**
+- `clearCsrfToken()` - must be called from every path that rotates the server-side token: login and `signup_email_confirm` (Django cycles the token inside `login()`), logout (`session.flush()`), and wallet switch (which goes through logout + sign-in). Session refresh does NOT rotate it.
+- `isCsrfFailure(error)` - distinguishes a real CSRF rejection from an authorization 403 by the `CSRF Failed` detail prefix DRF's `enforce_csrf` produces. Both are 403.
+- The `api.js` response interceptor clears the cached token on a real CSRF failure and **does not retry**: POAP claims and other non-idempotent mutations share that axios instance. The 401/403 → `verifyAuth({force:true})` branch must stay: DRF answers **403, not 401**, for an expired session, because the first authenticator in the chain supplies no `authenticate_header`.
+
+### Analytics & Campaign Attribution (`src/lib/analytics.js`)
+
+- **GA capture (existing)**: allowlisted utm_*/click-id params from the landing URL persist in `sessionStorage['ga_landing_attribution']` (24h) and are re-attached to the templated `page_location` on every GA hit. All params are PII-sanitized (`sanitizeAnalyticsParams`).
+- **Structured campaign attribution (backend-facing)**: at module load, campaign params also produce a structured touch: `localStorage['campaign_first_touch']` (30 days, written once, never overwritten) and `sessionStorage['campaign_session_touch']` (refreshed per campaign landing). `getAcquisitionAttribution()` returns `{utm_id, landing_path, captured_at}` or null; `auth.js` attaches it as `attribution` to the `/api/auth/login/` payload (dynamic import to avoid a module cycle). The backend resolves the campaign server-side from the opaque utm_id and never trusts browser UTM text.
+- **URL cleanup**: `cleanTrackingParamsFromUrl(extraKeys)` removes only attribution params (+`ref`) from the visible URL via raw `replaceState`, preserving all other query params and the hash. Called once from App.svelte onMount, AFTER module-load capture; router stores are untouched so no duplicate page_view fires. The old ref-only cleanup that dropped the entire query string is gone.
+- **sign_up**: `trackSignUp(responseData, params)` fires GA's `sign_up` (method `siwe_email`) ONLY when the email-confirm response has `created: true` (ProfileCompletionGuard). Returning logins never emit it. On firing it clears both stored touches so a second wallet in the same browser cannot inherit the campaign.
+- Vanity links (`portal.../join/<role>/<alias>`) are resolved by the backend via an Amplify proxy rule in `amplify.yml`; local dev hits `http://localhost:8000/campaigns/redirect/<role>/<alias>` directly.
 
 ### User Store (`src/lib/userStore.js`)
 - **Central store for logged-in user data**
 - **Key Functions**:
-  - `loadUser()` - Fetch user data from API
+  - `loadUser({ force } = {})` - Fetch user data from API
   - `updateUser(updates)` - Partial update of user data
   - `setUser(userData)` - Set full user data
   - `clearUser()` - Clear on logout
 - **Auto-managed**: Loaded on login, cleared on logout
 - **Reactive**: Updates reflect immediately in all components using `$userStore`
+- **30s success-cache TTL** (`USER_CACHE_TTL_MS`): `requireRoleForRoute` calls `loadUser()` on every one of the ~20 role-gated navigations, and in-flight coalescing only covers overlapping calls, so sequential navigation used to refetch `/users/me/` every time. Route guards are a UX gate, not the security boundary (the backend enforces permissions on every request), so a short cache is safe; a role change takes up to 30s to reflect in client-side gating while the backend refuses the data immediately. Only successful loads start the TTL; failures never extend it, and `clearUser()` resets it. **Every other call site passes `{ force: true }`** so its behavior is unchanged: login, wallet switch, profile update, email confirm, journey completion, and the 401/403 recovery path. `performVerification` forwards its own `force` flag, so a forced verify re-reads the profile.
+- **In-flight responses are token-guarded.** A forced load does not join an in-flight request (the caller forced it because it just changed server state, so an earlier response would be pre-change); it queues behind that request and issues its own. Every store write, including `lastLoadedAt`, is gated on the load still being the current one. `clearUser()`, `setUser()` and `updateUser()` all drop the token first, because each writes state that is newer than any read already in flight: a session change, or the server's own post-mutation user from a profile save, role join or claim. Without that gate a `/users/me/` response arriving late restores the previous account after logout, or reverts a just-saved profile, which is the same hazard `notificationStore`'s `epoch` counter exists to prevent. A load started *after* one of those writes takes a fresh token and is unaffected.
+- **Steward hierarchy**: authenticated user payloads expose `steward_tier`; the submission queue defaults a missing tier to reviewer tier 1.
 
 ### Components
 
 #### Steward Review Components (`src/components/`)
 
 - **`SubmissionCard.svelte`** - Submitter-only card used by My Submissions. It shows submission details, evidence, staff responses, awarded contributions, editing, and appeals without exposing steward-only state.
-- **`StewardSubmissionCard.svelte`** - Dedicated steward workspace for review outcomes, proposals, rubric scoring, internal notes, accepted-contribution edits, and permission-aware submission behavior.
+- **`StewardSubmissionCard.svelte`** - Dedicated steward workspace for review outcomes, proposals, rubric scoring, internal notes, accepted-contribution edits, and permission-aware submission behavior. It marks `escalated_at` proposals and previews `escalation_threshold_points` conversion for reviewer-tier accepts.
+- **Contribution type review fields** - Contribution type payloads expose `requires_ai_review` and nullable `escalation_threshold_points`; the latter drives the card's advisory preview while the server remains authoritative.
+- **Steward submission search** - `is:escalated` / `not:escalated` map to the `is_escalated` API filter. Tier 2+ stewards get an Escalated queue chip; tier 3 stewards also get an Apex queue chip for `status:accepted is:interesting`.
 - **`AIReviewSummary.svelte`** - Compact AI-only proposal summary that exposes the proposed action, confidence, and expandable synthesis.
 - **`AIFeedbackDialog.svelte`** - Focused benchmark-feedback dialog for criterion, decision, and synthesis corrections with stale-write resolution.
 - **`lib/aiFeedback.js`** - Closed frontend vocabularies plus state hydration, payload derivation, and API-mirroring validation. It preserves accepted but currently non-rendered feedback fields when editing an existing record.
 
 #### Generic UI Components (`src/components/ui/`)
 Reusable, data-driven display components that accept data via props. Used on Dashboard and can be reused on any page.
+
+- **Dashboard rankings**: `routes/Dashboard.svelte` intentionally uses separate list and podium sources. Builder “Top Contributors” reads the all-time Builder leaderboard, while its podium reads the rolling 30-day leaderboard. “Top Community Contributors” reads the all-time Community leaderboard (effective Discord/MEE6 XP plus Community portal points), while its podium reads `/leaderboard/community-podium/` and shows only the top three users by points from accepted Community submissions. Validator remains all-time for both.
 
 - **`SectionHeader.svelte`** - Reusable section header with title, subtitle, and "View all" link
   - Props: `title`, `subtitle`, `linkText="View all"`, `linkPath=""`, `showLink=true`, `showArrow=true`
@@ -627,6 +661,8 @@ Investor-oriented home page (`routes/Overview.svelte`), top to bottom: hero → 
   - Includes Google reCAPTCHA v2 verification for spam prevention
   - reCAPTCHA token validated on backend before submission
   - Uses VITE_RECAPTCHA_SITE_KEY from environment (falls back to test key)
+  - Honors optional per-user Monday-Sunday UTC contribution-type limits from `user_weekly_*` API fields and shows the user's remaining weekly capacity.
+  - New Milestones links can select only highlighted Projects contributions. `EditSubmission.svelte` passes the current submission ID so a pre-policy pending milestone keeps its existing unhighlighted link.
 - `EditSubmission.svelte` - Edit submitted contributions (supports URL and description evidence only - no file uploads)
 - `ProfileEdit.svelte` - User profile editing (name and profile fields; node version shown read-only, Grafana-sourced; the Telegram text input was removed — Telegram now links via `TelegramLink.svelte` in the profile header)
 - `TelegramLink.svelte` - Telegram connect pill for the profile header, rendered ONLY inside `ProfileHeader.svelte`'s `isOwnProfile` branch (the connection is private). Not connected: opens the `telegramAPI.getLinkToken()` deep link in a new tab (tab opened synchronously before the await to dodge popup blockers) and polls `getCurrentUser()` every 3s for up to 2 min until `telegram_connection` appears. Connected: shows `@username` (or "Telegram") with an unlink button (`telegramAPI.disconnect()`)
@@ -748,6 +784,7 @@ Set in `.env` file:
 - `VITE_VALIDATOR_RPC_URL` - Blockchain RPC endpoint for Asimov testnet
 - `VITE_EXPLORER_URL` - Blockchain explorer URL
 - `VITE_RECAPTCHA_SITE_KEY` - Google reCAPTCHA site key (required - use test key from .env.example for development)
+- `VITE_DECKARD_BOT_USERNAME` - Deckard Telegram support bot @username without the @ (optional - the Telegram group linking page falls back to generic wording)
 
 ## Common Commands
 ```bash

@@ -6,6 +6,18 @@ All notable user-facing changes to this project will be documented in this file.
 
 - Contributors can link a Telegram account from their profile header (private, visible only to them) to receive portal notifications and announcements on Telegram and check their rank, points, and active missions with bot commands; the old public Telegram handle field was removed from profiles. Post-deploy: set TELEGRAM_BOT_USERNAME and TELEGRAM_WEBHOOK_SECRET, run `python manage.py set_telegram_webhook`, and add the telegram-deliver cron workflow (de6a8726)
 
+- Finishing the Creator or Builder journey now actually grants the role: since late June the final "Become a Creator" / "Claim Builder Role" step failed for every new member with a generic error, and completion errors now show their real reason instead of a dead-end "try again" (9d546e70)
+
+- Validators can link Telegram support groups to their validator: generate a one-time code on the new Telegram Support page, paste it in a Telegram group with the Deckard support bot, and the group is bound to the validator (multiple groups supported, codes expire in 48 hours and can be revoked) (0cd7e5f)
+
+- Marketing can create campaign links like portal.genlayer.foundation/join/builders/ethcc from the admin panel without a deployment; each link tracks visits, signups, and role activations per campaign, campaign traffic reaches Google Analytics with clean final URLs, and new accounts are attributed to the campaign that brought them (810bdc32)
+
+- Notification bodies in the navbar dropdown now stop at 120 characters with an ellipsis while keeping their formatting and links (b4815f48)
+
+- Builder submissions now pass through AI review before standard steward review, high-point acceptances are escalated as proposals to top-level stewards, and apex stewards have a focused queue for accepted contributions marked interesting. Appeals and more-information resubmissions remain visible to both AI review stages.
+
+- Tier-1 stewards now earn points for direct review decisions on escalation-enabled submissions, while escalated proposals reward accurate reviewers and reduce rewards when the final decision changes the proposed points. (02483fc6)
+
 - The Metrics page contribution state trends now show how many submissions were really pending, accepted, or awaiting more info at each point in time (not just those submitted in the selected range), daily grouping no longer errors on wide date ranges (the start date adapts automatically while keeping the end date), and the contribution type filter includes non-submittable types (20860fe7)
 
 - Scrolling the Overview page on phones no longer gets stuck on the first swipe while the page is loading (f45bc38a)

@@ -1,3 +1,4 @@
+from datetime import timedelta, timezone as datetime_timezone
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -9,6 +10,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from contributions.models import Category, ContributionType, Mission, SubmittedContribution
+from utils.dates import utc_week_bounds
 
 User = get_user_model()
 
@@ -47,10 +49,16 @@ class SubmissionLimitTest(TestCase):
         self.recaptcha_patcher.start()
         self.addCleanup(self.recaptcha_patcher.stop)
 
-    def _create_submission(self, state='pending', mission=None, user=None):
+    def _create_submission(
+        self,
+        state='pending',
+        mission=None,
+        user=None,
+        contribution_type=None,
+    ):
         return SubmittedContribution.objects.create(
             user=user or self.other_user,
-            contribution_type=self.contribution_type,
+            contribution_type=contribution_type or self.contribution_type,
             mission=mission,
             contribution_date=timezone.now(),
             notes='Existing submission',
@@ -277,3 +285,170 @@ class SubmissionLimitTest(TestCase):
         self.assertEqual(response.data['submission_count'], 1)
         self.assertEqual(response.data['submissions_remaining'], 1)
         self.assertFalse(response.data['is_full'])
+
+    def test_weekly_user_limit_counts_every_submission_state(self):
+        self.contribution_type.max_submissions_per_user_per_week = 1
+        self.contribution_type.save(
+            update_fields=['max_submissions_per_user_per_week']
+        )
+
+        for state in [
+            'pending', 'accepted', 'rejected', 'canceled', 'more_info_needed',
+        ]:
+            with self.subTest(state=state):
+                SubmittedContribution.objects.all().delete()
+                self._create_submission(state=state, user=self.user)
+
+                response = self._post_submission()
+
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn('weekly submission limit', response.data['error'])
+
+    def test_weekly_user_limit_is_independent_per_user(self):
+        self.contribution_type.max_submissions_per_user_per_week = 1
+        self.contribution_type.save(
+            update_fields=['max_submissions_per_user_per_week']
+        )
+        self._create_submission(state='rejected', user=self.other_user)
+
+        response = self._post_submission()
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_previous_utc_week_does_not_consume_weekly_capacity(self):
+        self.contribution_type.max_submissions_per_user_per_week = 1
+        self.contribution_type.save(
+            update_fields=['max_submissions_per_user_per_week']
+        )
+        old_submission = self._create_submission(
+            state='rejected',
+            user=self.user,
+        )
+        week_start, _ = utc_week_bounds()
+        SubmittedContribution.objects.filter(pk=old_submission.pk).update(
+            created_at=week_start - timedelta(microseconds=1),
+        )
+
+        response = self._post_submission()
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_weekly_limit_api_fields_are_user_specific(self):
+        self.contribution_type.max_submissions_per_user_per_week = 2
+        self.contribution_type.save(
+            update_fields=['max_submissions_per_user_per_week']
+        )
+        self._create_submission(state='rejected', user=self.user)
+        self._create_submission(state='canceled', user=self.user)
+        self._create_submission(state='pending', user=self.other_user)
+
+        response = self.client.get(
+            f'/api/v1/contribution-types/{self.contribution_type.id}/'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['max_submissions_per_user_per_week'], 2)
+        self.assertEqual(response.data['user_weekly_submission_count'], 2)
+        self.assertEqual(response.data['user_weekly_submissions_remaining'], 0)
+        self.assertTrue(response.data['user_weekly_is_full'])
+
+    def test_editing_existing_submission_does_not_consume_another_weekly_slot(self):
+        self.contribution_type.max_submissions_per_user_per_week = 1
+        self.contribution_type.save(
+            update_fields=['max_submissions_per_user_per_week']
+        )
+        submission = self._create_submission(state='pending', user=self.user)
+
+        response = self.client.patch(
+            f'/api/v1/submissions/{submission.id}/',
+            {'notes': 'Updated existing submission'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_retyping_old_submission_checks_target_type_in_original_week(self):
+        self.contribution_type.max_submissions_per_user_per_week = 1
+        self.contribution_type.save(
+            update_fields=['max_submissions_per_user_per_week']
+        )
+        source_type = ContributionType.objects.create(
+            name='Unlimited Source Type',
+            slug='unlimited-source-type',
+            description='Test source type',
+            category=self.category,
+            min_points=1,
+            max_points=10,
+        )
+        existing_target = self._create_submission(user=self.user)
+        source_submission = self._create_submission(
+            user=self.user,
+            contribution_type=source_type,
+        )
+        week_start, _ = utc_week_bounds()
+        previous_week = week_start - timedelta(days=1)
+        SubmittedContribution.objects.filter(
+            pk__in=[existing_target.pk, source_submission.pk],
+        ).update(created_at=previous_week)
+
+        response = self.client.patch(
+            f'/api/v1/submissions/{source_submission.id}/',
+            {'contribution_type': self.contribution_type.id},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('weekly submission limit', response.data['error'])
+        source_submission.refresh_from_db()
+        self.assertEqual(source_submission.contribution_type_id, source_type.id)
+
+    def test_retyping_old_submission_does_not_use_current_week_capacity(self):
+        self.contribution_type.max_submissions_per_user_per_week = 1
+        self.contribution_type.save(
+            update_fields=['max_submissions_per_user_per_week']
+        )
+        source_type = ContributionType.objects.create(
+            name='Historical Source Type',
+            slug='historical-source-type',
+            description='Test source type',
+            category=self.category,
+            min_points=1,
+            max_points=10,
+        )
+        self._create_submission(user=self.user)
+        source_submission = self._create_submission(
+            user=self.user,
+            contribution_type=source_type,
+        )
+        week_start, _ = utc_week_bounds()
+        SubmittedContribution.objects.filter(pk=source_submission.pk).update(
+            created_at=week_start - timedelta(days=1),
+        )
+
+        response = self.client.patch(
+            f'/api/v1/submissions/{source_submission.id}/',
+            {'contribution_type': self.contribution_type.id},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        source_submission.refresh_from_db()
+        self.assertEqual(
+            source_submission.contribution_type_id,
+            self.contribution_type.id,
+        )
+
+    def test_utc_week_runs_monday_through_sunday(self):
+        fixed_time = timezone.datetime(
+            2026,
+            7,
+            22,
+            18,
+            30,
+            tzinfo=datetime_timezone.utc,
+        )
+
+        week_start, week_end = utc_week_bounds(fixed_time)
+
+        self.assertEqual(week_start.isoformat(), '2026-07-20T00:00:00+00:00')
+        self.assertEqual(week_end.isoformat(), '2026-07-27T00:00:00+00:00')

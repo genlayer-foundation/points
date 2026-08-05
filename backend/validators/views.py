@@ -1,20 +1,30 @@
 import logging
 import re
+import secrets as secrets_lib
 import uuid
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.views import APIView
 
-from utils.throttling import WalletLinkRateThrottle
+from utils.throttling import TelegramBindCodeIssueRateThrottle, WalletLinkRateThrottle
 from django.db.models import Min, Q, Count
 from django.db import IntegrityError, transaction
 from django.conf import settings
 from django.utils import timezone
 from django.core.cache import cache
-from .models import SyncLock, Validator, ValidatorOperatorWallet, ValidatorWallet
+from .models import (
+    SyncLock,
+    TelegramGroupBindCode,
+    Validator,
+    ValidatorOperatorWallet,
+    ValidatorWallet,
+    get_validator_profile,
+)
 from .serializers import (
     GrafanaValidatorSerializer,
+    TelegramBindCodeSerializer,
     ValidatorOperatorWalletSerializer,
     ValidatorWalletSerializer,
     WallOfShameSerializer,
@@ -22,6 +32,9 @@ from .serializers import (
     grafana_network_label,
 )
 from .permissions import IsCronToken
+from service_accounts.authentication import ServiceAccountAuthentication
+from service_accounts.permissions import HasServiceAccountScope
+from service_accounts.scopes import TELEGRAM_BIND_REDEEM_SCOPE
 from .genlayer_validators_service import GenLayerValidatorsService
 from .grafana_service import GrafanaValidatorStatusService
 from .version_status import compute_version_status
@@ -1145,3 +1158,226 @@ class ValidatorWalletViewSet(viewsets.ReadOnlyModelViewSet):
         }
         cache.set(cache_key, payload, self.WALL_OF_SHAME_CACHE_TTL_SECONDS)
         return Response(payload)
+
+
+class TelegramBindCodeViewSet(viewsets.GenericViewSet):
+    """
+    Validator-facing Telegram group bind codes.
+
+    A validator issues a one-time code here, pastes it in their Telegram group
+    (`/bindcode <code>`), and the Deckard support bot redeems it through the
+    service-account endpoint below. The plaintext code is returned exactly once
+    by `create`; every other read only exposes metadata.
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = TelegramBindCodeSerializer
+
+    def get_queryset(self):
+        return TelegramGroupBindCode.objects.filter(created_by=self.request.user)
+
+    def get_throttles(self):
+        if self.action == 'create':
+            return [TelegramBindCodeIssueRateThrottle()]
+        return super().get_throttles()
+
+    def create(self, request):
+        """Issue a new bind code. Returns the plaintext code ONCE."""
+        validator = get_validator_profile(request.user)
+        if validator is None:
+            return Response(
+                {'error': 'Only validators can issue Telegram group bind codes.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        bind_code, plaintext = TelegramGroupBindCode.issue(validator, request.user)
+        logger.info(
+            "Telegram bind code issued: user_id=%s code_id=%s",
+            request.user.id, bind_code.id,
+        )
+        data = TelegramBindCodeSerializer(bind_code).data
+        data['code'] = plaintext
+        return Response(data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get'])
+    def mine(self, request):
+        """List the current user's bind codes (metadata only, no raw codes)."""
+        codes = self.get_queryset()
+        serializer = self.get_serializer(codes, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def revoke(self, request, pk=None):
+        """Revoke an unredeemed bind code so it can never bind a group."""
+        with transaction.atomic():
+            bind_code = (
+                self.get_queryset()
+                .select_for_update()
+                .filter(pk=pk)
+                .first()
+            )
+            if bind_code is None:
+                return Response(
+                    {'error': 'Bind code not found.'},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            if bind_code.status == TelegramGroupBindCode.STATUS_REDEEMED:
+                return Response(
+                    {'error': 'This code was already redeemed and cannot be revoked.'},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            if bind_code.status != TelegramGroupBindCode.STATUS_REVOKED:
+                bind_code.status = TelegramGroupBindCode.STATUS_REVOKED
+                bind_code.save(update_fields=['status', 'updated_at'])
+        return Response(self.get_serializer(bind_code).data)
+
+
+class TelegramBindCodeRedeemView(APIView):
+    """
+    Service-account endpoint for the Deckard Telegram bot.
+
+    POST /api/v1/validators/telegram-bind-codes/redeem/
+    Auth: `Authorization: Bearer sa_<id>_<secret>` with scope `telegram_bind:redeem`.
+    Body: {"code": "...", "group_chat_id": "...", "telegram_uid": "...",
+           "telegram_username": "optional"}
+
+    Redemption is single-use and atomic: it marks the code redeemed, records
+    the bound group chat id and the redeeming Telegram uid, and upserts the
+    issuing user's TelegramConnection. The portal does not judge whether the
+    chat is a group vs a DM — the bot refuses DMs before ever calling this.
+    """
+    authentication_classes = [ServiceAccountAuthentication]
+    permission_classes = [HasServiceAccountScope]
+    required_scopes = {'*': TELEGRAM_BIND_REDEEM_SCOPE}
+
+    CHAT_ID_PATTERN = re.compile(r'^-?\d{1,31}$')
+    UID_PATTERN = re.compile(r'^\d{1,31}$')
+
+    def post(self, request):
+        code = request.data.get('code')
+        group_chat_id = str(request.data.get('group_chat_id', '') or '').strip()
+        telegram_uid = str(request.data.get('telegram_uid', '') or '').strip()
+        telegram_username = str(request.data.get('telegram_username', '') or '').strip()
+
+        if not isinstance(code, str) or not code.strip():
+            return Response(
+                {'error': 'code is required.', 'code': 'invalid_request'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        code = code.strip()
+        if not self.CHAT_ID_PATTERN.match(group_chat_id):
+            return Response(
+                {'error': 'group_chat_id must be a Telegram chat id.', 'code': 'invalid_request'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not self.UID_PATTERN.match(telegram_uid):
+            return Response(
+                {'error': 'telegram_uid must be a numeric Telegram user id.', 'code': 'invalid_request'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        invalid_response = Response(
+            {'error': 'Invalid or unknown bind code.', 'code': 'invalid_code'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+        identifier = TelegramGroupBindCode.identifier_from_plaintext(code)
+        if identifier is None:
+            return invalid_response
+        digest = TelegramGroupBindCode.hash_code(code)
+
+        from social_connections.models import TelegramConnection
+
+        now = timezone.now()
+        with transaction.atomic():
+            bind_code = (
+                TelegramGroupBindCode.objects
+                .select_for_update()
+                .select_related('created_by', 'validator')
+                .filter(identifier=identifier)
+                .first()
+            )
+            if bind_code is None or not secrets_lib.compare_digest(bind_code.digest, digest):
+                return invalid_response
+
+            if bind_code.status == TelegramGroupBindCode.STATUS_REVOKED:
+                return Response(
+                    {'error': 'This bind code was revoked.', 'code': 'revoked'},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            if bind_code.status == TelegramGroupBindCode.STATUS_REDEEMED:
+                return Response(
+                    {'error': 'This bind code was already redeemed.', 'code': 'already_redeemed'},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            if not bind_code.is_redeemable(now):
+                if bind_code.status == TelegramGroupBindCode.STATUS_ISSUED:
+                    bind_code.status = TelegramGroupBindCode.STATUS_EXPIRED
+                    bind_code.save(update_fields=['status', 'updated_at'])
+                return Response(
+                    {'error': 'This bind code has expired.', 'code': 'expired'},
+                    status=status.HTTP_410_GONE,
+                )
+
+            # One Telegram account can only ever be linked to one portal user
+            # (DB-enforced unique platform_user_id). Reject before consuming
+            # the bind code so it stays redeemable by the right account.
+            already_linked_response = Response(
+                {
+                    'error': 'This Telegram account is already linked to a '
+                             'different portal account.',
+                    'code': 'telegram_account_linked_elsewhere',
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+            if (
+                TelegramConnection.objects
+                .exclude(user=bind_code.created_by)
+                .filter(platform_user_id=telegram_uid)
+                .exists()
+            ):
+                return already_linked_response
+
+            bind_code.status = TelegramGroupBindCode.STATUS_REDEEMED
+            bind_code.redeemed_at = now
+            bind_code.redeemed_group_chat_id = group_chat_id
+            bind_code.redeemed_by_telegram_uid = telegram_uid
+            bind_code.save(update_fields=[
+                'status',
+                'redeemed_at',
+                'redeemed_group_chat_id',
+                'redeemed_by_telegram_uid',
+                'updated_at',
+            ])
+
+            # Verifiable Telegram identity for the issuing portal account. The
+            # numeric uid is the stable identity; the display-only username is
+            # kept only when the bot supplies one, so a later redemption
+            # without it never blanks an existing handle.
+            connection_defaults = {
+                'platform_user_id': telegram_uid,
+                'linked_at': now,
+            }
+            if telegram_username:
+                connection_defaults['platform_username'] = telegram_username
+            try:
+                TelegramConnection.objects.update_or_create(
+                    user=bind_code.created_by,
+                    defaults=connection_defaults,
+                )
+            except IntegrityError:
+                # Lost the race with a concurrent link of the same Telegram
+                # id; the atomic block rolls back, leaving the code issued.
+                return already_linked_response
+
+        logger.info(
+            "Telegram bind code redeemed: code_id=%s validator_id=%s group_chat_id=%s",
+            bind_code.id, bind_code.validator_id, group_chat_id,
+        )
+        return Response({
+            'success': True,
+            'bind_code_id': bind_code.id,
+            'validator_id': bind_code.validator_id,
+            'user_id': bind_code.created_by_id,
+            'user_name': bind_code.created_by.name,
+            'group_chat_id': group_chat_id,
+            'redeemed_at': bind_code.redeemed_at,
+        })

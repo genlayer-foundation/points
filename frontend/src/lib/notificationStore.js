@@ -30,11 +30,47 @@ function createNotificationStore() {
   // changed (logout, wallet switch) are discarded instead of leaking the
   // previous account's feed into the new session.
   let epoch = 0;
+  // Every request that can write unreadCount claims a monotonically increasing
+  // version. This lets an immediate visibility refresh supersede count data
+  // already in flight through either loadUnreadCount() or loadLatest().
+  let unreadWriteVersion = 0;
+  // Local read mutations supersede item lists that started loading before
+  // those mutations completed.
+  let itemWriteVersion = 0;
+  // Failed polls back off so a degraded backend is not hammered at a fixed
+  // rate by every open tab. Reset on the first success.
+  let pollFailures = 0;
+  let skipPollUntil = 0;
+
+  const POLL_BACKOFF_STEPS = [0, 60000, 180000, 240000];
+
+  function notePollResult(ok) {
+    if (ok) {
+      pollFailures = 0;
+      skipPollUntil = 0;
+      return;
+    }
+    pollFailures = Math.min(pollFailures + 1, POLL_BACKOFF_STEPS.length - 1);
+    skipPollUntil = Date.now() + POLL_BACKOFF_STEPS[pollFailures];
+  }
+
+  function pollUnreadCountIfVisible() {
+    if (document.hidden || !authState.get().isAuthenticated) return;
+    if (Date.now() < skipPollUntil) return;
+    loadUnreadCount();
+  }
+
+  function refreshUnreadCountOnVisibility() {
+    if (document.hidden || !authState.get().isAuthenticated) return;
+    loadUnreadCount({ force: true });
+  }
 
   function loadLatest() {
     if (inflightLatest) return inflightLatest;
 
     const requestEpoch = epoch;
+    const requestUnreadVersion = ++unreadWriteVersion;
+    const requestItemVersion = itemWriteVersion;
     update((state) => ({ ...state, loading: true, error: null }));
 
     const request = Promise.all([
@@ -45,8 +81,12 @@ function createNotificationStore() {
         if (requestEpoch !== epoch) return;
         update((state) => ({
           ...state,
-          items: asList(listResponse.data),
-          unreadCount: countResponse.data?.count || 0,
+          ...(requestItemVersion === itemWriteVersion
+            ? { items: asList(listResponse.data) }
+            : {}),
+          ...(requestUnreadVersion === unreadWriteVersion
+            ? { unreadCount: countResponse.data?.count || 0 }
+            : {}),
           loading: false
         }));
       })
@@ -62,18 +102,24 @@ function createNotificationStore() {
     return request;
   }
 
-  function loadUnreadCount() {
-    if (inflightCount) return inflightCount;
+  function loadUnreadCount({ force = false } = {}) {
+    if (!force && inflightCount) return inflightCount;
 
     const requestEpoch = epoch;
+    const requestUnreadVersion = ++unreadWriteVersion;
     const request = notificationsAPI
       .unreadCount()
       .then((response) => {
-        if (requestEpoch !== epoch) return;
+        // Record the outcome only for the current, unsuperseded request: a
+        // stale failure would otherwise re-arm backoff after reset() or after a
+        // newer success had already cleared it.
+        if (requestEpoch !== epoch || requestUnreadVersion !== unreadWriteVersion) return;
+        notePollResult(true);
         update((state) => ({ ...state, unreadCount: response.data?.count || 0 }));
       })
       .catch((error) => {
-        if (requestEpoch !== epoch) return;
+        if (requestEpoch !== epoch || requestUnreadVersion !== unreadWriteVersion) return;
+        notePollResult(false);
         update((state) => ({ ...state, error }));
       })
       .finally(() => {
@@ -86,45 +132,50 @@ function createNotificationStore() {
 
   function startPolling(intervalMs = 60000) {
     pollSubscribers += 1;
-    if (!pollHandle) {
-      pollHandle = window.setInterval(() => {
-        if (authState.get().isAuthenticated) {
-          loadUnreadCount();
-        }
-      }, intervalMs);
+    if (pollSubscribers === 1) {
+      pollHandle = window.setInterval(pollUnreadCountIfVisible, intervalMs);
+      document.addEventListener('visibilitychange', refreshUnreadCountOnVisibility);
     }
 
+    let stopped = false;
     return function stopPolling() {
+      if (stopped) return;
+      stopped = true;
       pollSubscribers = Math.max(0, pollSubscribers - 1);
-      if (pollSubscribers === 0 && pollHandle) {
-        window.clearInterval(pollHandle);
+      if (pollSubscribers === 0) {
+        if (pollHandle !== null) window.clearInterval(pollHandle);
         pollHandle = null;
+        document.removeEventListener('visibilitychange', refreshUnreadCountOnVisibility);
       }
     };
   }
 
   async function markRead(id) {
+    const requestEpoch = epoch;
     const response = await notificationsAPI.markRead(id);
     const updated = response.data;
+    if (requestEpoch !== epoch) return updated;
 
-    update((state) => {
-      // Items outside the dropdown slice (page-only) still decrement: their
-      // callers only mark unread items. For items in the slice, skip the
-      // decrement when they were already read (e.g. double-click replay).
-      const itemInSlice = state.items.find((item) => item.id === id);
-      const shouldDecrement = itemInSlice ? !itemInSlice.is_read : true;
-      return {
-        ...state,
-        items: state.items.map((item) => (item.id === id ? updated : item)),
-        unreadCount: shouldDecrement ? Math.max(0, state.unreadCount - 1) : state.unreadCount
-      };
-    });
+    itemWriteVersion += 1;
+    update((state) => ({
+      ...state,
+      items: state.items.map((item) => (item.id === id ? updated : item))
+    }));
+    // Refetch rather than decrement locally: a count request can observe the
+    // server-side mark-read before this POST resolves, and a blind decrement
+    // would then subtract it twice.
+    await loadUnreadCount({ force: true });
 
     return updated;
   }
 
   async function markAllRead() {
+    const requestEpoch = epoch;
     await notificationsAPI.markAllRead();
+    if (requestEpoch !== epoch) return;
+
+    unreadWriteVersion += 1;
+    itemWriteVersion += 1;
     update((state) => ({
       ...state,
       items: state.items.map((item) => ({ ...item, is_read: true })),
@@ -134,8 +185,11 @@ function createNotificationStore() {
 
   function reset() {
     epoch += 1;
+    unreadWriteVersion += 1;
     inflightLatest = null;
     inflightCount = null;
+    pollFailures = 0;
+    skipPollUntil = 0;
     set({ items: [], unreadCount: 0, loading: false, error: null });
   }
 

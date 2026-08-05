@@ -1,6 +1,8 @@
 <script>
   import { contributionsAPI, statsAPI, leaderboardAPI, validatorsAPI, buildersAPI } from '../lib/api';
   import { visibleContributions } from '../lib/hiddenContributions.js';
+  import { hasReadOnlyRoleSectionAccess } from '../lib/roleState.js';
+  import { userStore } from '../lib/userStore.js';
   import { currentCategory } from '../stores/category.js';
 
   // Generic UI components
@@ -20,12 +22,16 @@
   // State
   let statsData = $state([]);
   let leaderboardEntries = $state([]);
+  let builderPodiumEntries = $state([]);
+  let communityPodiumEntries = $state([]);
   let newestMembers = $state([]);
   let trendingEntries = $state([]);
   let recentContributions = $state([]);
 
   let statsLoading = $state(true);
   let leaderboardLoading = $state(true);
+  let builderPodiumLoading = $state(true);
+  let communityPodiumLoading = $state(true);
   let membersLoading = $state(true);
   let trendingLoading = $state(true);
   let recentLoading = $state(true);
@@ -41,6 +47,9 @@
   let isBuilder = $derived(category === 'builder');
   let isValidator = $derived(category === 'validator');
   let isCommunity = $derived(category === 'community');
+  let isRoleSectionReadOnly = $derived(
+    hasReadOnlyRoleSectionAccess($userStore.user, category)
+  );
   let accentColor = $derived(isBuilder ? '#ee8521' : isCommunity ? '#7f52e1' : '#4f76f6');
   let valueLabel = $derived(isBuilder ? 'BP' : isCommunity ? 'CP' : 'VP');
   let dashboardTitle = $derived(
@@ -49,19 +58,35 @@
   let leaderboardTitle = $derived(isCommunity ? 'Top Community Contributors' : 'Top Contributors');
   let leaderboardSubtitle = $derived(
     isCommunity
-      ? 'Community contributions from the last 30 days'
+      ? 'All-time XP and Community points'
       : isValidator
         ? 'All-time validator contributors'
-        : 'Curated builds from the last 30 days'
+        : 'All-time builder contributors'
   );
   let leaderboardPath = $derived(isBuilder ? '/builders/leaderboard' : isCommunity ? '/community/leaderboard' : '/validators/leaderboard');
-  let podiumTitle = $derived(isValidator ? 'All-time Podium' : 'Last 30 Days Podium');
+  let podiumTitle = $derived(
+    isCommunity ? 'Accepted Submissions Podium' : isValidator ? 'All-time Podium' : 'Last 30 Days Podium'
+  );
   let podiumSubtitle = $derived(
     isCommunity
-      ? "Who's contributing most to the community over the last 30 days?"
+      ? 'Top Community contributors by points from accepted submissions'
       : isValidator
         ? "Who's contributed most to GenLayer?"
         : "Who's contributing more to GenLayer over the last 30 days?"
+  );
+  let podiumEntries = $derived(
+    isBuilder
+      ? builderPodiumEntries
+      : isCommunity
+        ? communityPodiumEntries
+        : leaderboardEntries.slice(0, 3)
+  );
+  let podiumLoading = $derived(
+    isBuilder
+      ? builderPodiumLoading
+      : isCommunity
+        ? communityPodiumLoading
+        : leaderboardLoading
   );
   let newestTitle = $derived(isBuilder ? 'Newest Builders' : isCommunity ? 'Newest Community Contributors' : 'Newest Validators');
   let newestPath = $derived(isBuilder ? '/builders/leaderboard' : isCommunity ? '/community/all-contributions' : '/validators/participants');
@@ -142,11 +167,15 @@
   function resetDashboardState() {
     statsData = [];
     leaderboardEntries = [];
+    builderPodiumEntries = [];
+    communityPodiumEntries = [];
     newestMembers = [];
     trendingEntries = [];
     recentContributions = [];
     statsLoading = true;
     leaderboardLoading = true;
+    builderPodiumLoading = true;
+    communityPodiumLoading = true;
     membersLoading = true;
     trendingLoading = true;
     recentLoading = true;
@@ -169,12 +198,9 @@
         if (requestId === dashboardRequestSequence) statsLoading = false;
       }),
 
-      // Top contributors. Validator dashboard is intentionally all-time;
-      // builder and community dashboards use rolling 30-day contribution totals.
-      (cat === 'validator'
-          ? leaderboardAPI.getLeaderboard({ type: 'validator', order: 'asc', limit: 5 })
-          : leaderboardAPI.getMonthlyLeaderboardByType(cat, 5, getLast30DaysParams())
-      ).then(res => {
+      // The ranked list is all-time for every role. Time-bounded podiums are
+      // fetched separately so they do not change the five list entries.
+      leaderboardAPI.getLeaderboard({ type: cat, order: 'asc', limit: 5 }).then(res => {
         if (requestId !== dashboardRequestSequence) return;
         leaderboardEntries = Array.isArray(res.data) ? res.data : (res.data?.results ?? []);
         leaderboardLoading = false;
@@ -183,6 +209,34 @@
       }),
 
     ];
+
+    if (cat === 'builder') {
+      promises.push(
+        leaderboardAPI.getMonthlyLeaderboardByType(cat, 3, getLast30DaysParams()).then(res => {
+          if (requestId !== dashboardRequestSequence) return;
+          builderPodiumEntries = Array.isArray(res.data) ? res.data : (res.data?.results ?? []);
+          builderPodiumLoading = false;
+        }).catch(() => {
+          if (requestId === dashboardRequestSequence) builderPodiumLoading = false;
+        })
+      );
+    } else {
+      builderPodiumLoading = false;
+    }
+
+    if (cat === 'community') {
+      promises.push(
+        leaderboardAPI.getCommunityPodium().then(res => {
+          if (requestId !== dashboardRequestSequence) return;
+          communityPodiumEntries = Array.isArray(res.data) ? res.data : (res.data?.results ?? []);
+          communityPodiumLoading = false;
+        }).catch(() => {
+          if (requestId === dashboardRequestSequence) communityPodiumLoading = false;
+        })
+      );
+    } else {
+      communityPodiumLoading = false;
+    }
 
     if (cat === 'community') {
       promises.push(
@@ -269,6 +323,14 @@
 </script>
 
 <div class="dashboard-page max-w-full overflow-x-hidden space-y-8">
+  {#if isRoleSectionReadOnly}
+    <div class="flex justify-end">
+      <span class="inline-flex min-h-7 items-center rounded-full border border-[#cdddf8] bg-[#edf4ff] px-3 text-[11px] font-semibold text-[#245ca8]">
+        View-only access
+      </span>
+    </div>
+  {/if}
+
   <!-- 1. Hero Banner -->
   <HeroBanner category={category} compact={true} />
 
@@ -305,8 +367,8 @@
         showLink={false}
       />
       <Podium
-        entries={leaderboardEntries.slice(0, 3)}
-        loading={leaderboardLoading}
+        entries={podiumEntries}
+        loading={podiumLoading}
         accentColor={accentColor}
         valueLabel={valueLabel}
         category={category}
@@ -441,54 +503,56 @@
     </div>
   {/if}
 
-  <!-- 9. CTA Section with gradient background -->
-  <div class="relative -mt-8 overflow-hidden pt-8">
-    <!-- Gradient background — extends beyond container to cover main padding -->
-    <div
-      class="absolute -bottom-3 inset-x-0 top-0 pointer-events-none"
-      style="background: {isBuilder
-        ? 'radial-gradient(ellipse 80% 60% at 0% 100%, rgba(233, 147, 34, 0.25) 0%, transparent 70%), radial-gradient(ellipse 80% 60% at 100% 100%, rgba(233, 147, 34, 0.25) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 50% 0%, rgba(248, 185, 61, 0.12) 0%, transparent 60%)'
-        : isCommunity
-          ? 'radial-gradient(ellipse 80% 60% at 0% 100%, rgba(127, 82, 225, 0.20) 0%, transparent 70%), radial-gradient(ellipse 80% 60% at 100% 100%, rgba(127, 82, 225, 0.20) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 50% 0%, rgba(170, 141, 255, 0.12) 0%, transparent 60%)'
-        : 'radial-gradient(ellipse 80% 60% at 0% 100%, rgba(56, 125, 232, 0.20) 0%, transparent 70%), radial-gradient(ellipse 80% 60% at 100% 100%, rgba(56, 125, 232, 0.20) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 50% 0%, rgba(109, 167, 243, 0.12) 0%, transparent 60%)'
-      };"
-    ></div>
-    <!-- White fade at top for smooth transition -->
-    <div
-      class="absolute inset-x-0 top-0 h-40 pointer-events-none z-[1]"
-      style="background: linear-gradient(to bottom, white 0%, transparent 100%);"
-    ></div>
-    {#if isBuilder}
-      <CTASection
-        title="Start building today"
-        description="Join professional validators and builders in testing the trust infrastructure for the AI age."
-        primaryButtonText="Become a builder"
-        primaryButtonPath="/submit-contribution"
-        secondaryLinkText="Visit the Studio"
-        secondaryLinkPath="https://studio.genlayer.com"
-        secondaryLinkExternal={true}
-      />
-    {:else if isCommunity}
-      <CTASection
-        title="Contribute to the community"
-        description="Create content, share knowledge, and help more people understand GenLayer."
-        primaryButtonText="Submit Contribution"
-        primaryButtonPath="/submit-contribution"
-        secondaryLinkText="Browse Contributions"
-        secondaryLinkPath="/community/all-contributions"
-      />
-    {:else}
-      <CTASection
-        title="Become a Validator"
-        description="Join professional validators and builders in testing the trust infrastructure for the AI age."
-        primaryButtonText="Join the Waitlist"
-        primaryButtonPath="/validators/waitlist/join"
-        secondaryLinkText="Read the Docs"
-        secondaryLinkPath="https://docs.genlayer.com"
-        secondaryLinkExternal={true}
-      />
-    {/if}
-  </div>
+  {#if !isRoleSectionReadOnly}
+    <!-- 9. CTA Section with gradient background -->
+    <div class="relative -mt-8 overflow-hidden pt-8">
+      <!-- Gradient background — extends beyond container to cover main padding -->
+      <div
+        class="absolute -bottom-3 inset-x-0 top-0 pointer-events-none"
+        style="background: {isBuilder
+          ? 'radial-gradient(ellipse 80% 60% at 0% 100%, rgba(233, 147, 34, 0.25) 0%, transparent 70%), radial-gradient(ellipse 80% 60% at 100% 100%, rgba(233, 147, 34, 0.25) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 50% 0%, rgba(248, 185, 61, 0.12) 0%, transparent 60%)'
+          : isCommunity
+            ? 'radial-gradient(ellipse 80% 60% at 0% 100%, rgba(127, 82, 225, 0.20) 0%, transparent 70%), radial-gradient(ellipse 80% 60% at 100% 100%, rgba(127, 82, 225, 0.20) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 50% 0%, rgba(170, 141, 255, 0.12) 0%, transparent 60%)'
+            : 'radial-gradient(ellipse 80% 60% at 0% 100%, rgba(56, 125, 232, 0.20) 0%, transparent 70%), radial-gradient(ellipse 80% 60% at 100% 100%, rgba(56, 125, 232, 0.20) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 50% 0%, rgba(109, 167, 243, 0.12) 0%, transparent 60%)'
+        };"
+      ></div>
+      <!-- White fade at top for smooth transition -->
+      <div
+        class="absolute inset-x-0 top-0 h-40 pointer-events-none z-[1]"
+        style="background: linear-gradient(to bottom, white 0%, transparent 100%);"
+      ></div>
+      {#if isBuilder}
+        <CTASection
+          title="Start building today"
+          description="Join professional validators and builders in testing the trust infrastructure for the AI age."
+          primaryButtonText="Become a builder"
+          primaryButtonPath="/submit-contribution"
+          secondaryLinkText="Visit the Studio"
+          secondaryLinkPath="https://studio.genlayer.com"
+          secondaryLinkExternal={true}
+        />
+      {:else if isCommunity}
+        <CTASection
+          title="Contribute to the community"
+          description="Create content, share knowledge, and help more people understand GenLayer."
+          primaryButtonText="Submit Contribution"
+          primaryButtonPath="/submit-contribution"
+          secondaryLinkText="Browse Contributions"
+          secondaryLinkPath="/community/all-contributions"
+        />
+      {:else}
+        <CTASection
+          title="Become a Validator"
+          description="Join professional validators and builders in testing the trust infrastructure for the AI age."
+          primaryButtonText="Join the Waitlist"
+          primaryButtonPath="/validators/waitlist/join"
+          secondaryLinkText="Read the Docs"
+          secondaryLinkPath="https://docs.genlayer.com"
+          secondaryLinkExternal={true}
+        />
+      {/if}
+    </div>
+  {/if}
 </div>
 
 <style>

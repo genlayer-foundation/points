@@ -281,6 +281,21 @@ class CommunityJourneyTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         self.assertTrue(Creator.objects.filter(user=self.user).exists())
 
+    def test_complete_grants_creator_through_wallet_session_auth(self):
+        # Production resolves request.user through EthereumAuthentication, which
+        # returns Django's SimpleLazyObject wrapper. force_authenticate injects
+        # a concrete User, so it cannot catch wrapper-only breakage such as
+        # type(request.user) having no .objects manager.
+        from ethereum_auth.testing import login_wallet_session
+        self.client.force_authenticate(user=None)
+        login_wallet_session(self.client, self.user)
+        self.start_journey()
+        self.complete_steps_1_to_4()
+        CommunityPostProof.objects.create(user=self.user, post_url=POST_URL, tweet_id='1790000000000000000')
+        res = self.client.post('/api/v1/users/complete_community_journey/')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(Creator.objects.filter(user=self.user).exists())
+
     def test_complete_is_idempotent(self):
         self.start_journey()
         self.complete_steps_1_to_4()
@@ -290,6 +305,34 @@ class CommunityJourneyTests(TestCase):
         self.assertEqual(first.status_code, status.HTTP_201_CREATED)
         self.assertEqual(second.status_code, status.HTTP_200_OK)
         self.assertEqual(Creator.objects.filter(user=self.user).count(), 1)
+
+    def test_complete_failure_returns_json_error_and_rolls_back(self):
+        # An unhandled exception used to produce an HTML 500 the portal can only
+        # render as a generic "try again"; it must come back as JSON with the
+        # real reason, be logged with a traceback, and roll back the role grant.
+        self.start_journey()
+        self.complete_steps_1_to_4()
+        CommunityPostProof.objects.create(user=self.user, post_url=POST_URL, tweet_id='1790000000000000000')
+        # Patched around the POST only: contribution signals in the setup steps
+        # call the same function.
+        with (
+            patch('leaderboard.models.update_user_leaderboard_entries',
+                  side_effect=RuntimeError('leaderboard exploded')),
+            self.assertLogs('tally.app.users', level='ERROR') as logs,
+        ):
+            res = self.client.post('/api/v1/users/complete_community_journey/')
+        # The log must carry the traceback, not just a message: a bare ERROR
+        # record would pass assertLogs while losing the diagnostic value.
+        logged = '\n'.join(logs.output)
+        self.assertIn('Traceback', logged)
+        self.assertIn('leaderboard exploded', logged)
+        self.assertEqual(res.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # The real reason belongs in the logs only: exception text can carry
+        # table/constraint names or row values, and the portal shows these
+        # response fields verbatim.
+        self.assertEqual(res.data['error'], 'completion_failed')
+        self.assertNotIn('leaderboard exploded', str(res.data))
+        self.assertFalse(Creator.objects.filter(user=self.user).exists())
 
     def test_existing_creator_is_grandfathered(self):
         # A pre-existing creator who never went through the

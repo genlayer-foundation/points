@@ -9,7 +9,7 @@
   import { getTaskLabels } from '../../lib/socialTaskLabels.js';
   import SocialTaskCard from './SocialTaskCard.svelte';
 
-  let { limit = 8 } = $props();
+  let { limit = 8, readOnly = false } = $props();
 
   let tasks = $state([]);
   let totalCount = $state(0);
@@ -145,7 +145,7 @@
     >
       {#each tasks as task (task.slug)}
         <div class="w-[280px] max-w-[82vw] flex-shrink-0 snap-start">
-          <SocialTaskCard {task} {onCompleted} />
+          <SocialTaskCard {task} {onCompleted} {readOnly} />
         </div>
       {/each}
     </div>

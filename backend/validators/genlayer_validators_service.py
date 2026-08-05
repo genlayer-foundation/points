@@ -10,6 +10,7 @@ from web3 import Web3
 
 from tally.middleware.logging_utils import get_app_logger
 from tally.middleware.tracing import trace_external
+from utils.web3_provider import build_web3_http_provider
 
 logger = get_app_logger('validators')
 
@@ -163,7 +164,7 @@ class GenLayerValidatorsService:
         """Initialize Web3 client and contract instances."""
         try:
             rpc_url = self.network_config.get('rpc_url') or settings.VALIDATOR_RPC_URL
-            self.w3 = Web3(Web3.HTTPProvider(rpc_url))
+            self.w3 = Web3(build_web3_http_provider(rpc_url))
 
             staking_address = self.network_config.get('staking_contract_address')
             if not staking_address:

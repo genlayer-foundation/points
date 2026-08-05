@@ -92,7 +92,7 @@ class DiscordConnectionAdmin(admin.ModelAdmin):
 class TelegramConnectionAdmin(admin.ModelAdmin):
     list_display = ('user', 'platform_username', 'platform_user_id', 'notifications_enabled', 'blocked_at', 'linked_at')
     list_filter = ('notifications_enabled',)
-    search_fields = ('user__email', 'platform_username')
+    search_fields = ('user__email', 'platform_username', 'platform_user_id')
     readonly_fields = ('platform_user_id', 'access_token', 'refresh_token', 'linked_at', 'blocked_at', 'created_at', 'updated_at')
 
 

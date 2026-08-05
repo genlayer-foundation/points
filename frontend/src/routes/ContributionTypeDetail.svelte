@@ -10,6 +10,8 @@
   import PortalContributionCard from '../components/portal/PortalContributionCard.svelte';
   import { getCategoryButtonStyle, getCategoryGradientStyle } from '../lib/categoryPresentation.js';
   import { visibleContributions } from '../lib/hiddenContributions.js';
+  import { userStore } from '../lib/userStore.js';
+  import { hasReadOnlyRoleSectionAccess } from '../lib/roleState.js';
   import { parseMarkdown } from '../lib/markdownLoader.js';
 
   let { params = {} } = $props();
@@ -60,6 +62,9 @@
   let descriptionEl = $state(/** @type {HTMLElement | null} */ (null));
 
   let category = $derived(contributionType?.category || 'global');
+  let isRoleSectionReadOnly = $derived(
+    hasReadOnlyRoleSectionAccess($userStore.user, category)
+  );
   let config = $derived(categoryConfig[category] || categoryConfig.global);
   let pointsRange = $derived(formatPoints(statistics));
   let gradientStyle = $derived(getCategoryGradientStyle(category, config.accent));
@@ -265,7 +270,11 @@
             {/if}
           </div>
 
-          {#if contributionType.is_submittable}
+          {#if isRoleSectionReadOnly}
+            <span class="inline-flex min-h-11 items-center justify-center rounded-full border border-[#cdddf8] bg-[#edf4ff] px-4 text-[12px] font-semibold text-[#245ca8]">
+              View-only access
+            </span>
+          {:else if contributionType.is_submittable}
             <button
               type="button"
               onclick={() => push(`/submit-contribution?type=${params.id}`)}

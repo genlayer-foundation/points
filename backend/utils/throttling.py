@@ -18,6 +18,15 @@ class WalletLinkRateThrottle(UserRateThrottle):
     scope = 'wallet_link'
 
 
+class TelegramBindCodeIssueRateThrottle(UserRateThrottle):
+    """
+    Per-user throttle for issuing Telegram group bind codes. Codes are cheap
+    to mint but each is a live secret for 48h; a tight rate bounds hoarding
+    and keeps the active-code surface small.
+    """
+    scope = 'telegram_bind_issue'
+
+
 class PendingEmailStartRateThrottle(AnonRateThrottle):
     scope = 'pending_email_start'
 
@@ -44,3 +53,11 @@ class ExistingEmailConfirmRateThrottle(UserRateThrottle):
 
 class CommunityPostVerificationRateThrottle(UserRateThrottle):
     scope = 'community_post_verify'
+
+
+class CampaignRedirectRateThrottle(AnonRateThrottle):
+    """
+    Per-IP throttle for the public campaign vanity-link resolver. Generous
+    enough for NAT'd event traffic; bounds pathological resolver floods.
+    """
+    scope = 'campaign_redirect'
