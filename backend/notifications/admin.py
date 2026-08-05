@@ -60,6 +60,17 @@ class CustomNotificationAdminForm(forms.ModelForm):
         widget=forms.CheckboxSelectMultiple,
         help_text='Roles mode only. Union: a user with any selected role receives it once.',
     )
+    channels = forms.MultipleChoiceField(
+        choices=[('portal', 'Portal'), ('telegram', 'Telegram')],
+        initial=['portal'],
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        help_text=(
+            'Portal is always included (it is the delivery record Telegram '
+            'fans out from). Telegram reaches recipients with a linked, '
+            'unmuted Telegram account.'
+        ),
+    )
     send_now = forms.BooleanField(
         required=False,
         label='Send now',
@@ -68,7 +79,11 @@ class CustomNotificationAdminForm(forms.ModelForm):
     recall_now = forms.BooleanField(
         required=False,
         label='Recall delivered portal notifications',
-        help_text='Deletes delivered portal notification rows for this campaign; the campaign record stays for audit.',
+        help_text=(
+            'Deletes delivered portal notification rows and cancels queued '
+            'Telegram deliveries; already-sent Telegram messages cannot be '
+            'recalled. The campaign record stays for audit.'
+        ),
     )
 
     class Meta:
@@ -76,6 +91,7 @@ class CustomNotificationAdminForm(forms.ModelForm):
         fields = [
             'title', 'body', 'link_url', 'link_label', 'priority',
             'target_mode', 'target_roles', 'target_users', 'target_wallets',
+            'channels',
         ]
         widgets = {
             'target_mode': forms.RadioSelect,
@@ -101,6 +117,13 @@ class CustomNotificationAdminForm(forms.ModelForm):
                 detail = f" Invalid lines: {', '.join(invalid_lines[:5])}" if invalid_lines else ''
                 self.add_error('target_wallets', f'Paste at least one valid wallet address.{detail}')
 
+        # Portal is the fan-out backbone: without its rows there is nothing
+        # for the Telegram channel to enqueue from.
+        channels = list(cleaned.get('channels') or [])
+        if 'portal' not in channels:
+            channels.insert(0, 'portal')
+        cleaned['channels'] = channels
+
         # Keep stored targeting unambiguous: clear the fields that don't
         # belong to the chosen mode (the users M2M clears in save_related).
         if mode != CustomNotification.TARGET_ROLES:
@@ -118,7 +141,7 @@ class CustomNotificationAdmin(admin.ModelAdmin):
     list_filter = ('status', 'target_mode', 'priority')
     search_fields = ('title', 'body')
     readonly_fields = (
-        'audience_preview', 'channels_display', 'status', 'sent_at', 'sent_by',
+        'audience_preview', 'status', 'sent_at', 'sent_by',
         'sent_count', 'unmatched_report', 'created_at', 'updated_at',
     )
     actions = ('send_selected', 'resend_selected', 'recall_selected')
@@ -132,7 +155,7 @@ class CustomNotificationAdmin(admin.ModelAdmin):
             'description': 'Fill only the field that matches the chosen mode; the others are ignored.',
         }),
         ('Send', {
-            'fields': ('send_now', 'recall_now', 'audience_preview', 'channels_display'),
+            'fields': ('channels', 'send_now', 'recall_now', 'audience_preview'),
         }),
         ('Delivery record', {
             'fields': ('status', 'sent_at', 'sent_by', 'sent_count', 'unmatched_report'),
@@ -149,11 +172,6 @@ class CustomNotificationAdmin(admin.ModelAdmin):
         if audience.unmatched_wallets:
             preview += f' · {len(audience.unmatched_wallets)} wallet line(s) unmatched'
         return preview
-
-    @admin.display(description='Channels')
-    def channels_display(self, obj):
-        channels = obj.channels if obj and obj.pk else ['portal']
-        return ', '.join(channels)
 
     @admin.display(description='Unmatched wallets')
     def unmatched_report(self, obj):
@@ -222,7 +240,7 @@ class CustomNotificationAdmin(admin.ModelAdmin):
 
     def _recall_campaign(self, request, campaign):
         try:
-            deleted = campaigns.recall_campaign(campaign)
+            deleted, cancelled = campaigns.recall_campaign(campaign)
         except Exception:
             logger.exception('Failed to recall campaign %r', campaign)
             self.message_user(
@@ -232,12 +250,15 @@ class CustomNotificationAdmin(admin.ModelAdmin):
             )
             return
 
-        if deleted:
-            self.message_user(
-                request,
-                f'Recalled {deleted} delivered portal notification(s). The campaign record was kept.',
-                level=messages.SUCCESS,
+        if deleted or cancelled:
+            message = f'Recalled {deleted} delivered portal notification(s).'
+            if cancelled:
+                message += f' Cancelled {cancelled} queued Telegram message(s).'
+            message += (
+                ' Already-sent Telegram messages cannot be recalled.'
+                ' The campaign record was kept.'
             )
+            self.message_user(request, message, level=messages.SUCCESS)
         else:
             self.message_user(
                 request,
@@ -263,15 +284,17 @@ class CustomNotificationAdmin(admin.ModelAdmin):
     def recall_selected(self, request, queryset):
         campaigns_recalled = 0
         deleted = 0
+        cancelled = 0
         failed = 0
 
         for campaign in queryset:
             try:
-                count = campaigns.recall_campaign(campaign)
+                count, cancelled_count = campaigns.recall_campaign(campaign)
             except Exception:
                 logger.exception('Failed to recall campaign %r', campaign)
                 failed += 1
                 continue
+            cancelled += cancelled_count
             if count:
                 campaigns_recalled += 1
                 deleted += count
@@ -280,6 +303,8 @@ class CustomNotificationAdmin(admin.ModelAdmin):
             f'Recalled {deleted} delivered portal notification(s) '
             f'from {campaigns_recalled} custom notification(s).'
         )
+        if cancelled:
+            message += f' Cancelled {cancelled} queued Telegram message(s).'
         if failed:
             message += f' Failed {failed}; check server logs.'
         self.message_user(

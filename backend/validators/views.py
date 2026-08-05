@@ -1317,6 +1317,25 @@ class TelegramBindCodeRedeemView(APIView):
                     status=status.HTTP_410_GONE,
                 )
 
+            # One Telegram account can only ever be linked to one portal user
+            # (DB-enforced unique platform_user_id). Reject before consuming
+            # the bind code so it stays redeemable by the right account.
+            already_linked_response = Response(
+                {
+                    'error': 'This Telegram account is already linked to a '
+                             'different portal account.',
+                    'code': 'telegram_account_linked_elsewhere',
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+            if (
+                TelegramConnection.objects
+                .exclude(user=bind_code.created_by)
+                .filter(platform_user_id=telegram_uid)
+                .exists()
+            ):
+                return already_linked_response
+
             bind_code.status = TelegramGroupBindCode.STATUS_REDEEMED
             bind_code.redeemed_at = now
             bind_code.redeemed_group_chat_id = group_chat_id
@@ -1339,10 +1358,15 @@ class TelegramBindCodeRedeemView(APIView):
             }
             if telegram_username:
                 connection_defaults['platform_username'] = telegram_username
-            TelegramConnection.objects.update_or_create(
-                user=bind_code.created_by,
-                defaults=connection_defaults,
-            )
+            try:
+                TelegramConnection.objects.update_or_create(
+                    user=bind_code.created_by,
+                    defaults=connection_defaults,
+                )
+            except IntegrityError:
+                # Lost the race with a concurrent link of the same Telegram
+                # id; the atomic block rolls back, leaving the code issued.
+                return already_linked_response
 
         logger.info(
             "Telegram bind code redeemed: code_id=%s validator_id=%s group_chat_id=%s",

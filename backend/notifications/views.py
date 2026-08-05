@@ -3,7 +3,10 @@ from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
+from validators.permissions import IsCronToken
+
 from . import services
+from . import telegram as telegram_delivery
 from .serializers import (
     LightNotificationSerializer,
     NotificationSerializer,
@@ -63,6 +66,21 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     def mark_all_read(self, request):
         updated = services.mark_all_read(request.user)
         return Response({'updated': updated})
+
+    @action(
+        detail=False,
+        methods=['post'],
+        url_path='telegram/deliver',
+        permission_classes=[IsCronToken],
+        authentication_classes=[],
+    )
+    def telegram_deliver(self, request):
+        """Drain the Telegram outbox. Cron-triggered (X-Cron-Token)."""
+        try:
+            limit = int(request.data.get('limit', telegram_delivery.DEFAULT_RUN_LIMIT))
+        except (TypeError, ValueError):
+            limit = telegram_delivery.DEFAULT_RUN_LIMIT
+        return Response(telegram_delivery.deliver_pending(limit=limit))
 
 
 class WhatsNewPagination(PageNumberPagination):

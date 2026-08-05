@@ -4,6 +4,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Contributors can link a Telegram account from their profile header (private, visible only to them) to receive portal notifications and announcements on Telegram and check their rank, points, and active missions with bot commands; the old public Telegram handle field was removed from profiles. Post-deploy: set TELEGRAM_BOT_USERNAME and TELEGRAM_WEBHOOK_SECRET, run `python manage.py set_telegram_webhook`, and add the telegram-deliver cron workflow (de6a8726)
+
 - Finishing the Creator or Builder journey now actually grants the role: since late June the final "Become a Creator" / "Claim Builder Role" step failed for every new member with a generic error, and completion errors now show their real reason instead of a dead-end "try again" (9d546e70)
 
 - Validators can link Telegram support groups to their validator: generate a one-time code on the new Telegram Support page, paste it in a Telegram group with the Deckard support bot, and the group is bound to the validator (multiple groups supported, codes expire in 48 hours and can be revoked) (0cd7e5f)

@@ -16,6 +16,11 @@ from .discord_oauth import (
     sync_my_discord_roles,
     assign_earned_discord_roles,
 )
+from .telegram_bot import (
+    telegram_link_token,
+    telegram_disconnect,
+    telegram_webhook,
+)
 
 urlpatterns = [
     # GitHub OAuth
@@ -37,4 +42,9 @@ urlpatterns = [
     path('api/v1/users/discord/sync-roles/', sync_discord_roles, name='discord_sync_roles'),
     path('api/v1/users/discord/sync-roles/me/', sync_my_discord_roles, name='discord_sync_my_roles'),
     path('api/v1/users/discord/assign-earned-roles/', assign_earned_discord_roles, name='discord_assign_earned_roles'),
+
+    # Telegram bot (deep-link linking, no OAuth)
+    path('api/webhooks/telegram/', telegram_webhook, name='telegram_webhook'),
+    path('api/v1/users/telegram/link-token/', telegram_link_token, name='telegram_link_token'),
+    path('api/v1/users/telegram/disconnect/', telegram_disconnect, name='telegram_disconnect'),
 ]
