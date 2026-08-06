@@ -35,7 +35,9 @@
       : null;
   });
   let slotsUsed = $derived(
-    slotsRemaining === null ? null : weeklyLimit - slotsRemaining,
+    slotsRemaining === null || weeklyLimit === null
+      ? null
+      : weeklyLimit - slotsRemaining,
   );
   let slotNoun = $derived(panel === 'projects' ? 'Project slots' : 'slots');
   let submissionNoun = $derived(
@@ -49,11 +51,12 @@
     return 'Before you submit';
   });
   let subtitle = $derived.by(() => {
-    if (panel === 'projects' || panel === 'contract') {
-      return 'Check the quality bar. Reviews are strict.';
+    if (panel === 'projects') return 'Check the quality bar. Reviews are strict.';
+    if (panel === 'contract') {
+      return 'This category is strict. Most submissions are rejected.';
     }
     if (panel === 'milestone') {
-      return 'Milestones are open only for highlighted projects.';
+      return 'Milestones reward substantial progress on highlighted projects.';
     }
     return 'Weekly limits, categories, and what reviewers look for.';
   });
@@ -69,25 +72,52 @@
     ['Meaningfully different from boilerplate,', 'with a credible path to continued use.'],
   ];
   const CONTRACT_QUALITY_BAR = [
-    ['Reusable by other builders.', 'Primitives, patterns, and building blocks.'],
+    ['Reusable by other builders.', 'Primitives, patterns, and building blocks others can integrate.'],
     ['Not extracted from a submitted project.', 'The same work does not count twice.'],
-    ['Not a learning exercise.', 'Contracts written to explore consensus are not contributions.'],
+    ['Not a learning exercise.', 'Contracts written to explore how consensus works are not contributions.'],
     ['Meaningfully different', 'from contracts that already exist in the ecosystem.'],
+    ['Documented for reuse.', 'Clear docs on what it does and how to integrate it.'],
+  ];
+  const MILESTONE_QUALITY_BAR = [
+    ['Substantial improvement.', 'New functionality, real integrations, or meaningful scope. Not cosmetic updates.'],
+    ['Not repackaging.', 'Renaming, restyling, or reorganizing existing work does not qualify.'],
+    ['Builds on the accepted version.', 'The delta from the last accepted state is what gets evaluated.'],
+    ['Documented delta.', 'Submission notes must state exactly what changed and why it matters.'],
+    ['Moves the project toward real usage.', 'Adoption, users, or external interest strengthen the case.'],
   ];
   let qualityBar = $derived(
     panel === 'projects'
       ? PROJECT_QUALITY_BAR
       : panel === 'contract'
         ? CONTRACT_QUALITY_BAR
-        : [],
+        : panel === 'milestone'
+          ? MILESTONE_QUALITY_BAR
+          : [],
+  );
+  let routerItems = $derived(
+    panel === 'contract'
+      ? [
+          ['A full project with a frontend or product around it', 'Project', 'projects'],
+          ['An improvement to an accepted project', 'Milestone', 'milestones'],
+        ]
+      : [
+          ['A standalone reusable contract', 'Intelligent Contract', 'create-intelligent-contracts'],
+          ['An improvement to an accepted project', 'Milestone', 'milestones'],
+        ],
   );
 
   let mobileSummaryLine = $derived.by(() => {
+    if (panel === 'milestone' && milestoneEligible === false) {
+      return 'A highlighted project is required';
+    }
     if (slotsUsed !== null) {
       return `${slotsUsed} of ${weeklyLimit} ${slotNoun} used this week`;
     }
     if (weeklyLimit !== null) {
       return `${weeklyLimit} per week, Monday to Sunday UTC`;
+    }
+    if (panel === 'contract') {
+      return 'Strict category · lightweight contracts are rejected';
     }
     return `Weekly limits run ${WEEK_WINDOW}`;
   });
@@ -129,28 +159,23 @@
 {#snippet categoryRouter()}
   <div class="router">
     <div class="router-rows">
-      <div>
-        <span>A standalone reusable contract</span>
-        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8h10m-3-3 3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
-        {#if onRoute}
-          <button type="button" onclick={() => onRoute('create-intelligent-contracts')}>Intelligent Contract</button>
-        {:else}
-          <strong>Intelligent Contract</strong>
-        {/if}
-      </div>
-      <div>
-        <span>An improvement to an accepted project</span>
-        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8h10m-3-3 3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
-        {#if onRoute}
-          <button type="button" onclick={() => onRoute('milestones')}>Milestone</button>
-        {:else}
-          <strong>Milestone</strong>
-        {/if}
-      </div>
+      {#each routerItems as item}
+        <div>
+          <span>{item[0]}</span>
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8h10m-3-3 3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          {#if onRoute}
+            <button type="button" onclick={() => onRoute(item[2])}>{item[1]}</button>
+          {:else}
+            <strong>{item[1]}</strong>
+          {/if}
+        </div>
+      {/each}
     </div>
-    <p class="router-note">
-      Milestones are open only for highlighted projects. Cosmetic changes do not qualify.
-    </p>
+    {#if panel === 'projects'}
+      <p class="router-note">
+        Milestones are open only for highlighted projects. Cosmetic changes do not qualify.
+      </p>
+    {/if}
   </div>
 {/snippet}
 
@@ -166,8 +191,18 @@
       {/each}
     </ul>
     {#if panel === 'contract'}
-      <p class="strict-note">Acceptance for this category is strict. Lightweight contracts are rejected.</p>
+      <p class="litmus-note">If it would not be useful to someone else building on GenLayer, it is not ready to be submitted.</p>
     {/if}
+  </div>
+{/snippet}
+
+{#snippet contractWarning()}
+  <div class="contract-warning" role="note">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M10 2.8 18 17H2L10 2.8Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" />
+      <path d="M10 7.2v4.4m0 2.4v.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+    </svg>
+    <p>Lightweight contracts are rejected. This category is not a shortcut to points. A contract must provide real value to the ecosystem to be rewarded.</p>
   </div>
 {/snippet}
 
@@ -187,32 +222,37 @@
   </details>
 {/snippet}
 
+{#snippet fullGuidelinesLink()}
+  {#if contributionType?.id && !detail}
+    <a class="full-guidelines-link" href={`/contribution-type/${contributionType.id}`}>
+      <span>Read full guidelines</span>
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M3 8h10m-3-3 3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </a>
+  {/if}
+{/snippet}
+
 {#snippet panelBody()}
   {#key panel}
     <div class="panel-body">
-      {#if panel === 'projects'}
+      {#if panel === 'milestone' && milestoneEligible === false}
+        <div class="milestone-empty">
+          <p>Milestones are open only for highlighted projects. Highlighted projects are selected by the review team based on use case and real usage potential. Keep building your project through new submissions to get there.</p>
+        </div>
+      {:else if panel === 'projects'}
         {@render slotCounter()}
         {@render categoryRouter()}
         {@render qualityList()}
         <p class="go-further"><strong>Go further:</strong> live demos, videos, and public posts earn extra points and speed up review.</p>
-        {@render afterSubmit()}
       {:else if panel === 'contract'}
+        {@render contractWarning()}
+        {@render slotCounter()}
+        {@render categoryRouter()}
+        {@render qualityList()}
+      {:else if panel === 'milestone'}
         {@render slotCounter()}
         {@render qualityList()}
-        {@render afterSubmit()}
-      {:else if panel === 'milestone'}
-        {#if milestoneEligible === false}
-          <p class="eligibility-warning">
-            <strong>You have no highlighted Project contributions yet.</strong>
-            Milestones can only be linked to a highlighted Project.
-          </p>
-        {:else}
-          <p class="eligibility-note">
-            Link a highlighted Project contribution, then describe what changed. Cosmetic changes do not qualify.
-          </p>
-        {/if}
-        {@render slotCounter()}
-        {@render afterSubmit()}
       {:else if weeklyLimit !== null}
         {@render slotCounter()}
       {:else}
@@ -224,6 +264,8 @@
           Weekly limits run {WEEK_WINDOW}
         </p>
       {/if}
+      {@render afterSubmit()}
+      {@render fullGuidelinesLink()}
     </div>
   {/key}
 {/snippet}
@@ -340,6 +382,33 @@
   .slot-counter.is-exhausted {
     background: #fff7ed;
     border-color: rgba(234, 88, 12, 0.35);
+  }
+
+  .contract-warning {
+    align-items: flex-start;
+    background: #fff4e8;
+    border: 1px solid rgba(220, 92, 20, 0.28);
+    border-radius: 10px;
+    color: #8a3d0b;
+    display: flex;
+    gap: 9px;
+    padding: 11px 12px;
+  }
+
+  .contract-warning svg {
+    flex: 0 0 auto;
+    height: 17px;
+    margin-top: 1px;
+    width: 17px;
+  }
+
+  .contract-warning p {
+    color: #6f310b;
+    font-family: 'Switzer', sans-serif;
+    font-size: 11.5px;
+    font-weight: 580;
+    line-height: 16px;
+    margin: 0;
   }
 
   .slot-copy {
@@ -507,12 +576,14 @@
     width: 12px;
   }
 
-  .strict-note {
-    color: #98a2b3;
+  .litmus-note {
+    border-left: 2px solid #d0d5dd;
+    color: #7b8190;
     font-family: 'Switzer', sans-serif;
     font-size: 11px;
     line-height: 15px;
-    margin: 8px 2px 0;
+    margin: 9px 2px 0;
+    padding-left: 9px;
   }
 
   .go-further {
@@ -531,32 +602,19 @@
     font-weight: 650;
   }
 
-  .eligibility-note,
-  .eligibility-warning {
+  .milestone-empty {
+    background: #fff7ed;
+    border: 1px solid rgba(234, 88, 12, 0.3);
+    border-radius: 10px;
+    padding: 12px;
+  }
+
+  .milestone-empty p {
+    color: #7c4a12;
     font-family: 'Switzer', sans-serif;
     font-size: 12px;
     line-height: 17px;
     margin: 0;
-  }
-
-  .eligibility-note {
-    color: #475467;
-  }
-
-  .eligibility-warning {
-    background: #fff7ed;
-    border: 1px solid rgba(234, 88, 12, 0.35);
-    border-radius: 10px;
-    color: #7c4a12;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 11px 12px;
-  }
-
-  .eligibility-warning strong {
-    color: #9a3412;
-    font-weight: 650;
   }
 
   .week-chip {
@@ -640,6 +698,42 @@
   .after-submit-body strong {
     color: #344054;
     font-weight: 650;
+  }
+
+  .full-guidelines-link {
+    align-items: center;
+    color: #475467;
+    display: inline-flex;
+    font-family: 'Switzer', sans-serif;
+    font-size: 11.5px;
+    font-weight: 650;
+    gap: 5px;
+    line-height: 16px;
+    text-decoration-color: #d0d5dd;
+    text-decoration-line: underline;
+    text-underline-offset: 3px;
+    width: fit-content;
+  }
+
+  .full-guidelines-link svg {
+    height: 14px;
+    transition: transform 160ms ease;
+    width: 14px;
+  }
+
+  .full-guidelines-link:hover {
+    color: #b45309;
+    text-decoration-color: currentColor;
+  }
+
+  .full-guidelines-link:hover svg {
+    transform: translateX(2px);
+  }
+
+  .full-guidelines-link:focus-visible {
+    border-radius: 4px;
+    outline: 2px solid #ee8521;
+    outline-offset: 3px;
   }
 
   .guidelines-disclosure {
@@ -728,6 +822,9 @@
     }
 
     .guidelines-card.is-detail .after-submit-body p,
+    .guidelines-card.is-detail .contract-warning p,
+    .guidelines-card.is-detail .litmus-note,
+    .guidelines-card.is-detail .milestone-empty p,
     .guidelines-card.is-detail .router-note,
     .guidelines-card.is-detail .go-further {
       font-size: 12px;
@@ -737,7 +834,8 @@
 
   @media (prefers-reduced-motion: reduce) {
     .summary-chevron,
-    .accordion-chevron {
+    .accordion-chevron,
+    .full-guidelines-link svg {
       transition: none;
     }
   }
