@@ -1004,8 +1004,11 @@
     showProjectDropdown = false;
   }
 
+  /** @param {string} slug */
   function routeToType(slug) {
-    const target = types.find((type) => type.slug === slug);
+    const target = slug === "projects"
+      ? types.find((type) => isProjectContributionType(type))
+      : types.find((type) => type.slug === slug);
     if (target) selectType(target);
   }
 
@@ -2373,13 +2376,19 @@
             </button>
           </div>
         {:else if acceptedProjects.length === 0}
-          <div class="w-full rounded-[8px] border border-orange-200 bg-orange-50 p-[12px]">
-            <p class="font-['Switzer'] text-[14px] text-orange-900 font-medium">
-              You need a highlighted project before submitting milestones.
+          <div class="w-full rounded-[12px] border border-orange-200 bg-orange-50 p-[16px]">
+            <p class="text-pretty font-['Switzer'] text-[13px] leading-[19px] text-orange-900">
+              Milestones are open only for highlighted projects. Highlighted projects are selected by the review team based on use case and real usage potential. Keep building your project through new submissions to get there.
             </p>
-            <p class="font-['Switzer'] text-[13px] text-orange-800 mt-1">
-              Submit a Projects contribution first. Once it is accepted and highlighted, milestones can be linked to it.
-            </p>
+            <a
+              href={`/contribution-type/${formData.contribution_type}`}
+              class="mt-3 inline-flex min-h-10 items-center gap-1 font-['Switzer'] text-[13px] font-semibold text-orange-900 underline decoration-orange-300 underline-offset-4 transition-colors hover:text-orange-700 focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500"
+            >
+              Read full guidelines
+              <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M3 8h10m-3-3 3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </a>
           </div>
         {:else}
           <div
