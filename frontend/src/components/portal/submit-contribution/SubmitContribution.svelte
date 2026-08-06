@@ -6,7 +6,9 @@
   import { getMissions } from "../../../lib/missionsStore.js";
   import { authState } from "../../../lib/auth.js";
   import { userStore } from "../../../lib/userStore";
+  import { isProjectContributionType } from "../../../lib/contributionGuidelines.js";
   import ConfirmDialog from "../../ConfirmDialog.svelte";
+  import ContributionGuidelines from "../ContributionGuidelines.svelte";
   import { parseMarkdown } from "../../../lib/markdownLoader.js";
   import {
     getAnalyticsContext,
@@ -646,7 +648,7 @@
   }
 
   function isProjectType(type) {
-    return ["projects", "projects-and-milestones", "projects-milestones", "project-milestone"].includes(type?.slug);
+    return isProjectContributionType(type);
   }
 
   async function loadAcceptedProjects() {
@@ -666,6 +668,12 @@
       loadingProjects = false;
     }
   }
+
+  // null while loading or after a fetch error so the guidance panel never
+  // tells a builder they are ineligible off transient state.
+  let milestoneEligible = $derived(
+    loadingProjects || projectsError ? null : acceptedProjects.length > 0,
+  );
 
   let selectedProjectData = $derived(
     acceptedProjects.find((project) => String(project.id) === String(selectedProject)) || null
@@ -831,6 +839,11 @@
     selectedCategory = cat;
     showTypeDropdown = false;
     showProjectDropdown = false;
+  }
+
+  function routeToType(slug) {
+    const target = types.find((type) => type.slug === slug);
+    if (target) selectType(target);
   }
 
   function selectType(t) {
@@ -1589,6 +1602,7 @@
 
 <div
   class="submit-form-shell content-stretch flex flex-col gap-[12px] items-start relative shrink-0 w-full"
+  class:with-guidelines={!editMode}
   style="max-width: {editMode ? 620 : 550}px; margin: 0 auto;"
 >
   {#if editMode}
@@ -1677,6 +1691,17 @@
     >
       Submit Contribution
     </h1>
+  {/if}
+
+  {#if !editMode}
+    <div class="mobile-guidelines-slot w-full xl:hidden">
+      <ContributionGuidelines
+        contributionType={selectedType}
+        mobile={true}
+        onRoute={routeToType}
+        {milestoneEligible}
+      />
+    </div>
   {/if}
 
   <form
@@ -2705,6 +2730,16 @@
       </div>
     {/if}
   </form>
+
+  {#if !editMode}
+    <aside class="desktop-guidelines-slot hidden xl:block" aria-label="Submission guidance">
+      <ContributionGuidelines
+        contributionType={selectedType}
+        onRoute={routeToType}
+        {milestoneEligible}
+      />
+    </aside>
+  {/if}
 </div>
 
 <ConfirmDialog
@@ -2724,6 +2759,38 @@
   .submit-form-shell {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  @media (min-width: 1280px) {
+    .submit-form-shell.with-guidelines {
+      align-items: start;
+      column-gap: 24px;
+      display: grid;
+      grid-template-columns: minmax(0, 550px) minmax(0, 360px);
+      max-width: 934px !important;
+      row-gap: 12px;
+    }
+
+    .submit-form-shell.with-guidelines > .submit-page-title {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    .submit-form-shell.with-guidelines > form {
+      grid-column: 1;
+      grid-row: 2;
+      min-width: 0;
+    }
+
+    .desktop-guidelines-slot {
+      grid-column: 2;
+      grid-row: 2;
+      max-height: calc(100vh - 48px);
+      min-width: 0;
+      overflow-y: auto;
+      position: sticky;
+      top: 24px;
+    }
   }
 
   .submit-panel {

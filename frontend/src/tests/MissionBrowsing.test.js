@@ -129,6 +129,24 @@ describe('historical mission browsing', () => {
     expect(mocks.push).toHaveBeenCalledWith('/mission/12');
   });
 
+  it('shows the submission guidance panel on the Projects type page', async () => {
+    mocks.getContributionType.mockResolvedValue({
+      data: {
+        ...contributionType,
+        name: 'Projects',
+        slug: 'projects',
+        max_submissions_per_user_per_week: 2,
+      },
+    });
+
+    render(ContributionTypeDetail, { props: { params: { id: '7' } } });
+
+    expect(
+      await screen.findByRole('heading', { name: 'Before you submit a Project' }),
+    ).toBeTruthy();
+    expect(screen.getByText('Monday 00:00 to Sunday 23:59 UTC')).toBeTruthy();
+  });
+
   it('offers ended missions as filters in all contributions', async () => {
     window.history.replaceState({}, '', '/all-contributions?type=7&mission=12');
     render(AllContributions);
