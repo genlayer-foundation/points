@@ -347,6 +347,32 @@ describe('rejected contribution resubmission', () => {
     });
   });
 
+  it('replaces the Milestone form with guidance when there are no highlighted projects', async () => {
+    const milestoneType = {
+      ...builderType,
+      name: 'Milestones',
+      slug: 'milestones'
+    };
+    mocks.api.get.mockResolvedValue({
+      data: rejectedSource({
+        contribution_type_name: milestoneType.name,
+        contribution_type_details: milestoneType,
+        project_contribution: null
+      })
+    });
+    mocks.getAllContributionTypes.mockResolvedValue({ data: [milestoneType] });
+    mocks.getAcceptedProjects.mockResolvedValue({ data: [] });
+
+    render(SubmitContribution);
+
+    const emptyState = 'Milestones are open only for highlighted projects. Highlighted projects are selected by the review team based on use case and real usage potential. Keep building your project through new submissions to get there.';
+    expect((await screen.findAllByText(emptyState)).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: 'Read full guidelines' })[0].getAttribute('href'))
+      .toBe(`/contribution-type/${milestoneType.id}`);
+    expect(screen.queryByLabelText('Contribution Date')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Resubmit Contribution' })).toBeNull();
+  });
+
   it('refuses to prefill a source that is no longer rejected', async () => {
     mocks.api.get.mockResolvedValue({
       data: rejectedSource({ state: 'pending' })

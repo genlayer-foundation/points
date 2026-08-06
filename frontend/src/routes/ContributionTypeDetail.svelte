@@ -75,7 +75,10 @@
   let allContributionsPath = $derived(
     `/all-contributions?category=${explorerCategory}&type=${params.id}`
   );
-  let hasProjectGuidelines = $derived(isProjectContributionType(contributionType));
+  let hasSubmissionGuidelines = $derived(
+    isProjectContributionType(contributionType) ||
+      ['create-intelligent-contracts', 'milestones'].includes(contributionType?.slug),
+  );
 
   function formatDate(dateString) {
     if (!dateString) return 'Never';
@@ -327,7 +330,7 @@
         {/if}
       </section>
 
-      {#if hasProjectGuidelines}
+      {#if hasSubmissionGuidelines}
         <ContributionGuidelines {contributionType} detail={true} />
       {/if}
 

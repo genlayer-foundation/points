@@ -147,6 +147,23 @@ describe('historical mission browsing', () => {
     expect(screen.getByText('Monday 00:00 to Sunday 23:59 UTC')).toBeTruthy();
   });
 
+  it.each([
+    ['Intelligent Contracts', 'create-intelligent-contracts', 'Before you submit an Intelligent Contract'],
+    ['Milestones', 'milestones', 'Before you submit a Milestone'],
+  ])('shows the submission guidance panel on the %s type page', async (name, slug, heading) => {
+    mocks.getContributionType.mockResolvedValue({
+      data: {
+        ...contributionType,
+        name,
+        slug,
+      },
+    });
+
+    render(ContributionTypeDetail, { props: { params: { id: '7' } } });
+
+    expect(await screen.findByRole('heading', { name: heading })).toBeTruthy();
+  });
+
   it('offers ended missions as filters in all contributions', async () => {
     window.history.replaceState({}, '', '/all-contributions?type=7&mission=12');
     render(AllContributions);
