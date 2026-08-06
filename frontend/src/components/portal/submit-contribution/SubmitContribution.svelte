@@ -5,6 +5,7 @@
   import { contributionsAPI, submissionsAPI } from "../../../lib/api.js";
   import { getMissions } from "../../../lib/missionsStore.js";
   import { authState } from "../../../lib/auth.js";
+  import { submissionErrorMessage } from "../../../lib/submissionErrors.js";
   import { userStore } from "../../../lib/userStore";
   import ConfirmDialog from "../../ConfirmDialog.svelte";
   import { parseMarkdown } from "../../../lib/markdownLoader.js";
@@ -1689,34 +1690,13 @@
         error = Array.isArray(err.response.data.recaptcha)
           ? err.response.data.recaptcha[0]
           : err.response.data.recaptcha;
-      } else if (err.response?.data?.evidence_items) {
-        // Parse evidence validation errors from backend
-        const evidenceErrors = err.response.data.evidence_items;
-        if (Array.isArray(evidenceErrors) && evidenceErrors.length > 0) {
-          const first = evidenceErrors[0];
-          error = first.message || JSON.stringify(first);
-        } else {
-          error = typeof evidenceErrors === "string"
-            ? evidenceErrors
-            : JSON.stringify(evidenceErrors);
-        }
-      } else if (err.response?.data?.more_info_response) {
-        const responseError = err.response.data.more_info_response;
-        if (typeof responseError === "string") {
-          error = responseError;
-        } else if (Array.isArray(responseError)) {
-          error = responseError[0];
-        } else {
-          const firstValue = Object.values(responseError)[0];
-          error = Array.isArray(firstValue) ? firstValue[0] : firstValue;
-        }
       } else {
-        error =
-          err.response?.data?.error ||
-          err.response?.data?.detail ||
-          (editMode
+        error = submissionErrorMessage(
+          err,
+          editMode
             ? "Failed to save submission"
-            : "Failed to submit contribution");
+            : "Failed to submit contribution",
+        );
       }
 
       if (!editMode && recaptchaWidgetId !== null && window.grecaptcha) {
@@ -1892,7 +1872,7 @@
       <button
         type="button"
         onclick={() => push("/my-submissions")}
-        class="group inline-flex min-h-10 w-fit items-center gap-2 rounded-full px-1 pr-3 font-['Switzer'] text-[13px] font-medium text-[#6b6b6b] transition-[color,scale] hover:text-black active:scale-[0.96]"
+        class="group inline-flex min-h-10 w-fit items-center gap-2 rounded-full px-1 pr-3 text-[13px] font-medium text-[#6b6b6b] transition-[color,scale] hover:text-black active:scale-[0.96]"
       >
         <span class="flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.06)]">
           <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -1902,13 +1882,13 @@
         My submissions
       </button>
       <div>
-        <p class="mb-1 font-['Switzer'] text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-600">
+        <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-600">
           Corrected submission
         </p>
-        <h1 class="submit-page-title text-balance font-['F37_Lineca'] text-[36px] font-medium leading-[42px] tracking-[-0.72px] text-black">
+        <h1 class="submit-page-title text-balance text-[36px] font-medium leading-[42px] tracking-[-0.72px] text-black">
           Resubmit contribution
         </h1>
-        <p class="mt-2 max-w-[500px] text-pretty font-['Switzer'] text-[14px] leading-[21px] text-[#6b6b6b]">
+        <p class="mt-2 max-w-[500px] text-pretty text-[14px] leading-[21px] text-[#6b6b6b]">
           Review and update this copied content before creating a new submission. The rejected original and its appeal history remain unchanged.
         </p>
       </div>

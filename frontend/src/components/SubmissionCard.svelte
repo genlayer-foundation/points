@@ -2,6 +2,7 @@
   import { push } from 'svelte-spa-router';
   import { format } from '../lib/dates.js';
   import { parseMarkdown, parseUserMarkdown } from '../lib/markdownLoader.js';
+  import { submissionErrorMessage } from '../lib/submissionErrors.js';
   import { showError, showSuccess } from '../lib/toastStore.js';
   import Badge from './Badge.svelte';
   import ContributionCard from './ContributionCard.svelte';
@@ -149,25 +150,6 @@
     }
   }
 
-  /** @param {any} error */
-  function moreInfoErrorMessage(error) {
-    const responseData = error?.response?.data || {};
-    const responseError = responseData.more_info_response;
-    if (typeof responseError === 'string') return responseError;
-    if (Array.isArray(responseError)) return responseError[0];
-    if (responseError && typeof responseError === 'object') {
-      const firstValue = Object.values(responseError)[0];
-      if (Array.isArray(firstValue)) return firstValue[0];
-      if (typeof firstValue === 'string') return firstValue;
-    }
-    const evidenceError = responseData.evidence_items;
-    if (typeof evidenceError === 'string') return evidenceError;
-    if (Array.isArray(evidenceError) && evidenceError.length > 0) {
-      return evidenceError[0]?.message || String(evidenceError[0]);
-    }
-    return responseData.error || responseData.detail || 'We could not resubmit this contribution. Open Edit to review the current requirements.';
-  }
-
   async function handleMoreInfoResubmit() {
     const message = moreInfoResponse.trim();
     if (!onResubmit || !message || resubmitting) return;
@@ -182,7 +164,10 @@
       moreInfoResponse = '';
       showingResubmitResponse = false;
     } catch (error) {
-      resubmitError = moreInfoErrorMessage(error);
+      resubmitError = submissionErrorMessage(
+        error,
+        'We could not resubmit this contribution. Open Edit to review the current requirements.'
+      );
     } finally {
       resubmitting = false;
     }

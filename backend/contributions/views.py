@@ -620,7 +620,13 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         context['use_light_serializers'] = self.action == 'list'
         return context
 
-    def _validate_required_discord_roles(self, user, contribution_type):
+    def _validate_required_discord_roles(
+        self,
+        user,
+        contribution_type,
+        *,
+        sync_if_stale=True,
+    ):
         """Ensure the user has at least one role required by this type."""
         required_roles = list(
             contribution_type.required_discord_roles.filter(
@@ -646,7 +652,7 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
             <= int(getattr(settings, 'DISCORD_ROLE_SUBMISSION_SYNC_GRACE_SECONDS', 30))
         )
 
-        if not recently_synced:
+        if not recently_synced and sync_if_stale:
             try:
                 from social_connections.discord_roles import (
                     DiscordRoleSyncConfigurationError,
@@ -704,6 +710,7 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
         weekly_capacity_at=None,
         allow_existing_community_submission=False,
         skip_submittable_check=False,
+        sync_discord_roles=True,
     ):
         """Validate role, category, and requirement gates for submissions."""
         if mission and contribution_type.id != mission.contribution_type_id:
@@ -771,11 +778,56 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_403_FORBIDDEN
                 )
 
-        discord_role_error = self._validate_required_discord_roles(user, contribution_type)
+        discord_role_error = self._validate_required_discord_roles(
+            user,
+            contribution_type,
+            sync_if_stale=sync_discord_roles,
+        )
         if discord_role_error is not None:
             return discord_role_error
 
         return None
+
+    def _preflight_update_discord_roles(self, request, submission_id):
+        """Refresh Discord roles before the submission row is locked."""
+        submission = (
+            SubmittedContribution.objects
+            .filter(id=submission_id, user=request.user)
+            .only('contribution_type_id', 'state', 'has_appeal')
+            .first()
+        )
+        if not submission or submission.state not in ['pending', 'more_info_needed']:
+            return None, None
+        if submission.has_appeal and submission.state == 'pending':
+            return None, None
+
+        requested_type_id = request.data.get(
+            'contribution_type',
+            submission.contribution_type_id,
+        )
+        try:
+            requested_type_id = int(requested_type_id)
+        except (TypeError, ValueError):
+            # The serializer will return the canonical field error.
+            return None, None
+
+        contribution_type = (
+            ContributionType.objects
+            .select_related('category')
+            .prefetch_related('required_discord_roles')
+            .filter(id=requested_type_id)
+            .first()
+        )
+        if not contribution_type:
+            return None, None
+
+        return (
+            self._validate_required_discord_roles(
+                request.user,
+                contribution_type,
+            ),
+            contribution_type.id,
+        )
 
     def _project_link_error(
         self,
@@ -975,6 +1027,13 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         """Update submission (only allowed if state is 'pending' or 'more_info_needed')."""
         partial = kwargs.pop('partial', False)
+        (
+            discord_role_error,
+            preflight_contribution_type_id,
+        ) = self._preflight_update_discord_roles(request, kwargs.get('pk'))
+        if discord_role_error is not None:
+            return discord_role_error
+
         with transaction.atomic():
             # Serialize all edits/resubmissions for a submission. In particular,
             # two clicks on Resubmit must never create two responses for one
@@ -1123,6 +1182,19 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                 .prefetch_related('required_discord_roles')
                 .get(id=contribution_type.id)
             )
+            if (
+                preflight_contribution_type_id is not None
+                and contribution_type.id != preflight_contribution_type_id
+            ):
+                return Response(
+                    {
+                        'error': (
+                            'The submission changed while it was being edited. '
+                            'Refresh and try again.'
+                        ),
+                    },
+                    status=status.HTTP_409_CONFLICT,
+                )
             keeps_same_contribution_type = (
                 contribution_type.id == instance.contribution_type_id
             )
@@ -1141,6 +1213,9 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                 # A type made non-submittable after the fact must not lock users
                 # out of editing their existing pending/more-info submissions.
                 skip_submittable_check=keeps_same_contribution_type,
+                # Any outbound refresh happened before acquiring the row lock.
+                # Re-check only the freshly cached membership and roles here.
+                sync_discord_roles=False,
             )
             if contribution_type_error is not None:
                 return contribution_type_error
