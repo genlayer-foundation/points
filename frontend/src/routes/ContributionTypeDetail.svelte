@@ -8,7 +8,9 @@
   import { getMissions } from '../lib/missionsStore.js';
   import HighlightsSlider from '../components/portal/HighlightsSlider.svelte';
   import PortalContributionCard from '../components/portal/PortalContributionCard.svelte';
+  import ContributionGuidelines from '../components/portal/ContributionGuidelines.svelte';
   import { getCategoryButtonStyle, getCategoryGradientStyle } from '../lib/categoryPresentation.js';
+  import { isProjectContributionType } from '../lib/contributionGuidelines.js';
   import { visibleContributions } from '../lib/hiddenContributions.js';
   import { userStore } from '../lib/userStore.js';
   import { hasReadOnlyRoleSectionAccess } from '../lib/roleState.js';
@@ -73,6 +75,7 @@
   let allContributionsPath = $derived(
     `/all-contributions?category=${explorerCategory}&type=${params.id}`
   );
+  let hasProjectGuidelines = $derived(isProjectContributionType(contributionType));
 
   function formatDate(dateString) {
     if (!dateString) return 'Never';
@@ -323,6 +326,10 @@
           </div>
         {/if}
       </section>
+
+      {#if hasProjectGuidelines}
+        <ContributionGuidelines {contributionType} detail={true} />
+      {/if}
 
       {#if missions.length > 0}
         <section class="rounded-[10px] border border-white/70 bg-white/78 p-5 shadow-[0_18px_55px_rgba(38,48,75,0.15)] backdrop-blur-md sm:p-7 md:p-8">
