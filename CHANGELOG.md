@@ -4,6 +4,8 @@ All notable user-facing changes to this project will be documented in this file.
 
 ## Unreleased
 
+- The Submit Contribution page now shows a compact "Before you submit" guidance card that adapts to the selected type: a personal weekly slot counter for Projects, quality bars for Projects and Intelligent Contracts, a milestone eligibility check, one-click switching between related types, and review/appeal rules tucked behind a collapsed accordion (also shown on the Projects type page) (eddbe897)
+
 - Finishing the Creator or Builder journey now actually grants the role: since late June the final "Become a Creator" / "Claim Builder Role" step failed for every new member with a generic error, and completion errors now show their real reason instead of a dead-end "try again" (9d546e70)
 
 - Validators can link Telegram support groups to their validator: generate a one-time code on the new Telegram Support page, paste it in a Telegram group with the Deckard support bot, and the group is bound to the validator (multiple groups supported, codes expire in 48 hours and can be revoked) (0cd7e5f)

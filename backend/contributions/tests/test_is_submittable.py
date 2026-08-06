@@ -3,7 +3,7 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework import status
-from contributions.models import ContributionType, Category, SubmittedContribution
+from contributions.models import ContributionType, Category, Evidence, SubmittedContribution
 from users.models import User
 
 
@@ -276,9 +276,22 @@ class NonSubmittableTypeUpdateTest(TestCase):
 
     def test_more_info_needed_submission_of_retired_type_can_be_edited(self):
         submission = self._make_submission(state='more_info_needed')
+        submission.staff_reply = 'Please provide more context.'
+        submission.save(update_fields=['staff_reply'])
+        Evidence.objects.create(
+            submitted_contribution=submission,
+            description='Original evidence',
+            url='https://example.com/retired-type-evidence',
+        )
         response = self.client.patch(
             f'/api/v1/submissions/{submission.id}/',
-            {'notes': 'Here is the requested info'},
+            {
+                'notes': 'Here is the requested info',
+                'more_info_response': {
+                    'request_id': None,
+                    'message': 'Added the requested context.',
+                },
+            },
             format='json',
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)

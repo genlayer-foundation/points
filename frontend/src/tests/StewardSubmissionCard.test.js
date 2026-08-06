@@ -196,6 +196,30 @@ describe('StewardSubmissionCard', () => {
     expect(screen.getByText('The rejection overlooked the attached evidence.')).toBeTruthy();
   });
 
+  it('pairs a more-information request with its distinct submitter response', () => {
+    renderCard({
+      submission: makeSubmission({
+        more_info_requests: [{
+          id: 31,
+          message: 'Add installation instructions.',
+          user_name: 'Review Steward',
+          created_at: '2026-06-02T12:00:00Z',
+          response: {
+            id: 44,
+            message: 'Added installation and environment setup instructions.',
+            user_name: 'Project Builder',
+            created_at: '2026-06-03T12:00:00Z'
+          }
+        }]
+      })
+    });
+
+    expect(screen.getByText('Add installation instructions.')).toBeTruthy();
+    expect(screen.getByText('Submitter response')).toBeTruthy();
+    expect(screen.getByText('Added installation and environment setup instructions.')).toBeTruthy();
+    expect(screen.getByText('Responded by Project Builder')).toBeTruthy();
+  });
+
   it('shows the compact AI proposal context without a competing human proposal', () => {
     const aiAnalysis = makeAIAnalysis();
     renderCard({

@@ -9,6 +9,7 @@ from contributions.models import (
     SubmissionNote,
     ContributionType,
     Category,
+    Evidence,
 )
 
 User = get_user_model()
@@ -267,11 +268,23 @@ class AppealEndpointTest(TestCase):
         # Steward moves it to more_info_needed
         submission.refresh_from_db()
         submission.state = 'more_info_needed'
-        submission.save(update_fields=['state'])
+        submission.staff_reply = 'Please provide more context.'
+        submission.save(update_fields=['state', 'staff_reply'])
+        Evidence.objects.create(
+            submitted_contribution=submission,
+            description='Original evidence',
+            url='https://example.com/appeal-more-info-evidence',
+        )
 
         response = self.client.patch(
             f'/api/v1/submissions/{submission.id}/',
-            {'notes': 'Here is more info'},
+            {
+                'notes': 'Here is more info',
+                'more_info_response': {
+                    'request_id': None,
+                    'message': 'Added the requested context.',
+                },
+            },
             format='json',
         )
         # Lock should NOT apply — should not be 403 from the appeal lock

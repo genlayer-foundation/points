@@ -7,7 +7,7 @@ from .models import (
     ContributionHighlight, Mission, StartupRequest, SubmissionNote,
     FeaturedContent, Alert, EvidenceURLType, ContributionDiscordXPState,
     DiscordXPDistributionEvent, ProjectMilestoneReview, ReviewProposal,
-    AIReviewFeedback,
+    AIReviewFeedback, SubmissionMoreInfoResponse,
 )
 from .ai_attribution import AI_STEWARD_EMAIL
 from .ai_feedback import normalize_feedback_payload
@@ -560,18 +560,70 @@ class SubmittedEvidenceSerializer(serializers.ModelSerializer):
         read_only_fields = ['url_type', 'created_at']
 
 
+class MoreInfoResponseInputSerializer(serializers.Serializer):
+    """Write-only response supplied when reopening a more-info submission."""
+
+    request_id = serializers.IntegerField(required=True, allow_null=True)
+    message = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        max_length=1000,
+        trim_whitespace=True,
+    )
+
+
 class MoreInfoRequestsMixin(serializers.Serializer):
     more_info_requests = serializers.SerializerMethodField()
+
+    @staticmethod
+    def _user_name(user):
+        if not user:
+            return None
+        return user.name or (
+            f'{user.address[:10]}...' if user.address else str(user.id)
+        )
+
+    def _serialize_more_info_response(self, response):
+        if not response:
+            return None
+        return {
+            'id': response.id,
+            'message': response.message,
+            'user': response.responder_id,
+            'user_name': self._user_name(response.responder),
+            'created_at': (
+                response.created_at.isoformat()
+                if response.created_at else None
+            ),
+        }
 
     def get_more_info_requests(self, obj):
         notes = getattr(obj, 'more_info_request_notes', None)
         if notes is None:
-            notes = (
+            notes = list(
                 obj.internal_notes
                 .filter(is_proposal=False, data__action='more_info')
                 .select_related('user')
                 .order_by('-created_at', '-id')
             )
+        else:
+            notes = list(notes)
+
+        responses = getattr(obj, 'more_info_response_rows', None)
+        if responses is None:
+            responses = list(
+                obj.more_info_responses
+                .select_related('request_note', 'requested_by', 'responder')
+                .order_by('-created_at', '-id')
+            )
+        else:
+            responses = list(responses)
+
+        responses_by_request = {
+            response.request_note_id: response
+            for response in responses
+            if response.request_note_id
+        }
 
         requests = []
         for note in notes:
@@ -580,14 +632,68 @@ class MoreInfoRequestsMixin(serializers.Serializer):
             if not message:
                 continue
             user = note.user
-            user_name = user.name or (f'{user.address[:10]}...' if user.address else str(user.id))
             requests.append({
                 'id': note.id,
                 'message': message,
                 'user': user.id,
-                'user_name': user_name,
+                'user_name': self._user_name(user),
                 'created_at': note.created_at.isoformat() if note.created_at else None,
+                'response': self._serialize_more_info_response(
+                    responses_by_request.get(note.id)
+                ),
+                'legacy': False,
+                '_sort_at': note.created_at.timestamp() if note.created_at else 0,
             })
+
+        # Responses to pre-SubmissionNote requests retain an immutable request
+        # snapshot so the exchange remains visible after staff_reply is cleared.
+        for response in responses:
+            if response.request_note_id:
+                continue
+            requests.append({
+                'id': None,
+                'message': response.request_message,
+                'user': response.requested_by_id,
+                'user_name': self._user_name(response.requested_by),
+                'created_at': (
+                    response.requested_at.isoformat()
+                    if response.requested_at else None
+                ),
+                'response': self._serialize_more_info_response(response),
+                'legacy': True,
+                '_sort_at': (
+                    response.requested_at.timestamp()
+                    if response.requested_at else 0
+                ),
+            })
+
+        has_unanswered_structured_request = any(
+            request['id'] is not None and request['response'] is None
+            for request in requests
+        )
+        if (
+            obj.state == 'more_info_needed'
+            and obj.staff_reply
+            and not has_unanswered_structured_request
+        ):
+            requests.append({
+                'id': None,
+                'message': obj.staff_reply,
+                'user': obj.reviewed_by_id,
+                'user_name': self._user_name(obj.reviewed_by),
+                'created_at': (
+                    obj.reviewed_at.isoformat() if obj.reviewed_at else None
+                ),
+                'response': None,
+                'legacy': True,
+                '_sort_at': (
+                    obj.reviewed_at.timestamp() if obj.reviewed_at else 0
+                ),
+            })
+
+        requests.sort(key=lambda request: request['_sort_at'], reverse=True)
+        for request in requests:
+            request.pop('_sort_at', None)
         return requests
 
 
@@ -612,6 +718,10 @@ class SubmittedContributionSerializer(MoreInfoRequestsMixin, serializers.ModelSe
         required=False,
         allow_null=True,
     )
+    more_info_response = MoreInfoResponseInputSerializer(
+        required=False,
+        write_only=True,
+    )
     recaptcha = ReCaptchaField(required=False)  # Required only on create, handled in validate()
 
     class Meta:
@@ -622,7 +732,8 @@ class SubmittedContributionSerializer(MoreInfoRequestsMixin, serializers.ModelSe
                   'proposed_points', 'converted_contribution', 'contribution', 'mission',
                   'project_contribution', 'milestone_version',
                   'has_appeal', 'appeal_reason', 'appealed_at', 'more_info_requests',
-                  'created_at', 'updated_at', 'last_edited_at', 'recaptcha']
+                  'created_at', 'updated_at', 'last_edited_at', 'recaptcha',
+                  'more_info_response']
         read_only_fields = ['id', 'user', 'state', 'staff_reply', 'reviewed_by',
                           'reviewed_at', 'created_at', 'updated_at', 'last_edited_at',
                           'proposed_points', 'converted_contribution',
@@ -702,6 +813,28 @@ class SubmittedContributionSerializer(MoreInfoRequestsMixin, serializers.ModelSe
 
         # Remove recaptcha from validated data as it's not a model field
         data.pop('recaptcha', None)
+
+        more_info_response = data.get('more_info_response')
+        if self.instance:
+            if self.instance.state == 'more_info_needed' and not more_info_response:
+                raise serializers.ValidationError({
+                    'more_info_response': (
+                        'Tell the steward what changed before resubmitting.'
+                    ),
+                })
+            if self.instance.state != 'more_info_needed' and more_info_response:
+                raise serializers.ValidationError({
+                    'more_info_response': (
+                        'A more-information response is only valid while '
+                        'information is requested.'
+                    ),
+                })
+        elif more_info_response:
+            raise serializers.ValidationError({
+                'more_info_response': (
+                    'New submissions cannot include a more-information response.'
+                ),
+            })
 
         return data
 
@@ -929,6 +1062,9 @@ class SubmittedContributionSerializer(MoreInfoRequestsMixin, serializers.ModelSe
         Evidence items with 'id' are updated, items without 'id' are created,
         and items not in the list are deleted.
         """
+        # The view persists this audit record atomically with the state change.
+        validated_data.pop('more_info_response', None)
+
         # Extract evidence items from initial_data (raw request data)
         # since evidence_items is a SerializerMethodField and not in validated_data
         evidence_items_data = self.initial_data.get('evidence_items', None)

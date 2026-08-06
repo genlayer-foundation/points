@@ -2,6 +2,7 @@
   import { push } from 'svelte-spa-router';
   import { format } from '../lib/dates.js';
   import { parseMarkdown, parseUserMarkdown } from '../lib/markdownLoader.js';
+  import { submissionErrorMessage } from '../lib/submissionErrors.js';
   import { showError, showSuccess } from '../lib/toastStore.js';
   import Badge from './Badge.svelte';
   import ContributionCard from './ContributionCard.svelte';
@@ -9,9 +10,10 @@
 
   /** @type {{
    *   submission: Record<string, any>,
-   *   onAppeal?: ((submissionId: string | number, reason: string) => Promise<unknown>) | null
+   *   onAppeal?: ((submissionId: string | number, reason: string) => Promise<unknown>) | null,
+   *   onResubmit?: ((submissionId: string | number, response: { request_id: number | null, message: string }) => Promise<unknown>) | null
    * }} */
-  let { submission, onAppeal = null } = $props();
+  let { submission, onAppeal = null, onResubmit = null } = $props();
 
   /** @type {Record<string, { badge: string, border: string, header: string }>} */
   const STATE_STYLES = {
@@ -50,6 +52,10 @@
   let appealReason = $state('');
   let submittingAppeal = $state(false);
   let copyingSubmissionId = $state(false);
+  let showingResubmitResponse = $state(false);
+  let moreInfoResponse = $state('');
+  let resubmitting = $state(false);
+  let resubmitError = $state('');
 
   let stateStyle = $derived(STATE_STYLES[submission.state] || DEFAULT_STATE_STYLE);
   let contributionTypeName = $derived(
@@ -74,6 +80,11 @@
     (submission.more_info_requests || []).filter(
       (/** @type {Record<string, any>} */ request) => request?.message
     )
+  );
+  let activeMoreInfoRequest = $derived(
+    moreInfoRequests.find(
+      (/** @type {Record<string, any>} */ request) => !request.response
+    ) || null
   );
   let showStaffResponse = $derived(Boolean(
     submission.staff_reply &&
@@ -139,9 +150,36 @@
     }
   }
 
+  async function handleMoreInfoResubmit() {
+    const message = moreInfoResponse.trim();
+    if (!onResubmit || !message || resubmitting) return;
+
+    resubmitting = true;
+    resubmitError = '';
+    try {
+      await onResubmit(submission.id, {
+        request_id: activeMoreInfoRequest?.id ?? null,
+        message
+      });
+      moreInfoResponse = '';
+      showingResubmitResponse = false;
+    } catch (error) {
+      resubmitError = submissionErrorMessage(
+        error,
+        'We could not resubmit this contribution. Open Edit to review the current requirements.'
+      );
+    } finally {
+      resubmitting = false;
+    }
+  }
+
   function editSubmission() {
     const missionQuery = submission.mission?.id ? `?mission=${submission.mission.id}` : '';
     push(`/contributions/${submission.id}${missionQuery}`);
+  }
+
+  function resubmitRejectedSubmission() {
+    push(`/submit-contribution?resubmit=${encodeURIComponent(submission.id)}`);
   }
 </script>
 
@@ -268,6 +306,19 @@
                     {request.user_name ? `Requested by ${request.user_name}` : 'Requested'}
                     {#if request.created_at}on {formatDate(request.created_at)}{/if}
                   </p>
+                  {#if request.response}
+                    <div class="mt-3 rounded-md border border-emerald-200 bg-white/80 p-3 shadow-sm">
+                      <div class="flex flex-wrap items-center justify-between gap-2">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-emerald-800">Your response</p>
+                        {#if request.response.created_at}
+                          <p class="text-xs text-emerald-700">{formatDate(request.response.created_at)}</p>
+                        {/if}
+                      </div>
+                      <div class="markdown-content mt-1 text-sm text-emerald-950">
+                        {@html parseUserMarkdown(request.response.message)}
+                      </div>
+                    </div>
+                  {/if}
                 </div>
               {/each}
             </div>
@@ -313,6 +364,20 @@
             </div>
           {/if}
 
+          <div class="rounded-lg border border-violet-200 bg-violet-50 p-3">
+            <h4 class="text-sm font-medium text-violet-950">Submit a corrected contribution</h4>
+            <p class="mt-1 text-xs leading-5 text-violet-800">
+              Resubmit creates a new, editable contribution using these details. This rejected submission stays unchanged{submission.has_appeal ? '.' : ' and can still be appealed.'}
+            </p>
+            <button
+              type="button"
+              onclick={resubmitRejectedSubmission}
+              class="mt-3 inline-flex min-h-9 items-center justify-center rounded-md bg-violet-600 px-4 text-sm font-medium text-white transition-colors hover:bg-violet-700"
+            >
+              Resubmit
+            </button>
+          </div>
+
           {#if submission.has_appeal}
             <div class="rounded-lg border border-orange-200 bg-orange-50 p-3">
               <p class="text-sm text-orange-800">
@@ -355,7 +420,7 @@
             <h4 class="mb-1 text-sm font-medium text-orange-900">Your appeal is under review</h4>
             <p class="text-xs text-orange-700">A steward will re-review your submission.</p>
           </div>
-        {:else if submission.state === 'pending' || submission.state === 'more_info_needed'}
+        {:else if submission.state === 'pending'}
           <div class="flex justify-end">
             <button
               type="button"
@@ -364,6 +429,74 @@
             >
               Edit
             </button>
+          </div>
+        {:else if submission.state === 'more_info_needed'}
+          <div class="space-y-3">
+            <div class="flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onclick={editSubmission}
+                disabled={resubmitting}
+                class="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Edit
+              </button>
+              {#if onResubmit}
+                <button
+                  type="button"
+                  onclick={() => {
+                    showingResubmitResponse = !showingResubmitResponse;
+                    resubmitError = '';
+                  }}
+                  aria-expanded={showingResubmitResponse}
+                  aria-controls="more-info-response-{submission.id}"
+                  disabled={resubmitting}
+                  class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Resubmit
+                </button>
+              {/if}
+            </div>
+
+            {#if showingResubmitResponse}
+              <div id="more-info-response-{submission.id}" class="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                <label for="more-info-response-input-{submission.id}" class="block text-sm font-semibold text-blue-950">
+                  What did you change?
+                </label>
+                <p id="more-info-response-help-{submission.id}" class="mt-1 text-xs leading-5 text-blue-800">
+                  Briefly tell the steward how you addressed the request. If the submission itself also needs edits, use Edit instead.
+                </p>
+                <textarea
+                  id="more-info-response-input-{submission.id}"
+                  bind:value={moreInfoResponse}
+                  aria-describedby={`more-info-response-help-${submission.id}${resubmitError ? ` more-info-response-error-${submission.id}` : ''}`}
+                  aria-invalid={resubmitError ? 'true' : 'false'}
+                  required
+                  maxlength="1000"
+                  rows="4"
+                  placeholder="Updated the repository and added the requested documentation."
+                  class="mt-3 w-full rounded-md border border-blue-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                ></textarea>
+                <div class="mt-1 flex items-start justify-between gap-3">
+                  <div>
+                    {#if resubmitError}
+                      <p id="more-info-response-error-{submission.id}" class="text-xs text-red-700" role="alert">{resubmitError}</p>
+                    {/if}
+                  </div>
+                  <p class="shrink-0 text-xs tabular-nums text-blue-700">{moreInfoResponse.length}/1000</p>
+                </div>
+                <div class="mt-3 flex justify-end">
+                  <button
+                    type="button"
+                    onclick={handleMoreInfoResubmit}
+                    disabled={resubmitting || !moreInfoResponse.trim()}
+                    class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {resubmitting ? 'Resubmitting...' : 'Send response and resubmit'}
+                  </button>
+                </div>
+              </div>
+            {/if}
           </div>
         {/if}
       </div>

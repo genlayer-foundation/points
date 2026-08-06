@@ -9,6 +9,7 @@ from contributions.management.commands.review_submissions import Command as Revi
 from contributions.models import (
     Category,
     ContributionType,
+    Evidence,
     SubmissionNote,
     SubmissionStateTransition,
     SubmittedContribution,
@@ -125,14 +126,26 @@ class SubmissionStateTransitionTest(TestCase):
     def test_edit_after_more_info_logs_edited_transition(self):
         submission = self._make_submission(
             state='more_info_needed',
+            staff_reply='Please provide more context.',
             reviewed_by=self.steward_user,
             reviewed_at=timezone.now(),
             escalated_at=timezone.now(),
         )
+        Evidence.objects.create(
+            submitted_contribution=submission,
+            description='Original evidence',
+            url='https://example.com/state-transition-evidence',
+        )
         self.client.force_authenticate(user=self.owner)
         response = self.client.patch(
             f'/api/v1/submissions/{submission.id}/',
-            {'notes': 'Here is the extra information'},
+            {
+                'notes': 'Here is the extra information',
+                'more_info_response': {
+                    'request_id': None,
+                    'message': 'Added the requested context.',
+                },
+            },
             format='json',
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)

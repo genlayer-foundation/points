@@ -454,8 +454,8 @@ def notify_submission_reopened_for_steward(submission, *, kind, actor=None):
         dedupe_marker = 'appeal'
     elif kind == 'more_info_resubmitted':
         event_slug = 'submission.more_info_resubmitted'
-        title = 'More information resubmitted'
-        body = f"{name} was updated by the submitter after your more-information request."
+        title = 'More-information response received'
+        body = f"The submitter responded to your more-information request for {name}."
         edit_at = submission.last_edited_at or submission.updated_at
         dedupe_marker = edit_at.isoformat() if edit_at else ''
     else:

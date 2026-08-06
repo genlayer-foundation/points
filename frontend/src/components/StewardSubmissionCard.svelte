@@ -1596,6 +1596,22 @@
                     {request.created_at ? ' on ' + formatDate(request.created_at) : ''}
                   </p>
                 {/if}
+                {#if request.response}
+                  <div class="mt-3 rounded-md bg-white p-3 shadow-[0_0_0_1px_rgba(5,150,105,0.22),0_2px_8px_rgba(5,150,105,0.06)]">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <p class="text-xs font-semibold uppercase text-emerald-800">Submitter response</p>
+                      {#if request.response.created_at}
+                        <p class="text-xs text-emerald-700">{formatDate(request.response.created_at)}</p>
+                      {/if}
+                    </div>
+                    <div class="markdown-content mt-1 text-sm text-emerald-950">
+                      {@html parseUserMarkdown(request.response.message)}
+                    </div>
+                    {#if request.response.user_name}
+                      <p class="mt-1 text-xs text-emerald-700">Responded by {request.response.user_name}</p>
+                    {/if}
+                  </div>
+                {/if}
               </div>
             {/each}
           </div>

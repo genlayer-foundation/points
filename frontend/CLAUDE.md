@@ -392,7 +392,7 @@ const routes = {
   '/validators/contribution/:id': ContributionPreview, // Validator-scoped contribution detail
   '/contribution-type/:id': ContributionTypeDetail,
   '/badge/:id': BadgeDetail,
-  '/submit-contribution': SubmitContribution,
+  '/submit-contribution': SubmitContribution, // ?resubmit=<rejected submission id> owner-loads and prefills a normal create; takes precedence over ?mission and ?type
   '/my-submissions': MySubmissions,
   '/contributions/:id': EditSubmission,
   '/metrics': Metrics,
@@ -536,8 +536,8 @@ In production the SPA (Amplify) and the API are on different hosts and `CSRF_COO
 
 #### Steward Review Components (`src/components/`)
 
-- **`SubmissionCard.svelte`** - Submitter-only card used by My Submissions. It shows submission details, evidence, staff responses, awarded contributions, editing, and appeals without exposing steward-only state.
-- **`StewardSubmissionCard.svelte`** - Dedicated steward workspace for review outcomes, proposals, rubric scoring, internal notes, accepted-contribution edits, and permission-aware submission behavior. It marks `escalated_at` proposals and previews `escalation_threshold_points` conversion for reviewer-tier accepts.
+- **`SubmissionCard.svelte`** - Submitter-only card used by My Submissions. More-info cards keep Edit and add an inline required “What did you change?” direct-resubmit action; rejected cards keep Appeal and add a corrected-submission link to `/submit-contribution?resubmit=<id>`. Request responses render in their own nested box, separate from original notes.
+- **`StewardSubmissionCard.svelte`** - Dedicated steward workspace for review outcomes, proposals, rubric scoring, internal notes, accepted-contribution edits, and permission-aware submission behavior. It marks `escalated_at` proposals, previews `escalation_threshold_points` conversion for reviewer-tier accepts, and renders each submitter response beneath its paired more-info request.
 - **Contribution type review fields** - Contribution type payloads expose `requires_ai_review` and nullable `escalation_threshold_points`; the latter drives the card's advisory preview while the server remains authoritative.
 - **Steward submission search** - `is:escalated` / `not:escalated` map to the `is_escalated` API filter. Tier 2+ stewards get an Escalated queue chip; tier 3 stewards also get an Apex queue chip for `status:accepted is:interesting`.
 - **`AIReviewSummary.svelte`** - Compact AI-only proposal summary that exposes the proposed action, confidence, and expandable synthesis.
@@ -590,6 +590,7 @@ Reusable, data-driven display components that accept data via props. Used on Das
 
 #### Portal Overview Components (`src/components/portal/`)
 Investor-oriented home page (`routes/Overview.svelte`), top to bottom: hero → network activity (with portal contributors) → projects (`FeaturedBuilds`) → partner marquee.
+- **`ContributionGuidelines.svelte`** - Compact pre-flight submission card shared by the create form and the Projects contribution-type detail page. Per-type panels: Projects (slot counter, category router, quality bar, go-further tip), Intelligent Contract (`create-intelligent-contracts`; quality bar + strict note), Milestone (`milestones`; leads with a highlighted-project eligibility check via the `milestoneEligible` prop), and a minimal default state (weekly-window chip only). The slot counter is the single accent element: personalized ("You have used X of N Project slots this week", segment bar, soft warning at 0 left) when `user_weekly_submissions_remaining` is present, static otherwise. Post-submission process (More information / Rejection / Appeal) lives only in the collapsed "After you submit" accordion inside type panels. The `onRoute(slug)` prop makes the category-router names clickable (the create form wires it to `selectType`); without it they render as plain text (detail page). The create form renders the card as a sticky right rail at `xl` (max-height + internal scroll) and as a collapsed `<details>` titled "Before you submit" above the form below `xl`, with the slot summary in the collapsed header. Project slug detection is centralized in `lib/contributionGuidelines.js` so historical type URLs keep working.
 - **`HeroBanner.svelte`** - supports `compact` (thinner banner) and `socialStats={ x, telegram, discord }` (a discreet brand-logo follower-count cluster top-right, Overview only; each badge links out to X/Telegram/Discord). The CTA button reads "View"; a "See all" text link (→ `/gen-news`) sits bottom-right next to the carousel dots. Overview fetches `metricsAPI.getOverview()` for `socialStats`.
 - **`NetworkActivity.svelte`** - two-column section: LEFT `PortalStats`, RIGHT the network-activity panel (headline KPIs — decisions, chain TXs, DeFiLlama rank — + `DecisionsChart`). Fetches `metricsAPI.getNetworkActivity()`. (The old "Securing the network" validators panel was removed.)
 - **`PortalStats.svelte`** - "Portal contributors" panel: Builders / Validators / Community members / Contributions in a column, hexagon `CategoryIcon` style. Reads the **public** `metricsAPI.getOverview()` (`metrics.{builders,validators,community_members,contributions}.value`) — NOT `statsAPI.getDashboardStats()`, which is auth-only and would render blank for public visitors.
@@ -662,7 +663,8 @@ Investor-oriented home page (`routes/Overview.svelte`), top to bottom: hero → 
   - Uses VITE_RECAPTCHA_SITE_KEY from environment (falls back to test key)
   - Honors optional per-user Monday-Sunday UTC contribution-type limits from `user_weekly_*` API fields and shows the user's remaining weekly capacity.
   - New Milestones links can select only highlighted Projects contributions. `EditSubmission.svelte` passes the current submission ID so a pre-policy pending milestone keeps its existing unhighlighted link.
-- `EditSubmission.svelte` - Edit submitted contributions (supports URL and description evidence only - no file uploads)
+  - Rejected resubmission is prefill context only: `?resubmit=<id>` clones date, title, notes, evidence values, type, mission, and linked project without evidence database IDs, then submits through the ordinary POST + reCAPTCHA path. The old rejected row remains untouched. Retired/full types and inactive/full missions preserve copied content but require a valid explicit selection; no silent fallback is allowed. A successful clone returns to `?submission=<new-id>` for highlighting.
+- `EditSubmission.svelte` - Edit submitted contributions (supports URL and description evidence only - no file uploads). A more-info edit shows the steward request plus a distinct required response panel, sends `more_info_response: {request_id, message}`, and labels the action “Save and resubmit.”
 - `ProfileEdit.svelte` - User profile editing (name and profile fields; node version shown read-only, Grafana-sourced)
 - `Profile.svelte` - Public participant profile view
 
