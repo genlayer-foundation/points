@@ -60,7 +60,7 @@ vi.mock('../lib/userStore.js', async () => {
     userStore: readable({
       user: {
         address: '0xcommunity',
-        builder: false,
+        builder: true,
         validator: false,
         creator: false,
         twitter_connection: null,
@@ -329,6 +329,53 @@ describe('EditSubmission', () => {
     expect(mocks.getMissions).toHaveBeenCalledWith({ include_inactive: true });
     expect(mocks.getAcceptedProjects).toHaveBeenCalledWith(42);
     expect(push).toHaveBeenCalledWith('/my-submissions');
+  });
+
+  it('sends a required response separately when saving a more-info edit', async () => {
+    renderEditor(makeSubmission({
+      state: 'more_info_needed',
+      contribution_type: builderType.id,
+      contribution_type_name: builderType.name,
+      contribution_type_details: {
+        id: builderType.id,
+        name: builderType.name,
+        slug: builderType.slug,
+        category: builderType.category
+      },
+      staff_reply: 'Add release documentation.',
+      more_info_requests: [{
+        id: 37,
+        message: 'Add release documentation.',
+        user_name: 'Builder Steward',
+        created_at: '2026-07-19T12:00:00Z',
+        response: null
+      }]
+    }));
+
+    expect(await screen.findByText('Changes requested')).toBeTruthy();
+    expect(screen.getByText('Add release documentation.')).toBeTruthy();
+    const typeInput = await screen.findByDisplayValue('Builder Project');
+    await waitFor(() => expect(typeInput.disabled).toBe(false));
+    const responseInput = screen.getByRole('textbox', { name: 'What did you change?' });
+    expect(screen.getByRole('button', { name: 'Save and resubmit' })).toBeTruthy();
+
+    await fireEvent.input(responseInput, {
+      target: { value: '  Added release and setup documentation.  ' }
+    });
+    await fireEvent.click(screen.getByRole('button', { name: 'Save and resubmit' }));
+
+    await waitFor(() => {
+      expect(mocks.api.put).toHaveBeenCalledTimes(1);
+    });
+    const [, payload] = mocks.api.put.mock.calls[0];
+    expect(payload.more_info_response).toEqual({
+      request_id: 37,
+      message: 'Added release and setup documentation.'
+    });
+    expect(payload.notes).toBe('Hosted the weekly call and published the recording.');
+    expect(payload.evidence_items[0]).toMatchObject({ id: 81 });
+    expect(payload).not.toHaveProperty('recaptcha');
+    expect(sessionStorage.getItem('submissionUpdateSuccess')).toContain('back in review');
   });
 
   it('removes an editable submission from the branded confirmation dialog', async () => {

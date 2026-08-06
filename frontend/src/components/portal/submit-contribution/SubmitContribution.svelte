@@ -5,6 +5,7 @@
   import { contributionsAPI, submissionsAPI } from "../../../lib/api.js";
   import { getMissions } from "../../../lib/missionsStore.js";
   import { authState } from "../../../lib/auth.js";
+  import { submissionErrorMessage } from "../../../lib/submissionErrors.js";
   import { userStore } from "../../../lib/userStore";
   import { isProjectContributionType } from "../../../lib/contributionGuidelines.js";
   import ConfirmDialog from "../../ConfirmDialog.svelte";
@@ -24,6 +25,7 @@
     missionId = null,
     initialTypeId = null,
     submission = null,
+    resubmitSource = null,
   } = $props();
 
   let submitting = $state(false);
@@ -35,6 +37,8 @@
   let isBuilder = $derived(!!$userStore.user?.builder);
   let isCreator = $derived(!!$userStore.user?.creator);
   let editMode = $derived(Boolean(submission?.id));
+  let resubmitMode = $derived(!editMode && Boolean(resubmitSource?.id));
+  let cloneContextWarning = $state("");
 
   // reCAPTCHA state
   let recaptchaToken = $state("");
@@ -93,6 +97,11 @@
   let originalContributionTypeId = $derived(
     submission?.contribution_type ?? null,
   );
+  let resubmitSourceProjectId = $derived(
+    resubmitSource?.project_contribution?.id ??
+      resubmitSource?.project_contribution ??
+      "",
+  );
   let keepsOriginalContributionType = $derived(
     editMode &&
     selectedType &&
@@ -100,6 +109,7 @@
   );
   let hasLegacyCommunityEditAccess = $derived(
     editMode &&
+    submission?.state !== "more_info_needed" &&
     submission?.contribution_type_details?.category === "community",
   );
   let canAccessCurrentCategory = $derived(
@@ -115,7 +125,8 @@
     hasCurrentCategoryRole ||
     (
       keepsOriginalContributionType &&
-      selectedCategory === "community"
+      selectedCategory === "community" &&
+      hasLegacyCommunityEditAccess
     ),
   );
   let selectedMission = $state(null);
@@ -126,10 +137,17 @@
   );
   let selectionLocked = $derived(missionLocked || appealLocked);
   let latestMoreInfoRequest = $derived(
-    submission?.more_info_requests?.[0] || null,
+    submission?.more_info_requests?.find(
+      (/** @type {Record<string, any>} */ request) => !request?.response,
+    ) ||
+      submission?.more_info_requests?.[0] ||
+      null,
   );
   let reviewFeedback = $derived(
     latestMoreInfoRequest?.message || submission?.staff_reply || "",
+  );
+  let requiresMoreInfoResponse = $derived(
+    editMode && submission?.state === "more_info_needed",
   );
   let acceptedProjects = $state([]);
   let loadingProjects = $state(false);
@@ -147,6 +165,7 @@
     title: "",
     notes: "",
   });
+  let moreInfoResponse = $state("");
 
   // Evidence Slots
   let evidenceSlots = $state([]);
@@ -200,6 +219,15 @@
     };
   }
 
+  /** @param {Array<Record<string, any>> | null | undefined} items */
+  function evidenceItemsWithoutIds(items) {
+    return (items || []).map((/** @type {Record<string, any>} */ item) => ({
+      description: item?.description || "",
+      url: item?.url || "",
+      url_type: item?.url_type || null,
+    }));
+  }
+
   function evidenceMatchesRequiredType(slot, contributionType) {
     const requiredTypes = contributionType?.required_evidence_url_types || [];
     if (!slot?.selectedType || requiredTypes.length === 0) return false;
@@ -245,26 +273,27 @@
     let disposed = false;
 
     async function initializeForm() {
-      if (editMode) {
+      if (editMode || resubmitMode) {
+        const source = editMode ? submission : resubmitSource;
         selectedCategory =
-          submission.contribution_type_details?.category || "builder";
+          source.contribution_type_details?.category || "builder";
         selectedMission =
-          submission.mission?.id ?? submission.mission ?? null;
+          source.mission?.id ?? source.mission ?? null;
         selectedProject =
-          submission.project_contribution?.id ??
-          submission.project_contribution ??
+          source.project_contribution?.id ??
+          source.project_contribution ??
           "";
         searchQuery =
-          submission.contribution_type_name ||
-          submission.contribution_type_details?.name ||
+          source.contribution_type_name ||
+          source.contribution_type_details?.name ||
           "";
         formData = {
-          contribution_type: submission.contribution_type || "",
+          contribution_type: source.contribution_type || "",
           contribution_date:
-            submission.contribution_date?.split("T")[0] ||
+            source.contribution_date?.split("T")[0] ||
             new Date().toISOString().split("T")[0],
-          title: submission.title || "",
-          notes: submission.notes || "",
+          title: source.title || "",
+          notes: source.notes || "",
         };
       }
 
@@ -345,7 +374,127 @@
               }
             }
           }
-          // Handle pre-selection from URL params
+          // Handle rejected-submission cloning before ordinary URL
+          // preselection. The cloned text/evidence always stays populated,
+          // while an unavailable type or mission is deliberately left for
+          // the user to replace.
+        } else if (resubmitMode) {
+          const clonedEvidence = evidenceItemsWithoutIds(
+            resubmitSource.evidence_items,
+          );
+          let sourceType = types.find(
+            (type) =>
+              String(type.id) === String(resubmitSource.contribution_type),
+          );
+          if (!sourceType) {
+            try {
+              const response = await contributionsAPI.getContributionType(
+                resubmitSource.contribution_type,
+              );
+              sourceType = response.data || null;
+              if (sourceType) {
+                types = [...types, sourceType];
+                allEvidenceUrlTypes = collectEvidenceUrlTypes(types);
+              }
+            } catch (err) {
+              sourceType = null;
+            }
+          }
+
+          partitionEvidenceForType(sourceType, clonedEvidence);
+          if (!sourceType) {
+            selectedType = null;
+            selectedMission = null;
+            selectedMissionData = null;
+            formData.contribution_type = "";
+            searchQuery = "";
+            showTypeDropdown = true;
+            cloneContextWarning = `The original contribution type, ${resubmitSource.contribution_type_name || "Unknown type"}, is no longer available. Choose a current type to continue.`;
+          } else {
+            selectedCategory = sourceType.category || selectedCategory;
+            const sourceMissionId =
+              resubmitSource.mission?.id ?? resubmitSource.mission ?? null;
+
+            if (sourceMissionId) {
+              let sourceMission = missions.find(
+                (mission) => String(mission.id) === String(sourceMissionId),
+              );
+              if (!sourceMission) {
+                try {
+                  const response = await contributionsAPI.getMission(
+                    sourceMissionId,
+                  );
+                  sourceMission = response.data || null;
+                } catch (err) {
+                  sourceMission = null;
+                }
+              }
+
+              if (
+                sourceMission &&
+                String(sourceMission.contribution_type) ===
+                  String(sourceType.id) &&
+                isMissionSubmittable(sourceMission) &&
+                !isTypeFull(sourceType)
+              ) {
+                selectedType = sourceType;
+                selectedMission = sourceMission.id;
+                selectedMissionData = sourceMission;
+                formData.contribution_type = sourceType.id;
+                searchQuery = sourceMission.name;
+              } else {
+                selectedType = null;
+                selectedMission = null;
+                selectedMissionData = null;
+                formData.contribution_type = "";
+                searchQuery = "";
+                showTypeDropdown = true;
+                const missionName =
+                  sourceMission?.name ||
+                  resubmitSource.mission?.name ||
+                  "The original mission";
+                cloneContextWarning = isTypeFull(sourceType)
+                  ? `${sourceType.name} is currently full. Your copied details are intact; choose an available contribution type or mission.`
+                  : `${missionName} is no longer accepting submissions. Your copied details are intact; choose a current contribution type or mission.`;
+              }
+            } else if (sourceType.is_submittable && !isTypeFull(sourceType)) {
+              selectedType = sourceType;
+              selectedMission = null;
+              selectedMissionData = null;
+              formData.contribution_type = sourceType.id;
+              searchQuery = sourceType.name;
+            } else {
+              selectedType = null;
+              selectedMission = null;
+              selectedMissionData = null;
+              formData.contribution_type = "";
+              searchQuery = "";
+              showTypeDropdown = true;
+              cloneContextWarning = isTypeFull(sourceType)
+                ? `${sourceType.name} is currently full. Your copied details are intact; choose an available contribution type or mission.`
+                : `${sourceType.name} no longer accepts direct submissions. Your copied details are intact; choose a current contribution type or mission.`;
+            }
+
+            if (selectedType && isMilestoneType(selectedType)) {
+              const sourceProjectId =
+                resubmitSource.project_contribution?.id ??
+                resubmitSource.project_contribution ??
+                "";
+              const projectStillAvailable = acceptedProjects.some(
+                (project) => String(project.id) === String(sourceProjectId),
+              );
+              selectedProject = projectStillAvailable
+                ? String(sourceProjectId)
+                : "";
+              if (sourceProjectId && !projectStillAvailable) {
+                const projectWarning =
+                  "The originally linked project is no longer available for a milestone submission. Select one of your current highlighted projects.";
+                cloneContextWarning = cloneContextWarning
+                  ? `${cloneContextWarning} ${projectWarning}`
+                  : projectWarning;
+              }
+            }
+          }
         } else if (missionId) {
           // Load the specific mission and pre-select it
           try {
@@ -446,7 +595,9 @@
       } catch (err) {
         error = editMode
           ? "Failed to load this submission's form."
-          : "Failed to load contribution categories.";
+          : resubmitMode
+            ? "Failed to prepare this rejected submission. Please try again."
+            : "Failed to load contribution categories.";
         console.error(err);
       } finally {
         if (!disposed) loadingTypes = false;
@@ -649,6 +800,18 @@
 
   function isProjectType(type) {
     return isProjectContributionType(type);
+  }
+
+  /** @param {Record<string, any> | null} type */
+  function clonedProjectForType(type) {
+    if (!resubmitMode || !isMilestoneType(type) || !resubmitSourceProjectId) {
+      return "";
+    }
+    return acceptedProjects.some(
+      (project) => String(project.id) === String(resubmitSourceProjectId),
+    )
+      ? String(resubmitSourceProjectId)
+      : "";
   }
 
   async function loadAcceptedProjects() {
@@ -865,11 +1028,12 @@
     selectedType = t;
     selectedMission = null;
     selectedMissionData = null;
-    selectedProject = "";
+    selectedProject = clonedProjectForType(t);
     showProjectDropdown = false;
     formData.contribution_type = t.id;
     showTypeDropdown = false;
     searchQuery = t.name;
+    if (resubmitMode) cloneContextWarning = "";
     if (error === "Please select a contribution type") error = "";
   }
 
@@ -898,11 +1062,12 @@
       selectedType = item.parentType;
       selectedMission = item.data.id;
       selectedMissionData = item.data;
-      selectedProject = "";
+      selectedProject = clonedProjectForType(item.parentType);
       showProjectDropdown = false;
       formData.contribution_type = item.parentType.id;
       showTypeDropdown = false;
       searchQuery = item.data.name;
+      if (resubmitMode) cloneContextWarning = "";
       if (error === "Please select a contribution type") error = "";
     }
   }
@@ -1309,6 +1474,11 @@
       return;
     }
 
+    if (requiresMoreInfoResponse && !moreInfoResponse.trim()) {
+      error = "Tell the steward what changed before resubmitting.";
+      return;
+    }
+
     if (!formData.contribution_type) {
       trackEvent(editMode ? "contribution_edit_error" : "contribution_submit_error", getAnalyticsContext({
         surface: editMode ? "edit_form" : "form",
@@ -1447,6 +1617,12 @@
         title: formData.title,
         notes: formData.notes,
       };
+      if (requiresMoreInfoResponse) {
+        submissionData.more_info_response = {
+          request_id: latestMoreInfoRequest?.id ?? null,
+          message: moreInfoResponse.trim(),
+        };
+      }
       if (!editMode) submissionData.recaptcha = currentRecaptchaToken;
 
       if (isMilestoneType(selectedType)) {
@@ -1471,11 +1647,9 @@
       // Send evidence inline with the submission (atomic creation)
       submissionData.evidence_items = allEvidence;
 
-      if (editMode) {
-        await api.put(`/submissions/${submission.id}/`, submissionData);
-      } else {
-        await api.post("/submissions/", submissionData);
-      }
+      const savedResponse = editMode
+        ? await api.put(`/submissions/${submission.id}/`, submissionData)
+        : await api.post("/submissions/", submissionData);
 
       if (editMode) {
         trackEvent("contribution_edit_success", getAnalyticsContext({
@@ -1505,10 +1679,19 @@
       sessionStorage.setItem(
         "submissionUpdateSuccess",
         editMode
-          ? "Your submission has been saved successfully."
-          : "Your contribution has been submitted successfully and is pending review.",
+          ? requiresMoreInfoResponse
+            ? "Your response was sent and the submission is back in review."
+            : "Your submission has been saved successfully."
+          : resubmitMode
+            ? "Your corrected contribution has been submitted and is pending review."
+            : "Your contribution has been submitted successfully and is pending review.",
       );
-      push("/my-submissions");
+      const createdSubmissionId = resubmitMode ? savedResponse?.data?.id : null;
+      push(
+        createdSubmissionId
+          ? `/my-submissions?submission=${encodeURIComponent(createdSubmissionId)}`
+          : "/my-submissions",
+      );
     } catch (err) {
       trackEvent(editMode ? "contribution_edit_error" : "contribution_submit_error", getAnalyticsContext({
         surface: editMode ? "edit_form" : "form",
@@ -1520,24 +1703,13 @@
         error = Array.isArray(err.response.data.recaptcha)
           ? err.response.data.recaptcha[0]
           : err.response.data.recaptcha;
-      } else if (err.response?.data?.evidence_items) {
-        // Parse evidence validation errors from backend
-        const evidenceErrors = err.response.data.evidence_items;
-        if (Array.isArray(evidenceErrors) && evidenceErrors.length > 0) {
-          const first = evidenceErrors[0];
-          error = first.message || JSON.stringify(first);
-        } else {
-          error = typeof evidenceErrors === "string"
-            ? evidenceErrors
-            : JSON.stringify(evidenceErrors);
-        }
       } else {
-        error =
-          err.response?.data?.error ||
-          err.response?.data?.detail ||
-          (editMode
+        error = submissionErrorMessage(
+          err,
+          editMode
             ? "Failed to save submission"
-            : "Failed to submit contribution");
+            : "Failed to submit contribution",
+        );
       }
 
       if (!editMode && recaptchaWidgetId !== null && window.grecaptcha) {
@@ -1603,7 +1775,7 @@
 <div
   class="submit-form-shell content-stretch flex flex-col gap-[12px] items-start relative shrink-0 w-full"
   class:with-guidelines={!editMode}
-  style="max-width: {editMode ? 620 : 550}px; margin: 0 auto;"
+  style="max-width: {editMode || resubmitMode ? 620 : 550}px; margin: 0 auto;"
 >
   {#if editMode}
     <header class="edit-page-header flex w-full flex-col gap-4 pb-2">
@@ -1683,6 +1855,74 @@
             </div>
           </div>
         </div>
+      </section>
+    {/if}
+
+    {#if requiresMoreInfoResponse}
+      <section class="w-full rounded-[16px] bg-[#effcf6] p-5 shadow-[0_0_0_1px_rgba(5,150,105,0.16),0_8px_24px_rgba(5,150,105,0.05)]">
+        <label for="edit-more-info-response" class="font-['Switzer'] text-[14px] font-semibold text-emerald-950">
+          What did you change?
+        </label>
+        <p id="edit-more-info-response-help" class="mt-1 text-pretty font-['Switzer'] text-[12px] leading-5 text-emerald-800">
+          This response is sent separately from your original submission notes, so the steward can see exactly how you addressed the request.
+        </p>
+        <textarea
+          id="edit-more-info-response"
+          bind:value={moreInfoResponse}
+          aria-describedby="edit-more-info-response-help"
+          required
+          maxlength="1000"
+          rows="4"
+          placeholder="Updated the repository and added the requested documentation."
+          class="mt-3 w-full rounded-[12px] border border-emerald-200 bg-white px-3 py-2 font-['Switzer'] text-[14px] leading-5 text-black outline-none transition-[border-color,box-shadow] focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(5,150,105,0.12)]"
+        ></textarea>
+        <p class="mt-1 text-right font-['Switzer'] text-[11px] tabular-nums text-emerald-700">
+          {moreInfoResponse.length}/1000
+        </p>
+      </section>
+    {/if}
+  {:else if resubmitMode}
+    <header class="flex w-full flex-col gap-4 pb-2">
+      <button
+        type="button"
+        onclick={() => push("/my-submissions")}
+        class="group inline-flex min-h-10 w-fit items-center gap-2 rounded-full px-1 pr-3 text-[13px] font-medium text-[#6b6b6b] transition-[color,scale] hover:text-black active:scale-[0.96]"
+      >
+        <span class="flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.06)]">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+        </span>
+        My submissions
+      </button>
+      <div>
+        <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-600">
+          Corrected submission
+        </p>
+        <h1 class="submit-page-title text-balance text-[36px] font-medium leading-[42px] tracking-[-0.72px] text-black">
+          Resubmit contribution
+        </h1>
+        <p class="mt-2 max-w-[500px] text-pretty text-[14px] leading-[21px] text-[#6b6b6b]">
+          Review and update this copied content before creating a new submission. The rejected original and its appeal history remain unchanged.
+        </p>
+      </div>
+    </header>
+
+    {#if resubmitSource.staff_reply}
+      <section class="w-full rounded-[16px] bg-red-50 p-5 shadow-[0_0_0_1px_rgba(220,38,38,0.14),0_8px_24px_rgba(220,38,38,0.04)]">
+        <p class="font-['Switzer'] text-[12px] font-semibold uppercase tracking-[0.12em] text-red-800">Original rejection reason</p>
+        <div class="feedback-markdown mt-2 font-['Switzer'] text-[14px] leading-[21px] text-red-950/80">
+          {@html parseMarkdown(resubmitSource.staff_reply)}
+        </div>
+      </section>
+    {/if}
+
+    {#if cloneContextWarning}
+      <section class="flex w-full items-start gap-3 rounded-[16px] bg-amber-50 p-4 shadow-[0_0_0_1px_rgba(217,119,6,0.16)]" role="status">
+        <svg class="mt-0.5 h-5 w-5 shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 9v3.75m9-1.875a9 9 0 11-18 0 9 9 0 0118 0zM12 16.5h.008v.008H12V16.5z" />
+        </svg>
+        <p class="text-pretty font-['Switzer'] text-[13px] leading-5 text-amber-900">{cloneContextWarning}</p>
       </section>
     {/if}
   {:else}
@@ -2662,9 +2902,19 @@
           class="font-['Switzer'] font-medium leading-[21px] text-[14px] text-white tracking-[0.28px]"
         >
           {#if submitting}
-            {editMode ? "Saving..." : "Submitting..."}
+            {editMode
+              ? requiresMoreInfoResponse
+                ? "Resubmitting..."
+                : "Saving..."
+              : "Submitting..."}
           {:else}
-            {editMode ? "Save changes" : "Submit Contribution"}
+            {editMode
+              ? requiresMoreInfoResponse
+                ? "Save and resubmit"
+                : "Save changes"
+              : resubmitMode
+                ? "Resubmit Contribution"
+                : "Submit Contribution"}
           {/if}
         </span>
         {#if !submitting}
@@ -2685,7 +2935,7 @@
 
       <button
         type="button"
-        onclick={() => push(editMode ? "/my-submissions" : "/")}
+        onclick={() => push(editMode || resubmitMode ? "/my-submissions" : "/")}
         disabled={submitting || deleting}
         class="cancel-action bg-[#f5f5f5] flex h-[40px] items-center justify-center px-[20px] rounded-[20px] hover:bg-[#eaeaea] disabled:opacity-50 transition-[background-color,scale,opacity] duration-150 ease-out active:scale-[0.96] disabled:active:scale-100"
       >

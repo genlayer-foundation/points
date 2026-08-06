@@ -4,7 +4,13 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework import status
 
-from contributions.models import Contribution, ContributionType, Category, SubmittedContribution
+from contributions.models import (
+    Category,
+    Contribution,
+    ContributionType,
+    Evidence,
+    SubmittedContribution,
+)
 from creators.models import Creator
 from leaderboard.models import GlobalLeaderboardMultiplier
 from validators.models import Validator
@@ -255,13 +261,13 @@ class ValidatorCategorySubmitGatingTest(TestCase):
         submission.refresh_from_db()
         self.assertEqual(submission.contribution_type, self.unrestricted_type)
 
-    def test_plain_user_can_edit_unchanged_legacy_community_submission(self):
+    def test_plain_user_can_edit_unchanged_legacy_community_pending_submission(self):
         submission = SubmittedContribution.objects.create(
             user=self.plain_user,
             contribution_type=self.community_type,
             contribution_date=timezone.now(),
             notes='Original legacy community submission',
-            state='more_info_needed',
+            state='pending',
         )
         self.client.force_authenticate(user=self.plain_user)
 
@@ -275,6 +281,37 @@ class ValidatorCategorySubmitGatingTest(TestCase):
         submission.refresh_from_db()
         self.assertEqual(submission.notes, 'Updated legacy community submission')
         self.assertEqual(submission.contribution_type, self.community_type)
+
+    def test_plain_user_cannot_resubmit_legacy_community_submission(self):
+        submission = SubmittedContribution.objects.create(
+            user=self.plain_user,
+            contribution_type=self.community_type,
+            contribution_date=timezone.now(),
+            notes='Original legacy community submission',
+            state='more_info_needed',
+            staff_reply='Please provide more context.',
+        )
+        Evidence.objects.create(
+            submitted_contribution=submission,
+            description='Original evidence',
+            url='https://example.com/legacy-community-evidence',
+        )
+        self.client.force_authenticate(user=self.plain_user)
+
+        response = self.client.patch(
+            f'/api/v1/submissions/{submission.id}/',
+            {
+                'more_info_response': {
+                    'request_id': None,
+                    'message': 'Added the requested context.',
+                },
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        submission.refresh_from_db()
+        self.assertEqual(submission.state, 'more_info_needed')
 
     def test_plain_user_cannot_edit_submission_into_mission_only_type(self):
         submission = self._pending_submission()

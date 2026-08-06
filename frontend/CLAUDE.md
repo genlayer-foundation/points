@@ -392,7 +392,7 @@ const routes = {
   '/validators/contribution/:id': ContributionPreview, // Validator-scoped contribution detail
   '/contribution-type/:id': ContributionTypeDetail,
   '/badge/:id': BadgeDetail,
-  '/submit-contribution': SubmitContribution,
+  '/submit-contribution': SubmitContribution, // ?resubmit=<rejected submission id> owner-loads and prefills a normal create; takes precedence over ?mission and ?type
   '/my-submissions': MySubmissions,
   '/contributions/:id': EditSubmission,
   '/metrics': Metrics,
@@ -536,8 +536,8 @@ In production the SPA (Amplify) and the API are on different hosts and `CSRF_COO
 
 #### Steward Review Components (`src/components/`)
 
-- **`SubmissionCard.svelte`** - Submitter-only card used by My Submissions. It shows submission details, evidence, staff responses, awarded contributions, editing, and appeals without exposing steward-only state.
-- **`StewardSubmissionCard.svelte`** - Dedicated steward workspace for review outcomes, proposals, rubric scoring, internal notes, accepted-contribution edits, and permission-aware submission behavior. It marks `escalated_at` proposals and previews `escalation_threshold_points` conversion for reviewer-tier accepts.
+- **`SubmissionCard.svelte`** - Submitter-only card used by My Submissions. More-info cards keep Edit and add an inline required “What did you change?” direct-resubmit action; rejected cards keep Appeal and add a corrected-submission link to `/submit-contribution?resubmit=<id>`. Request responses render in their own nested box, separate from original notes.
+- **`StewardSubmissionCard.svelte`** - Dedicated steward workspace for review outcomes, proposals, rubric scoring, internal notes, accepted-contribution edits, and permission-aware submission behavior. It marks `escalated_at` proposals, previews `escalation_threshold_points` conversion for reviewer-tier accepts, and renders each submitter response beneath its paired more-info request.
 - **Contribution type review fields** - Contribution type payloads expose `requires_ai_review` and nullable `escalation_threshold_points`; the latter drives the card's advisory preview while the server remains authoritative.
 - **Steward submission search** - `is:escalated` / `not:escalated` map to the `is_escalated` API filter. Tier 2+ stewards get an Escalated queue chip; tier 3 stewards also get an Apex queue chip for `status:accepted is:interesting`.
 - **`AIReviewSummary.svelte`** - Compact AI-only proposal summary that exposes the proposed action, confidence, and expandable synthesis.
@@ -663,7 +663,8 @@ Investor-oriented home page (`routes/Overview.svelte`), top to bottom: hero → 
   - Uses VITE_RECAPTCHA_SITE_KEY from environment (falls back to test key)
   - Honors optional per-user Monday-Sunday UTC contribution-type limits from `user_weekly_*` API fields and shows the user's remaining weekly capacity.
   - New Milestones links can select only highlighted Projects contributions. `EditSubmission.svelte` passes the current submission ID so a pre-policy pending milestone keeps its existing unhighlighted link.
-- `EditSubmission.svelte` - Edit submitted contributions (supports URL and description evidence only - no file uploads)
+  - Rejected resubmission is prefill context only: `?resubmit=<id>` clones date, title, notes, evidence values, type, mission, and linked project without evidence database IDs, then submits through the ordinary POST + reCAPTCHA path. The old rejected row remains untouched. Retired/full types and inactive/full missions preserve copied content but require a valid explicit selection; no silent fallback is allowed. A successful clone returns to `?submission=<new-id>` for highlighting.
+- `EditSubmission.svelte` - Edit submitted contributions (supports URL and description evidence only - no file uploads). A more-info edit shows the steward request plus a distinct required response panel, sends `more_info_response: {request_id, message}`, and labels the action “Save and resubmit.”
 - `ProfileEdit.svelte` - User profile editing (name and profile fields; node version shown read-only, Grafana-sourced)
 - `Profile.svelte` - Public participant profile view
 

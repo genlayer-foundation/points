@@ -186,6 +186,14 @@ export const contributionsAPI = {
 // API endpoints for the submitter-side submission flows
 export const submissionsAPI = {
   appeal: (id, reason) => api.post(`/submissions/${id}/appeal/`, { reason }),
+  /**
+   * @param {string | number} id
+   * @param {{ request_id: number | null, message: string }} response
+   */
+  respondToMoreInfo: (id, response) => api.patch(
+    `/submissions/${id}/`,
+    { more_info_response: response }
+  ),
   /** @param {string | null} submissionId */
   getAcceptedProjects: (submissionId = null) =>
     api.get('/submissions/accepted-projects/', {

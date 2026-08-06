@@ -265,24 +265,52 @@
     push('/submit-contribution');
   }
 
+  /**
+   * @param {string | number} submissionId
+   * @param {Record<string, any>} updatedSubmission
+   */
+  function reconcileUpdatedSubmission(submissionId, updatedSubmission) {
+    const idx = submissions.findIndex(s => s.id === submissionId);
+    if (idx === -1) return;
+
+    if (stateFilter && stateFilter !== updatedSubmission.state) {
+      submissions = submissions.filter(s => s.id !== submissionId);
+      totalCount = Math.max(0, totalCount - 1);
+      return;
+    }
+
+    submissions[idx] = updatedSubmission;
+    submissions = [...submissions];
+  }
+
   async function handleAppeal(submissionId, reason) {
     try {
       const response = await submissionsAPI.appeal(submissionId, reason);
-      const idx = submissions.findIndex(s => s.id === submissionId);
-      if (idx !== -1) {
-        if (stateFilter && stateFilter !== response.data.state) {
-          submissions = submissions.filter(s => s.id !== submissionId);
-          totalCount = Math.max(0, totalCount - 1);
-        } else {
-          submissions[idx] = response.data;
-          submissions = [...submissions];
-        }
-      }
+      reconcileUpdatedSubmission(submissionId, response.data);
       showSuccess('Appeal submitted. A steward will re-review your submission.');
     } catch (err) {
       showError(err.response?.data?.error || 'Failed to submit appeal');
       throw err;
     }
+  }
+
+  /**
+   * @param {string | number} submissionId
+   * @param {{ request_id: number | null, message: string }} moreInfoResponse
+   */
+  async function handleMoreInfoResubmit(submissionId, moreInfoResponse) {
+    const submission = submissions.find(s => s.id === submissionId);
+    if (!submission) {
+      throw new Error('Submission is no longer visible. Refresh and try again.');
+    }
+
+    const response = await submissionsAPI.respondToMoreInfo(
+      submissionId,
+      moreInfoResponse
+    );
+    reconcileUpdatedSubmission(submissionId, response.data);
+    showSuccess('Your response was sent and the submission is back in review.');
+    return response.data;
   }
 </script>
 
@@ -375,6 +403,7 @@
           <SubmissionCard
             {submission}
             onAppeal={handleAppeal}
+            onResubmit={handleMoreInfoResubmit}
           />
         </div>
       {/each}

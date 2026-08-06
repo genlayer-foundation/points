@@ -1,6 +1,8 @@
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework import status
@@ -20,7 +22,7 @@ User = get_user_model()
 class DiscordRoleSubmissionGatingTest(TestCase):
     def setUp(self):
         self.category = Category.objects.create(
-            name='Community',
+            name='Discord Role Test',
             slug='community-test',
             description='Community test category',
         )
@@ -170,3 +172,40 @@ class DiscordRoleSubmissionGatingTest(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
         self.assertIn('temporarily unavailable', response.data['error'])
+
+    @patch('social_connections.discord_roles.DiscordRoleSyncService.sync_member_roles')
+    def test_edit_refreshes_roles_before_locking_submission(self, mock_sync_member_roles):
+        connection = DiscordConnection.objects.create(
+            user=self.user,
+            platform_user_id='discord-user',
+            platform_username='discorduser',
+            linked_at=timezone.now(),
+        )
+        submission = self._create_pending_submission(self.contribution_type)
+        baseline_savepoints = list(transaction.get_connection().savepoint_ids)
+
+        def sync_roles(discord_connection):
+            self.assertEqual(
+                list(transaction.get_connection().savepoint_ids),
+                baseline_savepoints,
+            )
+            discord_connection.guild_member = True
+            discord_connection.roles_synced_at = timezone.now()
+            discord_connection.save(
+                update_fields=['guild_member', 'roles_synced_at'],
+            )
+            discord_connection.current_roles.add(self.required_role)
+            return SimpleNamespace(connection=discord_connection)
+
+        mock_sync_member_roles.side_effect = sync_roles
+
+        response = self.client.patch(
+            f'/api/v1/submissions/{submission.id}/',
+            {'notes': 'Updated after Discord refresh'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        mock_sync_member_roles.assert_called_once_with(connection)
+        submission.refresh_from_db()
+        self.assertEqual(submission.notes, 'Updated after Discord refresh')
