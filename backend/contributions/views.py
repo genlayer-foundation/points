@@ -27,7 +27,8 @@ from django.db.models.functions import Coalesce, Greatest
 from django.shortcuts import get_object_or_404
 from .models import (
     ContributionType, Contribution, Evidence, SubmittedContribution,
-    SubmissionNote, SubmissionStateTransition, ContributionHighlight,
+    SubmissionNote, SubmissionMoreInfoResponse, SubmissionStateTransition,
+    ContributionHighlight,
     Mission, StartupRequest,
     FeaturedContent, Alert, ContributionDiscordXPState,
     DiscordXPDistributionEvent, ProjectMilestoneReview, ReviewProposal,
@@ -597,6 +598,15 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                 ).select_related('user').order_by('-created_at', '-id'),
                 to_attr='more_info_request_notes',
             ),
+            Prefetch(
+                'more_info_responses',
+                queryset=SubmissionMoreInfoResponse.objects.select_related(
+                    'request_note',
+                    'requested_by',
+                    'responder',
+                ).order_by('-created_at', '-id'),
+                to_attr='more_info_response_rows',
+            ),
         ).order_by('-created_at')
 
     def get_serializer_context(self):
@@ -965,92 +975,217 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         """Update submission (only allowed if state is 'pending' or 'more_info_needed')."""
         partial = kwargs.pop('partial', False)
-        instance = self.get_object()
-
-        # Check if update is allowed
-        if instance.state not in ['pending', 'more_info_needed']:
-            return Response(
-                {'error': 'Submission can only be edited when pending or when more information is requested.'},
-                status=status.HTTP_403_FORBIDDEN
+        with transaction.atomic():
+            # Serialize all edits/resubmissions for a submission. In particular,
+            # two clicks on Resubmit must never create two responses for one
+            # steward request.
+            instance = get_object_or_404(
+                SubmittedContribution.objects
+                .select_for_update(),
+                id=kwargs.get('pk'),
+                user=request.user,
             )
+            self.check_object_permissions(request, instance)
 
-        # Appealed submissions are locked while awaiting re-review so the
-        # submitter can't edit-around the appeal. Once a steward explicitly
-        # asks for more info, edits are allowed again so the submitter can
-        # respond.
-        if instance.has_appeal and instance.state == 'pending':
-            return Response(
-                {'error': 'Appealed submissions cannot be edited while awaiting re-review.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        if 'mission' in request.data:
-            requested_mission = request.data.get('mission')
-            current_mission = str(instance.mission_id) if instance.mission_id else None
-            if requested_mission in ('', None):
-                requested_mission = None
-            else:
-                requested_mission = str(requested_mission)
-            if requested_mission != current_mission:
+            # Check if update is allowed
+            if instance.state not in ['pending', 'more_info_needed']:
                 return Response(
-                    {'error': 'Mission cannot be changed after submission.'},
-                    status=status.HTTP_400_BAD_REQUEST,
+                    {'error': 'Submission can only be edited when pending or when more information is requested.'},
+                    status=status.HTTP_403_FORBIDDEN
                 )
 
-        # Update the submission
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
-        serializer.is_valid(raise_exception=True)
-        was_more_info_needed = instance.state == 'more_info_needed'
+            # Appealed submissions are locked while awaiting re-review so the
+            # submitter can't edit-around the appeal. Once a steward explicitly
+            # asks for more info, edits are allowed again so the submitter can
+            # respond.
+            if instance.has_appeal and instance.state == 'pending':
+                return Response(
+                    {'error': 'Appealed submissions cannot be edited while awaiting re-review.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
 
-        contribution_type = (
-            serializer.validated_data.get('contribution_type')
-            or instance.contribution_type
-        )
-        mission = serializer.validated_data.get('mission', instance.mission)
-        contribution_type = (
-            ContributionType.objects
-            .select_related('category')
-            .prefetch_related('required_discord_roles')
-            .get(id=contribution_type.id)
-        )
-        keeps_same_contribution_type = contribution_type.id == instance.contribution_type_id
-        contribution_type_error = self._validate_submission_contribution_type(
-            request.user,
-            contribution_type,
-            mission,
-            skip_capacity_check=keeps_same_contribution_type,
-            skip_weekly_capacity_check=keeps_same_contribution_type,
-            weekly_capacity_at=instance.created_at,
-            allow_existing_community_submission=keeps_same_contribution_type,
-            # A type made non-submittable after the fact must not lock users
-            # out of editing their existing pending/more-info submissions.
-            skip_submittable_check=keeps_same_contribution_type,
-        )
-        if contribution_type_error is not None:
-            return contribution_type_error
+            if 'mission' in request.data:
+                requested_mission = request.data.get('mission')
+                current_mission = str(instance.mission_id) if instance.mission_id else None
+                if requested_mission in ('', None):
+                    requested_mission = None
+                else:
+                    requested_mission = str(requested_mission)
+                if requested_mission != current_mission:
+                    return Response(
+                        {'error': 'Mission cannot be changed after submission.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
-        project_contribution_id = (
-            request.data.get('project_contribution')
-            if 'project_contribution' in request.data
-            else (instance.project_contribution_id if instance.project_contribution_id else None)
-        )
-        milestone_project_contribution, project_error = self._project_link_error(
-            request.user,
-            contribution_type,
-            project_contribution_id,
-            existing_project_contribution_id=instance.project_contribution_id,
-        )
-        if project_error is not None:
-            return project_error
+            serializer = self.get_serializer(
+                instance,
+                data=request.data,
+                partial=partial,
+            )
+            serializer.is_valid(raise_exception=True)
+            was_more_info_needed = instance.state == 'more_info_needed'
+            response_snapshot = None
 
-        notes_error = self._milestone_notes_error(
-            contribution_type,
-            serializer.validated_data.get('notes', instance.notes),
-        )
-        if notes_error is not None:
-            return notes_error
+            if was_more_info_needed:
+                response_payload = serializer.validated_data['more_info_response']
+                latest_request = (
+                    SubmissionNote.objects
+                    .select_for_update()
+                    .select_related('user')
+                    .filter(
+                        submitted_contribution=instance,
+                        is_proposal=False,
+                        data__action='more_info',
+                    )
+                    .order_by('-created_at', '-id')
+                    .first()
+                )
 
-        with transaction.atomic():
+                latest_request_answered = latest_request and (
+                    SubmissionMoreInfoResponse.objects.filter(
+                        request_note=latest_request,
+                    ).exists()
+                )
+                if latest_request and not latest_request_answered:
+                    if response_payload['request_id'] != latest_request.id:
+                        return Response(
+                            {
+                                'more_info_response': {
+                                    'request_id': [
+                                        'This request is stale. Refresh the submission and respond to the latest request.'
+                                    ],
+                                },
+                            },
+                            status=status.HTTP_409_CONFLICT,
+                        )
+
+                    note_data = latest_request.data or {}
+                    request_message = (
+                        note_data.get('staff_reply') or latest_request.message
+                    )
+                    response_snapshot = {
+                        'request_note': latest_request,
+                        'request_message': request_message,
+                        'requested_by': latest_request.user,
+                        'requested_at': latest_request.created_at,
+                    }
+                else:
+                    # Requests created before SubmissionNote tracking only
+                    # survive in staff_reply. They use a null request_id and
+                    # are snapshotted before that field is cleared.
+                    if response_payload['request_id'] is not None:
+                        if (
+                            latest_request_answered
+                            and response_payload['request_id'] == latest_request.id
+                        ):
+                            detail = (
+                                'This more-information request already has a response.'
+                            )
+                        else:
+                            detail = (
+                                'This request is stale. Refresh the submission '
+                                'and respond to the latest request.'
+                            )
+                        return Response(
+                            {
+                                'more_info_response': {
+                                    'request_id': [detail],
+                                },
+                            },
+                            status=status.HTTP_409_CONFLICT,
+                        )
+                    if not (instance.staff_reply or '').strip():
+                        return Response(
+                            {
+                                'more_info_response': {
+                                    'request_id': [
+                                        'There is no active more-information request to answer.'
+                                    ],
+                                },
+                            },
+                            status=status.HTTP_409_CONFLICT,
+                        )
+                    response_snapshot = {
+                        'request_note': None,
+                        'request_message': instance.staff_reply,
+                        'requested_by': instance.reviewed_by,
+                        'requested_at': instance.reviewed_at,
+                    }
+
+            contribution_type = (
+                serializer.validated_data.get('contribution_type')
+                or instance.contribution_type
+            )
+            mission = serializer.validated_data.get('mission', instance.mission)
+            contribution_type = (
+                ContributionType.objects
+                .select_related('category')
+                .prefetch_related('required_discord_roles')
+                .get(id=contribution_type.id)
+            )
+            keeps_same_contribution_type = (
+                contribution_type.id == instance.contribution_type_id
+            )
+            contribution_type_error = self._validate_submission_contribution_type(
+                request.user,
+                contribution_type,
+                mission,
+                skip_capacity_check=keeps_same_contribution_type,
+                skip_weekly_capacity_check=keeps_same_contribution_type,
+                weekly_capacity_at=instance.created_at,
+                # Preserve legacy community pending-edit behavior, but a
+                # resubmission must satisfy current category authorization.
+                allow_existing_community_submission=(
+                    keeps_same_contribution_type and not was_more_info_needed
+                ),
+                # A type made non-submittable after the fact must not lock users
+                # out of editing their existing pending/more-info submissions.
+                skip_submittable_check=keeps_same_contribution_type,
+            )
+            if contribution_type_error is not None:
+                return contribution_type_error
+
+            project_contribution_id = (
+                request.data.get('project_contribution')
+                if 'project_contribution' in request.data
+                else (
+                    instance.project_contribution_id
+                    if instance.project_contribution_id else None
+                )
+            )
+            milestone_project_contribution, project_error = self._project_link_error(
+                request.user,
+                contribution_type,
+                project_contribution_id,
+                existing_project_contribution_id=instance.project_contribution_id,
+            )
+            if project_error is not None:
+                return project_error
+
+            notes_error = self._milestone_notes_error(
+                contribution_type,
+                serializer.validated_data.get('notes', instance.notes),
+            )
+            if notes_error is not None:
+                return notes_error
+
+            # PATCH normally leaves evidence untouched. A more-info
+            # resubmission still has to validate the resulting stored snapshot
+            # against today's evidence, ownership, and duplicate rules.
+            if was_more_info_needed and 'evidence_items' not in request.data:
+                evidence_snapshot = list(
+                    instance.evidence_items.values('id', 'description', 'url')
+                )
+                serializer._validate_evidence_items(
+                    evidence_snapshot,
+                    require_at_least_one=(
+                        not is_milestone_contribution_type(contribution_type)
+                    ),
+                    contribution_type=contribution_type,
+                    user=request.user,
+                    exclude_submission_id=instance.id,
+                )
+
             locked_type = (
                 ContributionType.objects
                 .select_for_update()
@@ -1105,15 +1240,22 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                 serializer.validated_data['project_contribution'] = None
                 serializer.validated_data['milestone_version'] = None
 
-            # Update state back to pending and track edit time
             instance.state = 'pending'
             instance.last_edited_at = timezone.now()
-            instance.staff_reply = ''  # Clear previous staff reply
+            instance.staff_reply = ''
             instance.gate_reviewed = False
             instance.reviewed_by = None
             instance.reviewed_at = None
 
             self.perform_update(serializer)
+
+            if was_more_info_needed:
+                SubmissionMoreInfoResponse.objects.create(
+                    submitted_contribution=instance,
+                    responder=request.user,
+                    message=response_payload['message'],
+                    **response_snapshot,
+                )
 
             SubmissionStateTransition.record(
                 instance,
@@ -1130,7 +1272,12 @@ class SubmittedContributionViewSet(viewsets.ModelViewSet):
                     actor=request.user,
                 )
 
-        return Response(serializer.data)
+            # Re-fetch so the response just created is included in the nested
+            # request history returned to the client.
+            response_instance = self.get_queryset().get(id=instance.id)
+            response_data = self.get_serializer(response_instance).data
+
+        return Response(response_data)
 
     def destroy(self, request, *args, **kwargs):
         """
@@ -1445,13 +1592,18 @@ class StewardSubmissionFilterSet(
         converted_evidence = Evidence.objects.filter(
             contribution_id=OuterRef('converted_contribution_id')
         ).filter(self._evidence_content_query(term))
+        submitter_responses = SubmissionMoreInfoResponse.objects.filter(
+            submitted_contribution_id=OuterRef('pk'),
+            message__icontains=term,
+        )
         return (
             Q(title__icontains=term) |
             Q(notes__icontains=term) |
             Q(converted_contribution__title__icontains=term) |
             Q(converted_contribution__notes__icontains=term) |
             Exists(submitted_evidence) |
-            Exists(converted_evidence)
+            Exists(converted_evidence) |
+            Exists(submitter_responses)
         )
 
     def filter_search(self, queryset, name, value):
@@ -2374,6 +2526,15 @@ class StewardSubmissionViewSet(viewsets.ReadOnlyModelViewSet):
                     data__action='more_info',
                 ).select_related('user').order_by('-created_at', '-id'),
                 to_attr='more_info_request_notes',
+            ),
+            Prefetch(
+                'more_info_responses',
+                queryset=SubmissionMoreInfoResponse.objects.select_related(
+                    'request_note',
+                    'requested_by',
+                    'responder',
+                ).order_by('-created_at', '-id'),
+                to_attr='more_info_response_rows',
             ),
             Prefetch(
                 'review_proposals',

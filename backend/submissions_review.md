@@ -114,6 +114,16 @@ same structured notes rendered in submission cards, from
 `is_more_info_resubmitted`, backed only by an append-only transition from
 `more_info_needed` to `pending`.
 
+Each `more_info_requests[]` item also contains a nullable `response` object
+(`id`, `message`, `user`, `user_name`, `created_at`). A submitter answers the
+latest unanswered request by including
+`more_info_response: {request_id, message}` in the normal owner-scoped
+`PUT/PATCH /api/v1/submissions/{id}/` update. The response is required for the
+`more_info_needed -> pending` transition, limited to 1,000 characters, paired
+to that request cycle, and saved atomically with current submission validation.
+For a legacy request sourced only from `staff_reply`, `request_id` is `null`;
+no historical response is inferred.
+
 Appeals and more-info resubmissions remain available to both AI stages. The
 deterministic gate records an appeal as gate-reviewed but never auto-rejects
 it, so an appeal always reaches a human reviewer.

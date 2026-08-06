@@ -73,6 +73,7 @@ backend/
   - ContributionType - Categories with slug field, M2M `accepted_evidence_url_types`, optional global lifetime `max_submissions`, and optional `max_submissions_per_user_per_week`. The weekly limit uses Monday-Sunday UTC `SubmittedContribution.created_at` bounds and counts every state; edits/appeals reuse the same row and do not consume another slot. If an editable submission changes contribution type, the target type's capacity is checked in the submission's original creation week. `requires_ai_review` gates unengaged pending submissions from tier-1 stewards, while `escalation_threshold_points` converts tier-1 accepts whose contribution-date multiplied points meet the threshold into proposals. Migration 0084 backfills Builder-category types once; new Builder types default to `True` / `400` for values not supplied explicitly, and later explicit admin/model updates remain unchanged.
   - AIReviewFeedback - Per-reviewer, per-AI-proposal benchmark feedback with an immutable `(proposal_source, proposal_source_id)` binding, timestamp metadata in `proposal_ref`, verdict, optional corrected decision/rubric ranges, typed anchored error claims, and a best-effort commit SHA pinned on first save. Records are unique by `(submitted_contribution, reviewer, proposal_source, proposal_source_id)` and never alter submission review state.
   - SubmissionStateTransition - Append-only lifecycle log for submissions (migration 0079). One row per event (`submitted`/`review`/`bulk_reject`/`gate_reject`/`edited`/`canceled`/`appeal`/`evidence_added`/`escalated`/`admin`) with from_state/to_state/actor. Written by every path that changes `state` or clears `reviewed_by`/`reviewed_at` (creation via post_save signal; the rest inline at each call site, incl. the Tier-1 gate command and admin `save_model`). Never mutate or delete rows; read-only in admin. Rationale: row state is overwritten in place and re-open paths destroy review fields, so this log is the only durable decision/lifecycle history. Bulk reject also writes a per-submission decision SubmissionNote (`data.action='reject'`, `data.bulk=true`) so bulk decisions appear in the CRM timeline and note-based metrics like single rejects. The dead `resubmitted_more_info` filter (relied on `reviewed_at` surviving edits, impossible since 2026-06-22) was removed from both filtersets and the steward search grammar.
+  - SubmissionMoreInfoResponse - Immutable submitter response paired one-to-one with a structured request-more-info `SubmissionNote`, plus a nullable request-note FK for legacy `staff_reply` requests. It snapshots the request text/author/time, responder, and capped 1,000-character response so every request cycle remains auditable after the submission returns to pending. Submitter and steward serializers expose it as `more_info_requests[].response`; legacy requests expose `response: null` until actually answered and never receive fabricated history.
   - Human review hierarchy - `Steward.tier` is reviewer (1), top-level (2), or apex (3); steward superusers act as tier 3. Tier 2+ gets the full permission matrix and unrestricted submission visibility. `SubmittedContribution.escalated_at` marks an active threshold proposal and is exposed only through the steward serializer. Tier-1 AI-gated visibility accepts durable AI proposal notes/rows, any active proposal, appeals, and transition-backed more-info resubmissions. Search supports `is_escalated`; the portal grammar maps `is:escalated` / `not:escalated`.
   - Reviewer reward economy - Direct tier-1 decisions on threshold-enabled types earn 10 points for reviewing another user's submission; dedup uses the exact notes key `Review decision reward for submission {submission.id} [{action}]`, while bulk rejects, escalated accepts, and tier 2+ decisions are excluded. Every escalation records a human `ReviewProposal`, so a different finalizer rewards the escalator using rubric agreement for Builder Projects or binary action agreement for standard flows. All human-proposal rewards are then reduced proportionally when final points differ from proposed points.
 - **Projects/Milestones split**: `contributions/project_milestones.py`
@@ -478,9 +479,23 @@ DELETE /api/v1/contributions/{id}/ (requires auth)
 
 # Submissions (submitter-side)
 GET    /api/v1/submissions/my/                  (requires auth, paginated user submissions)
+GET    /api/v1/submissions/{id}/                (requires auth, owner-only source/detail lookup)
+PUT    /api/v1/submissions/{id}/                (requires auth, owner-only editable submission update)
+PATCH  /api/v1/submissions/{id}/                (requires auth, owner-only editable submission update)
 GET    /api/v1/submissions/accepted-projects/   (requires auth, the user's highlighted Projects contributions milestones can link to; optional ?submission=UUID includes that pending milestone's grandfathered current link; includes next_milestone_version and github_url)
 POST   /api/v1/submissions/{id}/appeal/         (requires auth, owner-only, one per submission)
 POST   /api/v1/submissions/{id}/add-evidence/   (requires auth, owner-only)
+
+# More-info resubmission contract
+# A PUT/PATCH while state=more_info_needed must include this write-only object:
+# "more_info_response": {"request_id": 123, "message": "What changed"}
+# request_id is null only for the current legacy staff_reply fallback. The
+# server locks the row, revalidates the resulting snapshot with current type,
+# mission, role/social/Discord, capacity and evidence rules, writes the paired
+# response, clears review fields, and transitions the same row to pending in
+# one transaction. Blank, stale, mismatched, duplicate and pending-state
+# responses are rejected. Read payloads expose the result under
+# more_info_requests[].response as {id, message, user, user_name, created_at}.
 
 # Contribution Types
 GET    /api/v1/contribution-types/            (requires auth)

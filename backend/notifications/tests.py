@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from contributions.models import Category, ContributionType, SubmittedContribution
+from contributions.models import Category, ContributionType, Evidence, SubmittedContribution
 from partners.models import Partner
 from validators.models import Validator
 
@@ -490,11 +490,22 @@ class SubmissionReturnNotificationTests(TestCase):
             assigned_to=self.steward_user,
             gate_reviewed=True,
         )
+        Evidence.objects.create(
+            submitted_contribution=submission,
+            description='Original evidence',
+            url='https://example.com/notification-resubmit-evidence',
+        )
         self.client.force_authenticate(user=self.submitter)
 
         response = self.client.patch(
             f'/api/v1/submissions/{submission.id}/',
-            {'notes': 'Added the requested evidence.'},
+            {
+                'notes': 'Added the requested evidence.',
+                'more_info_response': {
+                    'request_id': None,
+                    'message': 'Added the requested evidence.',
+                },
+            },
             format='json',
         )
 

@@ -198,6 +198,105 @@ describe('SubmissionCard', () => {
     expect(screen.queryByText('Staff Response')).toBeNull();
   });
 
+  it('renders each submitter response separately from the steward request', () => {
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          state: 'pending',
+          more_info_requests: [{
+            id: 2,
+            message: 'Please add repository setup instructions.',
+            user_name: 'Test Steward',
+            created_at: '2026-06-02T12:00:00Z',
+            response: {
+              id: 4,
+              message: 'Added a setup section to the README.',
+              user_name: 'Project Builder',
+              created_at: '2026-06-03T12:00:00Z'
+            }
+          }]
+        })
+      }
+    });
+
+    expect(screen.getByText('Please add repository setup instructions.')).toBeTruthy();
+    expect(screen.getByText('Your response')).toBeTruthy();
+    expect(screen.getByText('Added a setup section to the README.')).toBeTruthy();
+  });
+
+  it('requires an inline response before directly resubmitting unchanged details', async () => {
+    const onResubmit = vi.fn().mockResolvedValue();
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          state: 'more_info_needed',
+          state_display: 'More Information Needed',
+          more_info_requests: [{
+            id: 23,
+            message: 'Document the latest repository changes.',
+            response: null
+          }]
+        }),
+        onResubmit
+      }
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Resubmit' }));
+    const responseInput = screen.getByRole('textbox', { name: 'What did you change?' });
+    const sendButton = screen.getByRole('button', { name: 'Send response and resubmit' });
+    expect(responseInput.required).toBe(true);
+    expect(responseInput.maxLength).toBe(1000);
+    expect(sendButton.disabled).toBe(true);
+
+    await fireEvent.input(responseInput, {
+      target: { value: '  Updated the repository and release notes.  ' }
+    });
+    expect(sendButton.disabled).toBe(false);
+    await fireEvent.click(sendButton);
+
+    await waitFor(() => {
+      expect(onResubmit).toHaveBeenCalledWith(42, {
+        request_id: 23,
+        message: 'Updated the repository and release notes.'
+      });
+    });
+  });
+
+  it('keeps the inline response open and surfaces resubmission errors', async () => {
+    const onResubmit = vi.fn().mockRejectedValue({
+      response: {
+        data: {
+          evidence_items: 'At least one current evidence URL is required.'
+        }
+      }
+    });
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          state: 'more_info_needed',
+          state_display: 'More Information Needed',
+          more_info_requests: [{
+            id: 23,
+            message: 'Add current evidence.',
+            response: null
+          }]
+        }),
+        onResubmit
+      }
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Resubmit' }));
+    await fireEvent.input(screen.getByRole('textbox', { name: 'What did you change?' }), {
+      target: { value: 'Updated the repository evidence.' }
+    });
+    await fireEvent.click(screen.getByRole('button', { name: 'Send response and resubmit' }));
+
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'At least one current evidence URL is required.'
+    );
+    expect(screen.getByRole('textbox', { name: 'What did you change?' })).toBeTruthy();
+  });
+
   it('shows the final staff response and awarded contribution after acceptance', () => {
     render(SubmissionCard, {
       props: {
@@ -252,6 +351,25 @@ describe('SubmissionCard', () => {
       expect(onAppeal).toHaveBeenCalledWith(42, 'The missing evidence is now attached.');
     });
     expect(screen.getByLabelText('Appeal reason').value).toBe('');
+  });
+
+  it('keeps Appeal available while routing rejected Resubmit to a new form', async () => {
+    render(SubmissionCard, {
+      props: {
+        submission: makeSubmission({
+          id: 'rejected-42',
+          state: 'rejected',
+          state_display: 'Rejected',
+          staff_reply: 'Correct the evidence and try again.'
+        }),
+        onAppeal: vi.fn()
+      }
+    });
+
+    expect(screen.getByRole('button', { name: 'Submit Appeal' })).toBeTruthy();
+    expect(screen.getByText(/creates a new, editable contribution/)).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'Resubmit' }));
+    expect(push).toHaveBeenCalledWith('/submit-contribution?resubmit=rejected-42');
   });
 
   it('does not offer a second appeal and shows an appeal under review', () => {

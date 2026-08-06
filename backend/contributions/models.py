@@ -1096,6 +1096,58 @@ class SubmissionNote(BaseModel):
         return f"{prefix}{self.user} on {self.submitted_contribution} at {self.created_at}"
 
 
+class SubmissionMoreInfoResponse(BaseModel):
+    """A submitter's durable response to a steward more-information request.
+
+    New responses point at the structured ``SubmissionNote`` that recorded the
+    request.  ``request_note`` remains nullable so legacy submissions whose
+    request only survives in ``staff_reply`` can still be answered; the request
+    snapshot fields preserve that context after ``staff_reply`` is cleared.
+    """
+
+    submitted_contribution = models.ForeignKey(
+        SubmittedContribution,
+        on_delete=models.CASCADE,
+        related_name='more_info_responses',
+    )
+    request_note = models.OneToOneField(
+        SubmissionNote,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='submitter_response',
+    )
+    request_message = models.TextField()
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='more_info_requests_answered',
+    )
+    requested_at = models.DateTimeField(null=True, blank=True)
+    responder = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='submission_more_info_responses',
+    )
+    message = models.TextField(max_length=1000)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [
+            models.Index(
+                fields=['submitted_contribution', 'created_at'],
+                name='sub_info_resp_created_idx',
+            ),
+        ]
+
+    def __str__(self):
+        return f"Response on {self.submitted_contribution_id} at {self.created_at}"
+
+
 class SubmissionStateTransition(BaseModel):
     """
     Append-only log of submission lifecycle events.
