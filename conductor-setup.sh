@@ -55,6 +55,14 @@ elif [ -f ".env.example" ]; then
     echo "  ⚠️  Please update backend/.env with your actual configuration values"
 fi
 
+# Clone the root checkout's database so workspaces start with real data.
+# cp -c is an APFS clone: instant and takes no disk until modified.
+if [ -n "$CONDUCTOR_ROOT_PATH" ] && [ -f "$CONDUCTOR_ROOT_PATH/backend/db.sqlite3" ]; then
+    echo "  Cloning db.sqlite3 from root checkout..."
+    cp -c "$CONDUCTOR_ROOT_PATH/backend/db.sqlite3" db.sqlite3 2>/dev/null \
+        || cp "$CONDUCTOR_ROOT_PATH/backend/db.sqlite3" db.sqlite3
+fi
+
 # Run database migrations
 echo "  Running database migrations..."
 python manage.py migrate --noinput
